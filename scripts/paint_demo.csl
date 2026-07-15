@@ -101,6 +101,10 @@ Paint_Demo :: class : Component {
     handle_paint_input :: method(player: Player, dt: float) {
         skin := player.skin_canvas;
         if skin == null || player.animator == null { return; }
+        if player.hide_seek_role == .SEEKER {
+            player.was_painting = false;
+            return;
+        }
         mouse := get_mouse_world_position();
 
         // The canvas starts out as the player's skin color and is worn right
@@ -377,6 +381,37 @@ draw_paint_cursor :: proc(player: Player) {
 
 PAINT_MODE_ZOOM_T :: 1.0;
 
+Paint_Mode_Splash :: class : Component {
+    lifetime: float;
+
+    ao_update :: method(dt: float) {
+        lifetime += dt;
+        if lifetime >= 0.7 { entity.destroy(); }
+    }
+}
+
+play_paint_mode_splash :: proc(player: Player) {
+    splash_entity := Scene.create_entity();
+    splash_entity.set_parent(player.entity, false);
+    splash_entity.set_local_position(v2.{0, 0.75});
+    splash_entity.set_local_scale(v2.{0.42, 0.42});
+
+    splash := splash_entity.add_component(Spine_Animator);
+    splash.awaken();
+    splash.set_skeleton(get_asset(Spine_Asset, "reusable_weapons/anims/reusable-weapons/water_splash/013RED_Water_Splash.spine"));
+    splash.color_multiplier = player.brush_color;
+    splash.layer = 20;
+    splash.set_animation("013RED/Splash", false, 0);
+    splash_entity.add_component(Paint_Mode_Splash);
+
+    desc := SFX.default_sfx_desc();
+    desc.entity_to_follow = player.entity.id;
+    desc.specific_to_player = player;
+    desc.volume = 0.55;
+    desc.speed_perturb = 0.08;
+    SFX.play(get_asset(SFX_Asset, "reusable_weapons/sounds/reusable-weapons/geyser_splash_02.wav"), desc);
+}
+
 draw_paint_mode_button :: proc(player: Player) {
     begin_desc := UIK.window(UI.get_safe_screen_rect());
     begin_desc.layer = 110;
@@ -391,35 +426,24 @@ draw_paint_mode_button :: proc(player: Player) {
     UIK.panel_begin(row);
     defer UIK.panel_end();
 
-    button_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
-    button_desc.panel.min_width = 190;
-    button_desc.panel.min_height = 64;
-    label := "Paint";
-    if player.paint_mode {
-        button_desc = UIK.widget_desc_button_default(.BUTTON_BASIC_RED);
+    if player.hide_seek_role != .SEEKER {
+        button_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
         button_desc.panel.min_width = 190;
         button_desc.panel.min_height = 64;
-        label = "Cancel";
-    }
-
-    result := UIK.button("paint_mode_button", label, button_desc);
-    if UIK.clicked(result) {
         if player.paint_mode {
-            player.paint_mode = false;
-            player.picker_open = false;
-            player.eyedropper_active = false;
-            player.was_painting = false;
-            if player.zoom_initialized {
-                player.zoom_t = player.pre_paint_zoom_t;
-                player.camera.size = player.pre_paint_camera_size;
-            }
-        } else {
-            player.paint_mode = true;
-            player.picker_open = true;
-            if player.zoom_initialized {
-                player.pre_paint_zoom_t = player.zoom_t;
-                player.pre_paint_camera_size = player.camera.size;
-                player.zoom_t = PAINT_MODE_ZOOM_T;
+            button_desc = UIK.widget_desc_button_default(.BUTTON_BASIC_RED);
+            button_desc.panel.min_width = 190;
+            button_desc.panel.min_height = 64;
+        }
+        label := "Paint";
+        if player.paint_mode { label = "Cancel"; }
+
+        result := UIK.button("paint_mode_button", label, button_desc);
+        if UIK.clicked(result) {
+            if player.paint_mode {
+                exit_paint_mode(player);
+            } else {
+                enter_paint_mode(player);
             }
         }
     }
@@ -444,18 +468,74 @@ draw_paint_mode_button :: proc(player: Player) {
     }
 }
 
+PAINT_FREEZE_REASON :: "paint_mode";
+
+enter_paint_mode :: proc(player: Player) {
+    if player.paint_mode { return; }
+    player.paint_mode = true;
+    player.picker_open = true;
+    player.pre_paint_camera_size = player.camera.size;
+    if player.zoom_initialized {
+        player.pre_paint_zoom_t = player.zoom_t;
+        player.zoom_t = PAINT_MODE_ZOOM_T;
+    }
+    if !player.paint_controls_disabled {
+        player.add_freeze_reason(PAINT_FREEZE_REASON);
+        if player.device_kind == .PHONE || player.device_kind == .TABLET {
+            player.add_joystick_disable_reason(PAINT_FREEZE_REASON);
+        }
+        player.paint_controls_disabled = true;
+    }
+    play_paint_mode_splash(player);
+}
+
+exit_paint_mode :: proc(player: Player) {
+    player.paint_mode = false;
+    player.picker_open = false;
+    player.eyedropper_active = false;
+    player.was_painting = false;
+    if player.paint_controls_disabled {
+        player.remove_freeze_reason(PAINT_FREEZE_REASON);
+        if player.device_kind == .PHONE || player.device_kind == .TABLET {
+            player.remove_joystick_disable_reason(PAINT_FREEZE_REASON);
+        }
+        player.paint_controls_disabled = false;
+    }
+    if player.zoom_initialized { player.zoom_t = player.pre_paint_zoom_t; }
+    if player.pre_paint_camera_size > 0 { player.camera.size = player.pre_paint_camera_size; }
+}
+
 draw_emote_menu :: proc(player: Player) {
     if !player.emotes_open { return; }
 
-    begin_desc := UIK.window(UI.get_safe_screen_rect());
-    begin_desc.layer = 109;
+    begin_desc := UIK.modal(UI.get_safe_screen_rect(), 120, v4.{0, 0, 0, 0.58});
     UIK.begin(begin_desc);
     defer UIK.end();
 
-    menu := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(680), UIK.fit(), 10, v4.{18, 18, 18, 18});
-    UIK.overlay_begin(.BOTTOM_CENTER, menu, v2.{0, 112});
+    menu := UIK.panel_modal(.WHITE, UIK.pixels(760), UIK.pixels(610), 14, v4.{24, 28, 24, 28});
+    menu.cross_align = .STRETCH;
+    UIK.overlay_begin(.CENTER, menu);
     defer UIK.overlay_end();
-    UIK.grid_begin(4, 58);
+
+    header := UIK.layout_row(UIK.flex(1), UIK.pixels(58), 12);
+    header.cross_align = .CENTER;
+    UIK.panel_begin(header);
+    title_desc := UIK.text_title();
+    title_desc.set_size_mult(1.25);
+    UIK.text(title_desc, "POSES / EMOTES");
+    UIK.spacer(UIK.flex(1), UIK.pixels(1));
+    close_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_RED);
+    close_desc.panel.width = UIK.pixels(52);
+    close_desc.panel.height = UIK.pixels(52);
+    close_icon := get_asset(Texture_Asset, "$AO/ui/kit/Icons/misc_icons_2/exit_button_large.png");
+    close_result := UIK.icon_button("close_emotes", close_icon, close_desc);
+    UIK.panel_end();
+    if UIK.clicked(close_result) {
+        player.emotes_open = false;
+        return;
+    }
+
+    UIK.grid_begin(3, 76);
     defer UIK.grid_end();
 
     labels: [16]string = {
@@ -463,9 +543,9 @@ draw_emote_menu :: proc(player: Player) {
         "Handstand", "Idle", "Lying", "Mid Run", "Sitting", "Star",
         "Superman", "Surrender", "T Pose", "Yoga"
     };
-    pose_desc := UIK.widget_desc_button_auto_default(.BUTTON_BASIC_BLUE);
+    pose_desc := UIK.widget_desc_button_auto_default(.BUTTON_SHINY_BLUE);
     pose_desc.panel.width = UIK.flex(1);
-    pose_desc.panel.height = UIK.pixels(52);
+    pose_desc.panel.height = UIK.pixels(68);
     for i: 0..labels.count - 1 {
         result := UIK.button(labels[i], labels[i], pose_desc);
         if UIK.clicked(result) {
@@ -476,7 +556,7 @@ draw_emote_menu :: proc(player: Player) {
 
     stop_desc := UIK.widget_desc_button_auto_default(.BUTTON_BASIC_RED);
     stop_desc.panel.width = UIK.flex(1);
-    stop_desc.panel.height = UIK.pixels(52);
+    stop_desc.panel.height = UIK.pixels(68);
     stop := UIK.button("stop_emote", "Stop", stop_desc);
     if UIK.clicked(stop) {
         player.active_pose = 0;

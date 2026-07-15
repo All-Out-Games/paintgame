@@ -1,0 +1,156 @@
+import "core:ao"
+import "reusable_weapons"
+
+Player :: class : Player_Base {
+    // -- REUSABLE WEAPONS -- //
+    weapon_target: Weapon_Target;
+    equipped_weapon_type: Weapon_Type;
+    equipped_item_def: Item_Definition;
+    last_selected_index: s64;
+    boomwheel_cannon: Boomwheel_Cannon;
+
+    ao_start :: method() {
+        wt := entity.add_component(Weapon_Target);
+        wt.health = 100.0;
+        wt.max_health = 100.0;
+        wt.owner_entity_id = entity.id;
+        weapon_target = wt;
+
+        last_selected_index = -1;
+
+        init_weapon_items();
+        // NOTE/TODO: this currently adds the additive layer which you may want to do in your own code, so in the future we'll try to make this not interfere with your own state machine setup.
+        // For now you may just want to add inside here :monkaS
+        setup_reusable_weapons_player_state_machine(this);
+
+
+        // (Optional) Give the player all the weapons/ammo to start for debugging
+        // Expand inventory to fit all weapons + ammo
+        Items.set_capacity(default_inventory, 40);
+
+        // Give all weapons
+        give_weapon(.ASSAULT_RIFLE, default_inventory);
+        give_weapon(.SUBMACHINE_GUN, default_inventory);
+        give_weapon(.GATLING_GUN, default_inventory);
+        give_weapon(.BEAM_MACHINE, default_inventory);
+        give_weapon(.WATER_GUN, default_inventory);
+        give_weapon(.MISSILE_BARRAGE, default_inventory);
+        give_weapon(.BLUNDERBUSS, default_inventory);
+        give_weapon(.RAY_GUN, default_inventory);
+        give_weapon(.PLASMA_BURST, default_inventory);
+        give_weapon(.MEGA_BLADE, default_inventory);
+        give_weapon(.BUZZSHOT, default_inventory);
+        give_weapon(.EXPLOSIVE_SHOTGUN, default_inventory);
+        give_weapon(.SUNNY_SIDE_SHOTTY, default_inventory);
+        give_weapon(.GOLDEN_ROCKET_LAUNCHER, default_inventory);
+        give_weapon(.WATER_BALLOON_RPG, default_inventory);
+        give_weapon(.POISON_GRENADE, default_inventory);
+        give_weapon(.BOOMWHEEL, default_inventory);
+        give_weapon(.FIRE_RAY, default_inventory);
+        give_weapon(.ICE_LAUNCHER, default_inventory);
+        give_weapon(.GLACIATOR, default_inventory);
+        give_weapon(.SOLAR_SIPHONER, default_inventory);
+        give_weapon(.OCTO_SIPHONER, default_inventory);
+        give_weapon(.VOID_SPLITTER, default_inventory);
+        give_weapon(.AKIMBO_PISTOLS, default_inventory);
+        give_weapon(.WIND_BLASTER, default_inventory);
+        give_weapon(.STORMS_EYE, default_inventory);
+        give_weapon(.HYDRO_CANNON, default_inventory);
+
+        // Give all ammo types
+        i := 0;
+        while i < AMMO_TYPE_COUNT {
+            info := get_ammo_info(i);
+            ammo_inst := Items.create_item_instance(g_ammo_item_defs[i], info.stack_size);
+            Items.move_item_to_inventory(ammo_inst, default_inventory);
+            i += 1;
+        }
+    }
+
+    ao_late_update :: method(dt: float) {
+        if is_local_or_server() {
+            // Draw fire ability based on equipped weapon's fire mode
+            if equipped_weapon_type != .NONE {
+                config := get_weapon_config(equipped_weapon_type);
+                switch config.fire_mode {
+                    case .CONTINUOUS:  { draw_ability_button(this, Continuous_Fire_Ability, 0); }
+                    case .SINGLE_SHOT: { draw_ability_button(this, Single_Shot_Ability, 0); }
+                    case .SPREAD:      { draw_ability_button(this, Spread_Shot_Ability, 0); }
+                    case .LOBBED:      { draw_ability_button(this, Lobbed_Shot_Ability, 0); }
+                    case .BEAM:        { draw_ability_button(this, Beam_Ability, 0); }
+                    case .SPECIAL:     { draw_ability_button(this, Special_Ability, 0); }
+                }
+                // (Optional) melee ability
+                draw_ability_button(this, Melee_Ability, 1);
+            }
+
+            // Draw hotbar
+            options := Inventory_Draw_Options.default();
+            options.hotbar_item_count = 10;
+            options.enable_selection = true;
+            options.scroll_item_selection = true;
+            options.keyboard_item_selection = true;
+            options.enable_use_from_hotbar = false;
+
+            hotbar := Items.draw_hotbar(this, default_inventory, options);
+
+            // (Optional) Show equipped weapon name above hotbar
+            if equipped_weapon_type != .NONE {
+                config := get_weapon_config(equipped_weapon_type);
+                label_rect := hotbar.entire_rect.top_rect().grow(20, 0, 0, 0);
+                ts := UI.default_text_settings();
+                ts.size = 36;
+                ts.halign = .CENTER;
+                ts.valign = .BOTTOM;
+                ts.do_outline = true;
+                ts.outline_thickness = 3;
+                ts.outline_color = {0, 0, 0, 1};
+                UI.text(label_rect, ts, config.item_name);
+            }
+
+            // Handle equip/unequip on selection change or item swap in current slot
+            handle_equipped_item_changing(hotbar.selected_item_index);
+        }
+
+        if is_local() {
+            draw_health_bar(this);
+        }
+    }
+
+    handle_equipped_item_changing :: method(selected_index: s64) {
+        // Resolve item from hotbar index
+        selected_item: Item_Instance;
+        if selected_index >= 0 && selected_index < default_inventory.capacity {
+            selected_item = default_inventory.get_item(selected_index);
+        }
+
+        new_def: Item_Definition;
+        if selected_item != null {
+            new_def = selected_item.get_definition();
+        }
+
+        // Skip if nothing changed
+        if selected_index == last_selected_index && new_def == equipped_item_def return;
+        last_selected_index = selected_index;
+
+        // Skip if same item definition
+        if new_def == equipped_item_def return;
+
+        // Unequip old weapon
+        if equipped_weapon_type != .NONE {
+            weapon_unequip(this, equipped_weapon_type);
+            equipped_weapon_type = .NONE;
+        }
+        equipped_item_def = null;
+
+        // Equip new weapon if it's a registered weapon
+        if new_def != null {
+            wt := get_weapon_type_for_item(new_def);
+            if wt != .NONE {
+                weapon_equip(this, wt);
+                equipped_weapon_type = wt;
+                equipped_item_def = new_def;
+            }
+        }
+    }
+}
