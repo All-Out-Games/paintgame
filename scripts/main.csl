@@ -80,6 +80,12 @@ Player :: class : Player_Base {
         // sampled colors are all ordinary scene/input state.
         ensure_mecha_rig(this);
         if locomotion_ready {
+            // The engine's built-in `moving` value is derived from position
+            // delta. For remote players in a deployed game, their simulation
+            // position advances at snapshot cadence, which makes that value
+            // pulse on and off and restarts locomotion. Input intent is present
+            // on every simulated frame, including remote-player resimulation.
+            animator.state_machine.set_bool("mecha_moving", length_squared(input_this_frame) > 0.0001);
             animator.state_machine.set_int("mecha_pose", active_pose);
         }
         it := component_iterator(Paint_Demo);

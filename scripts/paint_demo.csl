@@ -266,13 +266,11 @@ MECHA_RENDER_SCALE :: 0.70;
 MECHA_PAINT_ATTACHMENT :: "meccha_MC_circular5";
 
 // Swap the player off the default rig onto the Mecha silhouette, then install
-// its emote layer. The Mecha rig exposes its locomotion clips under the names
-// expected by the built-in player state machine (Idle / Run_Fast), so the main
-// track remains the single replicated source of locomotion. The engine can
-// finish building player.animator after Player.ao_start, and the swapped
-// skeleton's state machine may not be ready in the same frame, so each step is
-// retried from ao_update and latches once done. Runs on client and server alike
-// so the swap and animation state replicate.
+// its locomotion and emote layers. The engine can finish building
+// player.animator after Player.ao_start, and the swapped skeleton's state
+// machine may not be ready in the same frame, so each step is retried from
+// ao_update and latches once done. Runs on client and server alike so the swap
+// and animation state replicate.
 ensure_mecha_rig :: proc(player: Player) {
     if player.animator == null { return; }
     player.animator.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
@@ -293,11 +291,29 @@ ensure_mecha_rig :: proc(player: Player) {
 
     if player.rig_swapped && !player.locomotion_ready {
         sm := player.animator.state_machine;
-        if sm != null && sm.try_get_variable("moving") != null {
-            setup_mecha_emotes(sm);
+        if sm != null && setup_mecha_locomotion(sm) {
             player.locomotion_ready = true;
         }
     }
+}
+
+// Remote players' simulation positions advance at network snapshot cadence in
+// deployed games. The engine's position-delta-based `moving` variable therefore
+// pulses false between snapshots and repeatedly re-enters the run state. Keep
+// the built-in layer valid via the rig's Idle / Run_Fast clips, but cover it with
+// a Mecha locomotion layer driven by stable, replicated input intent instead.
+// Returns false until the built-in state machine is fully initialized.
+setup_mecha_locomotion :: proc(sm: State_Machine) -> bool {
+    if sm.try_get_variable("moving") == null { return false; }
+    moving := sm.create_variable("mecha_moving", .BOOL);
+    layer := sm.create_layer("mecha_locomotion", 3);
+    idle_state := layer.create_state("Idle", true);
+    run_state  := layer.create_state("Run_Fast", true);
+    layer.set_initial_state(idle_state);
+    layer.create_transition(idle_state, run_state, false).create_bool_condition(moving, true);
+    layer.create_transition(run_state, idle_state, false).create_bool_condition(moving, false);
+    setup_mecha_emotes(sm);
+    return true;
 }
 
 setup_mecha_emotes :: proc(sm: State_Machine) {
