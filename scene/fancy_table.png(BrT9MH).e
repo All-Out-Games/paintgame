@@ -1,0 +1,47 @@
+14
+2113123909633
+1800393479
+{
+  "name": "fancy_table.png",
+  "local_enabled": true,
+  "local_position": {
+    "X": -36.9826202392578125,
+    "Y": -2.0608167648315430
+  },
+  "local_rotation": 0,
+  "local_scale": {
+    "X": 1,
+    "Y": 1
+  },
+  "previous_sibling": 1800451543,
+  "next_sibling": 1803290176,
+  "parent": 1809603361
+},
+{
+  "cid": 1,
+  "aoid": 1800494359,
+  "component_type": "Internal_Component",
+  "internal_component_type": "Sprite_Renderer",
+  "data": {
+    "texture": "sprites/Clipping_Furniture/fancy_table.png",
+    "depth_offset": 0.5512542724609375
+  }
+},
+{
+  "cid": 2,
+  "aoid": 2968783442,
+  "component_type": "Internal_Component",
+  "internal_component_type": "Box_Collider",
+  "data": {
+    "make_navmesh_loop": true,
+    "flip_navmesh_loop": true,
+    "size": {
+      "X": 1.4106292724609375,
+      "Y": 0.3444352149963379
+    },
+    "offset": {
+      "X": 0.0375900268554688,
+      "Y": 0.3277823925018311
+    }
+  }
+}

@@ -1,0 +1,18 @@
+14
+2418066587649
+1807259580
+{
+  "name": "Zone2_GRP",
+  "local_enabled": true,
+  "local_position": {
+    "X": 4.7446594238281250,
+    "Y": 44.1782531738281250
+  },
+  "local_rotation": 0,
+  "local_scale": {
+    "X": 1,
+    "Y": 1
+  },
+  "previous_sibling": 1799249834,
+  "parent": 1804982722
+}

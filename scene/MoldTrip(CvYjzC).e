@@ -1,0 +1,29 @@
+14
+8774618185729
+2942450882
+{
+  "name": "MoldTrip",
+  "local_enabled": true,
+  "local_position": {
+    "X": 8.3917837142944336,
+    "Y": 71.6287918090820312
+  },
+  "local_rotation": 0,
+  "local_scale": {
+    "X": 0.4622451066970825,
+    "Y": 0.3947335183620453
+  },
+  "previous_sibling": 2944568454,
+  "next_sibling": 2939715422,
+  "parent": 3747562667
+},
+{
+  "cid": 2,
+  "aoid": 2941263715,
+  "component_type": "Internal_Component",
+  "internal_component_type": "Circle_Collider",
+  "data": {
+    "is_trigger": true,
+    "size": 2
+  }
+}

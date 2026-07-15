@@ -1,0 +1,119 @@
+import "core:ao"
+
+// Game wide systems
+ao_before_scene_load :: proc() {
+}
+
+ao_start :: proc() {
+    it := component_iterator(Paint_Demo);
+    if !it.next() {
+        e := Scene.create_entity();
+        e.set_name("Paint Demo Manager");
+        e.add_component(Paint_Demo);
+    }
+}
+
+ao_update :: proc(dt: float) {
+}
+
+ao_late_update :: proc(dt: float) {
+}
+
+// Per player state
+Player :: class : Player_Base {
+    brush_color:   v4;
+    last_paint_px: v2;
+    was_painting:  bool;
+    wear_delay:    float;
+    skin_initialized: bool;
+    skin_canvas:   Dynamic_Canvas;
+    last_scene_sample_serial: u64;
+    wear_paint_enabled: bool;
+    rig_swapped:   bool;
+    mecha_skin_applied: bool;
+    locomotion_ready: bool;
+
+    // HSV colour picker (toggle with P). brush_color is derived from these on
+    // interaction. See draw_color_picker in paint_demo.csl.
+    picker_open: bool;
+    paint_mode: bool;
+    emotes_open: bool;
+    active_pose: s64;
+    pre_paint_zoom_t: float;
+    pre_paint_camera_size: float;
+    picker_h:    float;
+    picker_s:    float;
+    picker_v:    float;
+    brush_radius: float;   // texels; set by the picker's brush-size slider
+    eyedropper_active: bool;  // armed by the picker's PICK button; next scene click samples
+    paint_cursor_interp: Position_Interpolation_Helper;
+    paint_undo_pixels: [..]Paint_Undo_Pixel;
+    paint_undo_recorded: [SKIN_TEXELS_X * SKIN_TEXELS_Y]bool;
+
+    // Right-side camera zoom slider (see zoom_slider.csl).
+    zoom_initialized: bool;
+    zoom_base_size:   float;  // scene default camera ortho size, captured once
+    zoom_t:           float;  // 0 = zoomed out, 1 = zoomed in
+
+    // Spine attachment override ids while wearing the painted canvas (B key).
+    // One per painted attachment, see PAINTED_ATTACHMENT_COUNT.
+    override_ids: [PAINTED_ATTACHMENT_COUNT]u64;
+
+    ao_start :: method() {
+        brush_color = v4.{0.9, 0.15, 0.15, 1};
+        skin_canvas = Dynamic_Canvas.create(SKIN_TEXELS_X, SKIN_TEXELS_Y, 32);
+        wear_paint_enabled = true;
+        picker_open = false;
+        paint_mode = false;
+        picker_h = 0.0;
+        picker_s = 1.0;
+        picker_v = 1.0;
+        brush_radius = 6.0;
+        // Swap to the Mecha silhouette rig. Retried from ao_update if the
+        // animator isn't ready yet.
+        ensure_mecha_rig(this);
+    }
+
+    ao_update :: method(dt: float) {
+        // Painting runs through normal client prediction and server
+        // reconciliation. Canvas pixels, worn attachment overrides, and the
+        // sampled colors are all ordinary scene/input state.
+        ensure_mecha_rig(this);
+        if locomotion_ready {
+            animator.state_machine.set_int("mecha_pose", active_pose);
+        }
+        it := component_iterator(Paint_Demo);
+        if !it.next() { return; }
+        it.current.handle_paint_input(this, dt);
+    }
+
+    ao_late_update :: method(dt: float) {
+        // UI must be drawn from player late_update, gated on is_local_or_server.
+        if is_local_or_server() {
+            draw_paint_mode_button(this);
+            draw_emote_menu(this);
+            if paint_mode && picker_open {
+                draw_color_picker(this);
+            }
+            if paint_mode {
+                draw_zoom_slider(this);
+                draw_paint_cursor(this);
+            }
+        }
+    }
+
+    ao_end :: method() {
+        if skin_canvas != null { skin_canvas.destroy(); }
+    }
+
+    ao_can_use_ability :: method(ability: Ability_Base) -> bool {
+        return true;
+    }
+
+    ao_can_use_interactable :: method(interactable: Interactable) -> bool {
+        return true;
+    }
+
+    ao_on_state_sync :: method() {
+    }
+}

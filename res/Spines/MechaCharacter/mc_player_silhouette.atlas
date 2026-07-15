@@ -1,0 +1,20 @@
+mc_player_silhouette.png
+	size: 1936, 584
+	filter: Linear, Linear
+meccha_MC_circular
+	bounds: 1432, 19, 499, 561
+	offsets: 44, 33, 586, 622
+meccha_MC_circular2
+	bounds: 374, 3, 518, 577
+	offsets: 33, 17, 586, 622
+	rotate: 180
+meccha_MC_circular3
+	bounds: 3, 3, 518, 577
+	offsets: 33, 17, 586, 622
+meccha_MC_circular4
+	bounds: 1087, 19, 499, 561
+	offsets: 44, 33, 586, 622
+	rotate: 180
+meccha_MC_circular5
+	bounds: 744, 19, 499, 561
+	offsets: 44, 33, 586, 622

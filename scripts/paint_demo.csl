@@ -1,0 +1,677 @@
+// Exercises the Dynamic_Canvas API as a writable character skin, Meccha
+// Chameleon style: sample the final lit/postprocessed scene color, then paint
+// that color onto your own character.
+//
+// Sampling reads any rendered scene content from the composed frame before UI.
+// It is asynchronous: a click queues a read and the color arrives through the
+// player's next input frame. Dynamic_Canvas is used solely for each player's
+// writable painted output.
+//
+// Fully multiplayer: each player paints their own scene-owned canvas through
+// normal predicted gameplay. Canvas pixels and attachment overrides are
+// ordinary reconciled scene state, so every player sees every painted
+// character and late joiners receive the current pixels at drop-in.
+//
+// Controls:
+//   Click outside character - sample any rendered scene content and coat
+//                             asynchronously on the next input frame
+//   Right mouse (or E)      - sample without coating on the next input frame
+//   Hold left on character  - paint details directly on your character
+//   N / B                   - back to the normal look / wear the paint again
+//   C                       - clear to skin color
+//   X                       - debug: flood the canvas's left half red
+//                             (orientation ground truth for mirror checks)
+
+// The Mecha setup pose is about 2.08 wide x 2.34 tall with its arms extended.
+// Keep texels square across that full frame; using the narrower arms-down idle
+// silhouette would collapse the setup-pose arms onto the canvas edge.
+SKIN_TEXELS_X :: 150;
+SKIN_TEXELS_Y :: 168;
+
+// Brush radius range (texels) for the picker's brush-size slider.
+BRUSH_MIN :: 1.0;
+BRUSH_MAX :: 24.0;
+
+SCENE_SAMPLE_FILL_TAG      :: 1;
+SCENE_SAMPLE_PICK_ONLY_TAG :: 2;
+
+// The Mecha rig exposes a single paintable attachment (meccha_MC_circular on
+// bone body), so there is one canvas override per player.
+PAINTED_ATTACHMENT_COUNT :: 1;
+
+// The character-space frame (setup pose, entity-local units) the paint canvas
+// stretches over. These are the Spine export's actual setup-pose bounds after
+// the engine's import scale, including the horizontally extended arms.
+PAINT_RECT_MIN_X :: -1.0294;
+PAINT_RECT_MIN_Y :: -0.0754;
+PAINT_RECT_MAX_X ::  1.0488;
+PAINT_RECT_MAX_Y ::  2.2620;
+
+Paint_Undo_Pixel :: struct {
+    x: s64;
+    y: s64;
+    color: v4;
+}
+
+begin_paint_stroke_undo :: proc(player: Player) {
+    for saved: player.paint_undo_pixels {
+        player.paint_undo_recorded[saved.y * SKIN_TEXELS_X + saved.x] = false;
+    }
+    player.paint_undo_pixels.clear();
+}
+
+record_paint_segment_undo :: proc(player: Player, skin: Dynamic_Canvas, from: v2, to: v2) {
+    radius := player.brush_radius + 1.0;
+    min_x := max(0, (min(from.x, to.x) - radius).(s64));
+    max_x := min(SKIN_TEXELS_X - 1, (max(from.x, to.x) + radius).(s64));
+    min_y := max(0, (min(from.y, to.y) - radius).(s64));
+    max_y := min(SKIN_TEXELS_Y - 1, (max(from.y, to.y) + radius).(s64));
+    segment := to - from;
+    segment_len_sq := length_squared(segment);
+
+    for y: min_y..max_y {
+        for x: min_x..max_x {
+            point := v2.{x.(float) + 0.5, y.(float) + 0.5};
+            t := 0.0;
+            if segment_len_sq > 0.0001 {
+                t = clamp(((point.x - from.x) * segment.x + (point.y - from.y) * segment.y) / segment_len_sq, 0, 1);
+            }
+            closest := from + segment * t;
+            if length_squared(point - closest) > radius * radius { continue; }
+
+            index := y * SKIN_TEXELS_X + x;
+            if player.paint_undo_recorded[index] { continue; }
+            player.paint_undo_recorded[index] = true;
+            player.paint_undo_pixels.append(Paint_Undo_Pixel.{x=x, y=y, color=skin.get_pixel(x, y)});
+        }
+    }
+}
+
+undo_last_paint_stroke :: proc(player: Player) {
+    if player.skin_canvas == null { return; }
+    for saved: player.paint_undo_pixels {
+        player.skin_canvas.set_pixel(saved.x, saved.y, saved.color);
+        player.paint_undo_recorded[saved.y * SKIN_TEXELS_X + saved.x] = false;
+    }
+    player.paint_undo_pixels.clear();
+    player.was_painting = false;
+}
+
+Paint_Demo :: class : Component {
+    handle_paint_input :: method(player: Player, dt: float) {
+        skin := player.skin_canvas;
+        if skin == null || player.animator == null { return; }
+        mouse := get_mouse_world_position();
+
+        // The canvas starts out as the player's skin color and is worn right
+        // away - the character IS the canvas and looks normal until painted.
+        // avatar_color usually arrives with the profile shortly after spawn,
+        // but some accounts never get one (e.g. local test accounts whose
+        // profile fetch fails), so fall back to purple after a grace period
+        // instead of waiting forever.
+        if !player.skin_initialized {
+            player.wear_delay += dt;
+            if player.avatar_color != .NONE || player.wear_delay > 2.0 {
+                color := player.avatar_color;
+                if color == .NONE { color = .PURPLE; }
+                skin.fill(color_replace_get_color(color));
+                player.skin_initialized = true;
+                wear_paint(player, skin);
+            }
+        }
+
+        // Player rig setup can finish after profile/skin initialization. Keep
+        // retrying the requested canvas override until the animator exists;
+        // otherwise a fast profile response leaves the painted canvas valid
+        // but hidden behind the original rig forever.
+        if player.wear_paint_enabled && player.override_ids[0] == 0 && player.animator != null {
+            wear_paint(player, skin);
+        }
+
+        if !player.paint_mode {
+            player.was_painting = false;
+            return;
+        }
+
+        // A completed GPU sample is sticky in resimmable input, so consume
+        // each monotonically increasing serial once. Only the two tags this
+        // demo issues are allowed to change paint state; the sampled input is
+        // client-authored and must be treated as untrusted.
+        sample_color, sample_serial, sample_tag, sample_ok := player.try_get_scene_color_sample();
+        if sample_ok && sample_serial > player.last_scene_sample_serial {
+            player.last_scene_sample_serial = sample_serial;
+            if sample_tag == SCENE_SAMPLE_FILL_TAG || sample_tag == SCENE_SAMPLE_PICK_ONLY_TAG {
+                player.brush_color = sample_color;
+                // Reflect the eyedropped colour in the picker knob/hue/swatch and
+                // disarm the eyedropper (one pick per arm).
+                sh, ss, sv := rgb_to_hsv(sample_color);
+                player.picker_h = sh;
+                player.picker_s = ss;
+                player.picker_v = sv;
+                player.eyedropper_active = false;
+                if sample_tag == SCENE_SAMPLE_FILL_TAG {
+                    skin.fill(sample_color);
+                    if !player.skin_initialized {
+                        player.skin_initialized = true;
+                        wear_paint(player, skin);
+                    }
+                }
+            }
+        }
+
+        // Press C: reset the character back to the player's skin color.
+        if get_input_down(.C, false) {
+            color := player.avatar_color;
+            if color == .NONE { color = .PURPLE; }
+            skin.fill(color_replace_get_color(color));
+            player.skin_initialized = true;
+        }
+        // Press X: orientation ground truth - flood the left half of the
+        // canvas red in texel space, for verifying the canvas-to-character
+        // mapping isn't mirrored.
+        if get_input_down(.X, false) {
+            skin.stamp(v2.{20, 0}, v2.{20, SKIN_TEXELS_Y.(float)}, 26, v4.{0.9, 0.15, 0.15, 1}, 0.05, 1.0);
+        }
+
+        // P: toggle the colour picker. While open it suppresses scene-sampling
+        // (its panel sits where you would click), but you can still paint on your
+        // character with the picked colour.
+        if get_input_down(.P, false) {
+            player.picker_open = !player.picker_open;
+        }
+
+        // B: wear the paint again after N removed it.
+        if get_input_down(.B, false) {
+            player.wear_paint_enabled = true;
+            if player.override_ids[0] == 0 { wear_paint(player, skin); }
+        }
+        // Press N: back to the normal look.
+        if get_input_down(.N, false) {
+            player.wear_paint_enabled = false;
+            for i: 0..PAINTED_ATTACHMENT_COUNT-1 {
+                if player.override_ids[i] != 0 {
+                    player.animator.instance.clear_attachment_sprite_override(player.override_ids[i]);
+                    player.override_ids[i] = 0;
+                }
+            }
+        }
+
+        left_down := get_input_down(.MOUSE_LEFT, false);
+        left_held := get_input_held(.MOUSE_LEFT);
+
+        // Eyedropper: while armed (PICK button), the next left-click samples the
+        // rendered scene colour anywhere (even over the character). The result
+        // arrives via try_get_scene_color_sample above, which sets the brush,
+        // syncs the picker, and disarms.
+        if player.eyedropper_active {
+            if left_down {
+                player.request_scene_color_sample(get_mouse_screen_position(), SCENE_SAMPLE_PICK_ONLY_TAG);
+                player.was_painting = false;
+                return;
+            }
+        }
+
+        // Animated mesh inversion walks the current Spine triangles, so only do
+        // it on frames where a left-button action can consume the result.
+        if !player.eyedropper_active && (left_held || left_down) {
+            character_uv, over_character := player.animator.try_get_paint_canvas_uv(mouse, skin);
+            character_px := v2.{character_uv.x * skin.width.(float), character_uv.y * skin.height.(float)};
+
+            // Hold left mouse over your character: paint directly on the body
+            // with the current brush colour. Leaving the animated silhouette
+            // falls through and clears was_painting, so re-entry cannot bridge a
+            // stroke through empty setup-pose space.
+            if left_held && over_character {
+                from := character_px;
+                if player.was_painting {
+                    from = player.last_paint_px;
+                } else {
+                    begin_paint_stroke_undo(player);
+                }
+                record_paint_segment_undo(player, skin, from, character_px);
+                skin.stamp(from, character_px, player.brush_radius, player.brush_color, 0.4, 1.0);
+                player.last_paint_px = character_px;
+                player.was_painting = true;
+                return;
+            }
+
+            // Scene sampling clicks land where the picker panel is, so suppress
+            // them while it is open. An outside click samples the composed scene.
+            if !player.picker_open && left_down && !over_character {
+                player.request_scene_color_sample(get_mouse_screen_position(), SCENE_SAMPLE_FILL_TAG);
+                player.was_painting = false;
+                return;
+            }
+        }
+
+        if !player.picker_open {
+            // Right mouse or E queues a pick-only sample. Use edge-triggered input
+            // so holding either control cannot issue a GPU read every frame.
+            if get_input_down(.MOUSE_RIGHT, false) || get_input_down(.E, false) {
+                player.request_scene_color_sample(get_mouse_screen_position(), SCENE_SAMPLE_PICK_ONLY_TAG);
+                player.was_painting = false;
+                return;
+            }
+        }
+        player.was_painting = false;
+    }
+}
+
+MECHA_RIG_PATH :: "Spines/MechaCharacter/mc_player_silhouette.spine";
+MECHA_SKIN     :: "clean3";
+MECHA_RENDER_SCALE :: 0.70;
+// Each skin binds a differently-named attachment to the body slot, and
+// override_attachment_canvas targets by attachment name - so this must match
+// the enabled skin (clean -> meccha_MC_circular, clean3 -> meccha_MC_circular5).
+MECHA_PAINT_ATTACHMENT :: "meccha_MC_circular5";
+
+// Swap the player off the default rig onto the Mecha silhouette, then install
+// its locomotion clips. The engine can finish building player.animator after
+// Player.ao_start, and the swapped skeleton's state machine may not be ready in
+// the same frame, so each step is retried from ao_update and latches once done.
+// Runs on client and server alike so the swap and animation state replicate.
+ensure_mecha_rig :: proc(player: Player) {
+    if player.animator == null { return; }
+    player.animator.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
+
+    if !player.rig_swapped {
+        player.animator.set_skeleton(get_asset(Spine_Asset, MECHA_RIG_PATH));
+        player.rig_swapped = true;
+    }
+
+    // Keep skin selection separate from the rig-swap latch. This makes a skin
+    // change take effect for players that already existed before a hot reload.
+    if !player.mecha_skin_applied {
+        player.animator.disable_all_skins();
+        player.animator.enable_skin(MECHA_SKIN);
+        player.animator.refresh_skins();
+        player.mecha_skin_applied = true;
+    }
+
+    if player.rig_swapped && !player.locomotion_ready {
+        sm := player.animator.state_machine;
+        if sm != null && setup_mecha_locomotion(sm) {
+            player.locomotion_ready = true;
+        }
+    }
+}
+
+// The engine's built-in player state machine targets Idle/Run, which this rig
+// doesn't have, so its main track (0) plays nothing. Add a locomotion layer on
+// a free track that plays the rig's own idle_anim / run_anim, driven by the
+// engine's existing velocity-fed `moving` bool - so it stays predicted and
+// replicated without us pushing state every frame. Full-body clips on a higher
+// track override the empty main track. The layer needs set_initial_state in
+// this same function or the next SM update asserts. Returns false until the
+// built-in `moving` variable exists so ensure_mecha_rig keeps retrying.
+setup_mecha_locomotion :: proc(sm: State_Machine) -> bool {
+    moving := sm.try_get_variable("moving");
+    if moving == null { return false; }
+    layer := sm.create_layer("mecha_locomotion", 3);
+    idle_state := layer.create_state("idle_anim", true);
+    run_state  := layer.create_state("run_anim", true);
+    layer.set_initial_state(idle_state);
+    layer.create_transition(idle_state, run_state, false).create_bool_condition(moving, true);
+    layer.create_transition(run_state, idle_state, false).create_bool_condition(moving, false);
+    setup_mecha_emotes(sm);
+    return true;
+}
+
+setup_mecha_emotes :: proc(sm: State_Machine) {
+    pose := sm.create_variable("mecha_pose", .INT);
+    layer := sm.create_layer("mecha_emotes", 4);
+    empty := layer.create_state("__CLEAR_TRACK__", true);
+    layer.set_initial_state(empty);
+    layer.create_global_transition(empty, false).create_int_condition(pose, 0, .EQUAL);
+
+    names: [16]string = {
+        "pose/balancing", "pose/ball", "pose/bend", "pose/bridge",
+        "pose/costanza", "pose/future", "pose/handstand", "pose/idle",
+        "pose/lying", "pose/mid_run", "pose/sitting", "pose/star",
+        "pose/superman", "pose/surrender", "pose/t_pose", "pose/yoga"
+    };
+    for i: 0..names.count - 1 {
+        state := layer.create_state(names[i], true);
+        layer.create_global_transition(state, false).create_int_condition(pose, i + 1, .EQUAL);
+    }
+}
+
+// Wear the paint: override the Mecha silhouette's single body attachment
+// (meccha_MC_circular) with the canvas in skeleton-space mode, so the whole
+// character is one continuous painted surface framed by the paint rect. The
+// override id and canvas rect are reconciled scene state, so every client and
+// late joiner renders the worn paint automatically.
+wear_paint :: proc(player: Player, skin: Dynamic_Canvas) {
+    if player.animator == null { return; }
+    player.animator.instance.set_paint_canvas_rect(v2.{PAINT_RECT_MIN_X, PAINT_RECT_MIN_Y}, v2.{PAINT_RECT_MAX_X, PAINT_RECT_MAX_Y});
+    player.override_ids[0] = player.animator.instance.override_attachment_canvas(MECHA_PAINT_ATTACHMENT, skin, true);
+}
+
+// Screen-space brush preview. Its diameter is derived from the same
+// character-space texel scale used by Dynamic_Canvas, so it matches the
+// painted footprint at every camera zoom level.
+draw_paint_cursor :: proc(player: Player) {
+    if !player.paint_mode || !player.wear_paint_enabled || player.eyedropper_active || player.skin_canvas == null { return; }
+
+    mouse := get_mouse_screen_position();
+    world := screen_to_world(mouse);
+    world_radius := player.brush_radius * ((PAINT_RECT_MAX_X - PAINT_RECT_MIN_X) / SKIN_TEXELS_X.(float)) * MECHA_RENDER_SCALE;
+    edge_screen := world_to_screen(world + v2.{world_radius, 0});
+    radius := length(edge_screen - mouse);
+    radius = max(radius, 5.0);
+
+    UI.push_screen_draw_context();
+    defer UI.pop_draw_context();
+    UI.push_interpolation_offset(player.paint_cursor_interp.update(mouse));
+    defer UI.pop_interpolation_offset();
+
+    circle := get_asset(Texture_Asset, "$AO/circle.png");
+    brush_rect := Rect{min=mouse - v2.{radius, radius}, max=mouse + v2.{radius, radius}};
+    UI.quad(brush_rect, circle, v4.{player.brush_color.x, player.brush_color.y, player.brush_color.z, 0.38});
+
+    // The dark outer keyline remains readable over pale paint and the white
+    // inner ring remains readable over dark paint.
+    UI.wire_circle(mouse, radius + 1.5, 4.0, v4.{0.05, 0.05, 0.06, 0.8}, 48);
+    UI.wire_circle(mouse, radius, 2.0, v4.{1, 1, 1, 0.95}, 48);
+}
+
+PAINT_MODE_ZOOM_T :: 1.0;
+
+draw_paint_mode_button :: proc(player: Player) {
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 110;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    UIK.overlay_begin(.BOTTOM_CENTER, v2.{0, 28});
+    defer UIK.overlay_end();
+
+    row := UIK.layout_row(UIK.fit(), UIK.fit(), 14);
+    row.cross_align = .CENTER;
+    UIK.panel_begin(row);
+    defer UIK.panel_end();
+
+    button_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
+    button_desc.panel.min_width = 190;
+    button_desc.panel.min_height = 64;
+    label := "Paint";
+    if player.paint_mode {
+        button_desc = UIK.widget_desc_button_default(.BUTTON_BASIC_RED);
+        button_desc.panel.min_width = 190;
+        button_desc.panel.min_height = 64;
+        label = "Cancel";
+    }
+
+    result := UIK.button("paint_mode_button", label, button_desc);
+    if UIK.clicked(result) {
+        if player.paint_mode {
+            player.paint_mode = false;
+            player.picker_open = false;
+            player.eyedropper_active = false;
+            player.was_painting = false;
+            if player.zoom_initialized {
+                player.zoom_t = player.pre_paint_zoom_t;
+                player.camera.size = player.pre_paint_camera_size;
+            }
+        } else {
+            player.paint_mode = true;
+            player.picker_open = true;
+            if player.zoom_initialized {
+                player.pre_paint_zoom_t = player.zoom_t;
+                player.pre_paint_camera_size = player.camera.size;
+                player.zoom_t = PAINT_MODE_ZOOM_T;
+            }
+        }
+    }
+
+    emote_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_PURPLE);
+    emote_desc.panel.min_width = 190;
+    emote_desc.panel.min_height = 64;
+    emote_result := UIK.button("emotes_button", "Emotes", emote_desc);
+    if UIK.clicked(emote_result) {
+        player.emotes_open = !player.emotes_open;
+    }
+
+    if player.paint_mode {
+        undo_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_BLUE);
+        undo_desc.panel.min_width = 150;
+        undo_desc.panel.min_height = 64;
+        undo_desc.disabled = player.paint_undo_pixels.count == 0;
+        undo_result := UIK.button("undo_paint_stroke", "Undo", undo_desc);
+        if UIK.clicked(undo_result) {
+            undo_last_paint_stroke(player);
+        }
+    }
+}
+
+draw_emote_menu :: proc(player: Player) {
+    if !player.emotes_open { return; }
+
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 109;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    menu := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(680), UIK.fit(), 10, v4.{18, 18, 18, 18});
+    UIK.overlay_begin(.BOTTOM_CENTER, menu, v2.{0, 112});
+    defer UIK.overlay_end();
+    UIK.grid_begin(4, 58);
+    defer UIK.grid_end();
+
+    labels: [16]string = {
+        "Balancing", "Ball", "Bend", "Bridge", "Costanza", "Future",
+        "Handstand", "Idle", "Lying", "Mid Run", "Sitting", "Star",
+        "Superman", "Surrender", "T Pose", "Yoga"
+    };
+    pose_desc := UIK.widget_desc_button_auto_default(.BUTTON_BASIC_BLUE);
+    pose_desc.panel.width = UIK.flex(1);
+    pose_desc.panel.height = UIK.pixels(52);
+    for i: 0..labels.count - 1 {
+        result := UIK.button(labels[i], labels[i], pose_desc);
+        if UIK.clicked(result) {
+            player.active_pose = i + 1;
+            player.emotes_open = false;
+        }
+    }
+
+    stop_desc := UIK.widget_desc_button_auto_default(.BUTTON_BASIC_RED);
+    stop_desc.panel.width = UIK.flex(1);
+    stop_desc.panel.height = UIK.pixels(52);
+    stop := UIK.button("stop_emote", "Stop", stop_desc);
+    if UIK.clicked(stop) {
+        player.active_pose = 0;
+        player.emotes_open = false;
+    }
+}
+
+// ---- Colour picker (legacy immediate-mode UI) ----
+// An HSV picker modelled on the Meccha "playerpaint" reference: a
+// saturation/value box + a vertical hue bar, with a knob/marker and a swatch.
+// All sizes are 1080p-reference pixels (rect methods auto-scale).
+
+PICKER_MARGIN  :: 28.0;   // gap from the screen corner
+PICKER_PAD     :: 18.0;   // panel inner padding
+PICKER_SV_SIZE :: 340.0;  // SV box side
+PICKER_HUE_W   :: 46.0;   // hue bar width
+PICKER_GAP     :: 16.0;
+PICKER_LABEL_H :: 44.0;
+PICKER_BRUSH_H :: 34.0;   // brush-size slider row height
+PICKER_PICK_W  :: 110.0;  // eyedropper (PICK) button width
+SV_CELLS       :: 16;     // SV gradient resolution (cells per axis)
+HUE_CELLS      :: 24;     // hue bar resolution
+
+hsv_to_rgb :: proc(h: float, s: float, v: float, a: float = 1.0) -> v4 {
+    hh := clamp(h, 0, 1) * 6.0;
+    i  := hh.(s64);              // floor (hh is non-negative)
+    f  := hh - i.(float);
+    p  := v * (1.0 - s);
+    q  := v * (1.0 - s * f);
+    t  := v * (1.0 - s * (1.0 - f));
+    ii := i % 6;
+    if      ii == 0 { return v4.{v, t, p, a}; }
+    else if ii == 1 { return v4.{q, v, p, a}; }
+    else if ii == 2 { return v4.{p, v, t, a}; }
+    else if ii == 3 { return v4.{p, q, v, a}; }
+    else if ii == 4 { return v4.{t, p, v, a}; }
+    return v4.{v, p, q, a};
+}
+
+rgb_to_hsv :: proc(c: v4) -> float, float, float {
+    r := c.x; g := c.y; b := c.z;
+    mx := max(r, max(g, b));
+    mn := min(r, min(g, b));
+    d  := mx - mn;
+    h  := 0.0;
+    if d > 0.00001 {
+        if      mx == r { h = (g - b) / d; }
+        else if mx == g { h = 2.0 + (b - r) / d; }
+        else            { h = 4.0 + (r - g) / d; }
+        h = h / 6.0;
+        if h < 0 { h = h + 1.0; }
+    }
+    s := 0.0;
+    if mx > 0.00001 { s = d / mx; }
+    return h, s, mx;
+}
+
+// A transparent button used purely to hit-test a rect. Its Interact_Result
+// gives mouse_position in the same space as the rect, so no manual screen
+// mapping is needed. active is true only where a real mouse exists (the local
+// client), so this never mutates state on the server or for remote players.
+picker_hit :: proc(rect: Rect, id: string) -> Interact_Result {
+    bs := UI.default_button_settings();
+    bs.sprite         = core_globals.white_sprite;
+    bs.color          = v4.{0, 0, 0, 0};
+    bs.hovered_color  = v4.{0, 0, 0, 0};
+    bs.pressed_color  = v4.{0, 0, 0, 0};
+    bs.disabled_color = v4.{0, 0, 0, 0};
+    bs.press_scaling  = 0;
+    ts := UI.default_text_settings();
+    UI.push_id(id);
+    defer UI.pop_id();
+    return UI.button(rect, bs, ts, "");
+}
+
+draw_color_picker :: proc(player: Player) {
+    UI.push_screen_draw_context();
+    defer UI.pop_draw_context();
+    UI.push_layer(100);
+    defer UI.pop_layer();
+
+    screen := UI.get_safe_screen_rect();
+    panel_w := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_HUE_W;
+    panel_h := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_BRUSH_H + PICKER_GAP + PICKER_LABEL_H;
+    panel := screen.bottom_left_rect().grow(panel_h, panel_w, 0, 0).offset(PICKER_MARGIN, PICKER_MARGIN);
+
+    UI.quad(panel, core_globals.white_sprite, v4.{0.10, 0.10, 0.13, 0.88});
+
+    // Rows from the bottom up: swatch+label, brush-size slider, then the SV box
+    // (with the hue bar cut off its right edge).
+    work := panel.inset(PICKER_PAD);
+    label_row := work.cut_bottom(PICKER_LABEL_H);
+    work.cut_bottom(PICKER_GAP);
+    brush_row := work.cut_bottom(PICKER_BRUSH_H);
+    work.cut_bottom(PICKER_GAP);
+    hue_rect := work.cut_right(PICKER_HUE_W);
+    work.cut_right(PICKER_GAP);
+    sv_rect := work;
+
+    // Interaction (local client only; see picker_hit).
+    sv := picker_hit(sv_rect, "picker_sv");
+    if sv.active {
+        r := sv.rect;
+        player.picker_s = clamp((sv.mouse_position.x - r.min.x) / (r.max.x - r.min.x), 0, 1);
+        player.picker_v = clamp((sv.mouse_position.y - r.min.y) / (r.max.y - r.min.y), 0, 1);
+    }
+    hue := picker_hit(hue_rect, "picker_hue");
+    if hue.active {
+        r := hue.rect;
+        player.picker_h = clamp((hue.mouse_position.y - r.min.y) / (r.max.y - r.min.y), 0, 1);
+    }
+    if sv.active || hue.active {
+        player.brush_color = hsv_to_rgb(player.picker_h, player.picker_s, player.picker_v, 1.0);
+    }
+
+    // Brush-size slider (horizontal). Drag anywhere in the row to set radius.
+    brush := picker_hit(brush_row, "picker_brush");
+    if brush.active {
+        r := brush.rect;
+        f := clamp((brush.mouse_position.x - r.min.x) / (r.max.x - r.min.x), 0, 1);
+        player.brush_radius = BRUSH_MIN + f * (BRUSH_MAX - BRUSH_MIN);
+    }
+
+    // SV gradient (saturation on X, value on Y) as a grid of solid cells.
+    for yi: 0..SV_CELLS - 1 {
+        for xi: 0..SV_CELLS - 1 {
+            s0 := xi.(float)       / SV_CELLS.(float);
+            s1 := (xi + 1).(float) / SV_CELLS.(float);
+            v0 := yi.(float)       / SV_CELLS.(float);
+            v1 := (yi + 1).(float) / SV_CELLS.(float);
+            cell := sv_rect.subrect(s0, v0, s1, v1);
+            UI.quad(cell, core_globals.white_sprite, hsv_to_rgb(player.picker_h, (s0 + s1) * 0.5, (v0 + v1) * 0.5, 1.0));
+        }
+    }
+
+    // Hue bar.
+    for i: 0..HUE_CELLS - 1 {
+        t0 := i.(float)       / HUE_CELLS.(float);
+        t1 := (i + 1).(float) / HUE_CELLS.(float);
+        cell := hue_rect.subrect(0, t0, 1, t1);
+        UI.quad(cell, core_globals.white_sprite, hsv_to_rgb((t0 + t1) * 0.5, 1.0, 1.0, 1.0));
+    }
+
+    // SV knob.
+    knob := sv_rect.subrect(player.picker_s, player.picker_v, player.picker_s, player.picker_v);
+    UI.quad(knob.grow(9), core_globals.white_sprite, v4.{0, 0, 0, 1});
+    UI.quad(knob.grow(6), core_globals.white_sprite, v4.{1, 1, 1, 1});
+
+    // Hue marker.
+    hm := hue_rect.subrect(0, player.picker_h, 1, player.picker_h);
+    UI.quad(hm.grow(5, 5, 5, 5), core_globals.white_sprite, v4.{0, 0, 0, 1});
+    UI.quad(hm.grow(2, 5, 2, 5), core_globals.white_sprite, v4.{1, 1, 1, 1});
+
+    // Brush-size slider: thin track, filled portion, round handle.
+    brush_frac := clamp((player.brush_radius - BRUSH_MIN) / (BRUSH_MAX - BRUSH_MIN), 0, 1);
+    track := brush_row.subrect(0, 0.34, 1, 0.66);
+    UI.quad(track, core_globals.white_sprite, v4.{0, 0, 0, 0.55});
+    UI.quad(brush_row.subrect(0, 0.34, brush_frac, 0.66), core_globals.white_sprite, v4.{0.85, 0.85, 0.9, 1});
+    handle := brush_row.subrect(brush_frac, 0.5, brush_frac, 0.5);
+    UI.quad(handle.grow(11), core_globals.white_sprite, v4.{0, 0, 0, 1});
+    UI.quad(handle.grow(8), core_globals.white_sprite, v4.{1, 1, 1, 1});
+
+    // Swatch + PICK (eyedropper) button + brush-size label.
+    swatch := label_row.cut_left(PICKER_LABEL_H);
+    label_row.cut_left(PICKER_GAP);
+
+    UI.quad(swatch, core_globals.white_sprite, v4.{0, 0, 0, 1});
+    UI.quad(swatch.inset(3), core_globals.white_sprite, hsv_to_rgb(player.picker_h, player.picker_s, player.picker_v, 1.0));
+
+    // Eyedropper toggle: arms sampling of a scene colour on the next click.
+    pick_rect := label_row.cut_right(PICKER_PICK_W);
+    label_row.cut_right(PICKER_GAP);
+    pick_bs := UI.default_button_settings();
+    pick_bs.color         = v4.{0.30, 0.30, 0.36, 1};
+    pick_bs.hovered_color = v4.{0.40, 0.40, 0.46, 1};
+    pick_bs.pressed_color = v4.{0.18, 0.60, 0.28, 1};
+    if player.eyedropper_active {
+        // Armed: highlight green so the mode is obvious.
+        pick_bs.color         = v4.{0.20, 0.80, 0.35, 1};
+        pick_bs.hovered_color = v4.{0.28, 0.90, 0.42, 1};
+    }
+    pick_ts := UI.default_text_settings();
+    pick_ts.size = 26;
+    pick_ts.color = v4.{1, 1, 1, 1};
+    UI.push_id("picker_eyedrop");
+    pick := UI.button(pick_rect, pick_bs, pick_ts, "PICK");
+    UI.pop_id();
+    if pick.clicked {
+        player.eyedropper_active = !player.eyedropper_active;
+    }
+
+    ts := UI.default_text_settings();
+    ts.size   = 30;
+    ts.color  = v4.{1, 1, 1, 1};
+    ts.halign = .LEFT;
+    ts.valign = .CENTER;
+    UI.text(label_row, ts, `Brush: {(player.brush_radius + 0.5).(s64)}px`);
+}

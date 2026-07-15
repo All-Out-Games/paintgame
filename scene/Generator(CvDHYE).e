@@ -1,0 +1,29 @@
+14
+6043018985473
+2936829444
+{
+  "name": "Generator",
+  "local_enabled": false,
+  "local_position": {
+    "X": 216.3576660156250000,
+    "Y": 131.4686737060546875
+  },
+  "local_rotation": 0,
+  "local_scale": {
+    "X": 1,
+    "Y": 1
+  },
+  "previous_sibling": 2947431370,
+  "next_sibling": 2944948017
+},
+{
+  "cid": 1,
+  "aoid": 2950987557,
+  "component_type": "Internal_Component",
+  "internal_component_type": "Sprite_Renderer",
+  "data": {
+    "texture": "generator icon_be87ae.png",
+    "depth_offset": -0.1725473403930664,
+    "mask_in_shadow": true
+  }
+}

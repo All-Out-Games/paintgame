@@ -1,0 +1,29 @@
+14
+7297149435905
+2963210442
+{
+  "name": "Arrow.png",
+  "local_enabled": true,
+  "local_position": {
+    "X": 157.5023803710937500,
+    "Y": 169.2500762939453125
+  },
+  "local_rotation": -79.8998413085937500,
+  "local_scale": {
+    "X": 2,
+    "Y": 2
+  },
+  "previous_sibling": 2956274213,
+  "next_sibling": 2963480567,
+  "parent": 2943964615
+},
+{
+  "cid": 1,
+  "aoid": 2958493867,
+  "component_type": "Internal_Component",
+  "internal_component_type": "Sprite_Renderer",
+  "data": {
+    "texture": "WallDecos/Arrow.png",
+    "layer": -1
+  }
+}

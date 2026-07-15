@@ -1,0 +1,11 @@
+{
+    csl: true
+    manual_mip_divisor: 32
+    projects:
+    [
+        {
+            name: "Paint Demo (Dynamic Textures)"
+            id: "69656dbdda5626277f25de72"
+        }
+    ]
+}
