@@ -595,7 +595,7 @@
 			]
 		}
 	},
-	"idle_anim": {
+	"Idle": {
 		"bones": {
 			"leg_L3": {
 				"translate": [
@@ -836,7 +836,7 @@
 			]
 		}
 	},
-	"run_anim": {
+	"Run_Fast": {
 		"bones": {
 			"leg_L3": {
 				"translate": [
