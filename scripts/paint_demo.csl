@@ -270,10 +270,13 @@ MECHA_RENDER_SCALE :: 0.70;
 MECHA_PAINT_ATTACHMENT :: "meccha_MC_circular5";
 
 // Swap the player off the default rig onto the Mecha silhouette, then install
-// its locomotion clips. The engine can finish building player.animator after
-// Player.ao_start, and the swapped skeleton's state machine may not be ready in
-// the same frame, so each step is retried from ao_update and latches once done.
-// Runs on client and server alike so the swap and animation state replicate.
+// its emote layer. The Mecha rig exposes its locomotion clips under the names
+// expected by the built-in player state machine (Idle / Run_Fast), so the main
+// track remains the single replicated source of locomotion. The engine can
+// finish building player.animator after Player.ao_start, and the swapped
+// skeleton's state machine may not be ready in the same frame, so each step is
+// retried from ao_update and latches once done. Runs on client and server alike
+// so the swap and animation state replicate.
 ensure_mecha_rig :: proc(player: Player) {
     if player.animator == null { return; }
     player.animator.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
@@ -294,31 +297,11 @@ ensure_mecha_rig :: proc(player: Player) {
 
     if player.rig_swapped && !player.locomotion_ready {
         sm := player.animator.state_machine;
-        if sm != null && setup_mecha_locomotion(sm) {
+        if sm != null && sm.try_get_variable("moving") != null {
+            setup_mecha_emotes(sm);
             player.locomotion_ready = true;
         }
     }
-}
-
-// The engine's built-in player state machine targets Idle/Run, which this rig
-// doesn't have, so its main track (0) plays nothing. Add a locomotion layer on
-// a free track that plays the rig's own idle_anim / run_anim, driven by the
-// engine's existing velocity-fed `moving` bool - so it stays predicted and
-// replicated without us pushing state every frame. Full-body clips on a higher
-// track override the empty main track. The layer needs set_initial_state in
-// this same function or the next SM update asserts. Returns false until the
-// built-in `moving` variable exists so ensure_mecha_rig keeps retrying.
-setup_mecha_locomotion :: proc(sm: State_Machine) -> bool {
-    moving := sm.try_get_variable("moving");
-    if moving == null { return false; }
-    layer := sm.create_layer("mecha_locomotion", 3);
-    idle_state := layer.create_state("idle_anim", true);
-    run_state  := layer.create_state("run_anim", true);
-    layer.set_initial_state(idle_state);
-    layer.create_transition(idle_state, run_state, false).create_bool_condition(moving, true);
-    layer.create_transition(run_state, idle_state, false).create_bool_condition(moving, false);
-    setup_mecha_emotes(sm);
-    return true;
 }
 
 setup_mecha_emotes :: proc(sm: State_Machine) {

@@ -2839,8 +2839,9 @@ Emote_Effect :: class : Effect_Base {
 
             fart_entity := Scene.create_entity();
             fart_entity.set_world_position(player.entity.world_position + offset);
-            fart_vfx := fart_entity.add_component(Emote_Fart_VFX);
-            fart_vfx.player = player;
+            fart_entity.add_component(Emote_Fart_VFX, player, proc(component: Component, userdata: Object) {
+                component.(Emote_Fart_VFX).player = userdata.(Player);
+            });
         }
 
         if length_squared(player.input_this_frame) > 0 && !can_move_without_removing_effect {
