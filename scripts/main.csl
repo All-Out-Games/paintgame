@@ -7,11 +7,19 @@ ao_before_scene_load :: proc() {
 
 ao_start :: proc() {
     init_weapon_items();
-    it := component_iterator(Paint_Demo);
-    if !it.next() {
+    paint_it := component_iterator(Paint_Demo);
+    if !paint_it.next() {
         e := Scene.create_entity();
         e.set_name("Paint Demo Manager");
         e.add_component(Paint_Demo);
+    }
+    // Hide_Seek_Game lives on the GameManager scene entity so its spawn
+    // references can be assigned in the editor. This only builds a fallback if
+    // that entity is missing, and that fallback has no spawns wired up.
+    hide_seek_it := component_iterator(Hide_Seek_Game);
+    if !hide_seek_it.next() {
+        e := Scene.create_entity();
+        e.set_name("Hide Seek Game");
         e.add_component(Hide_Seek_Game);
     }
 }
@@ -66,7 +74,7 @@ Player :: class : Player_Base {
     // Hide and seek round state.
     hide_seek_role: Hide_Seek_Role;
     role_visual_applied: Hide_Seek_Role;
-    seeker_frozen: bool;
+    spawn_placed: bool;   // set once the game has positioned this player
     weapon_target: Weapon_Target;
     equipped_weapon_type: Weapon_Type;
     equipped_item_def: Item_Definition;
@@ -76,6 +84,9 @@ Player :: class : Player_Base {
     seeker_rig_ready: bool;
     streamed_seeker_rig_ready: bool;
     lobby_start_position: v2;
+    map_vote: s64;              // index into Map_Kind; -1 means no vote cast
+    map_vote_hold_index: s64;   // card currently being held; -1 when none
+    map_vote_hold_t: float;
     role_reveal_end_time: float;
     hider_name_hidden: bool;
     original_player_skins: [..]string;
@@ -84,6 +95,8 @@ Player :: class : Player_Base {
     ao_start :: method() {
         brush_color = v4.{0.9, 0.15, 0.15, 1};
         lobby_start_position = entity.world_position;
+        map_vote = -1;
+        map_vote_hold_index = -1;
         skin_canvas = Dynamic_Canvas.create(SKIN_TEXELS_X, SKIN_TEXELS_Y, 32);
         wear_paint_enabled = true;
         picker_open = false;
@@ -136,6 +149,7 @@ Player :: class : Player_Base {
             draw_paint_mode_button(this);
             draw_emote_menu(this);
             draw_hide_seek_ui(this);
+            draw_map_vote_ui(this, dt);
             draw_hide_seek_role_reveal(this);
             if paint_mode && picker_open {
                 draw_color_picker(this);

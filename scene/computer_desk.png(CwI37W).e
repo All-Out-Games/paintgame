@@ -26,20 +26,4 @@
     "texture": "sprites/Zone1b/computer_desk.png",
     "depth_offset": 0.9019231796264648
   }
-},
-{
-  "cid": 2,
-  "aoid": 2955928680,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Box_Collider",
-  "data": {
-    "size": {
-      "X": 0.7302093505859375,
-      "Y": 1.4364514350891113
-    },
-    "offset": {
-      "X": 0.0258255004882812,
-      "Y": 0.1665406227111816
-    }
-  }
 }

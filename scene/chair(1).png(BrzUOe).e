@@ -26,22 +26,4 @@
     "texture": "sprites/Zone1b/chair (1).png",
     "depth_offset": -0.1764402389526367
   }
-},
-{
-  "cid": 2,
-  "aoid": 1795835693,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Box_Collider",
-  "data": {
-    "make_navmesh_loop": true,
-    "flip_navmesh_loop": true,
-    "size": {
-      "X": 0.5852508544921875,
-      "Y": 0.4095287322998047
-    },
-    "offset": {
-      "X": 0.0000076293945312,
-      "Y": -0.4235925674438477
-    }
-  }
 }

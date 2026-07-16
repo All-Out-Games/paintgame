@@ -1,10 +1,21 @@
-HIDE_PHASE_SECONDS :: 60.0;
-HUNT_PHASE_SECONDS :: 180.0;
-LOBBY_COUNTDOWN_SECONDS :: 30.0;
-ROUND_END_SECONDS :: 5.0;
-SEEKER_FREEZE_REASON :: "hide_seek_countdown";
+MIN_PLAYERS_DEFAULT :: 2;
+MAP_SELECT_COUNTDOWN_SECONDS :: 10.0;
+MAP_SELECTION_SECONDS :: 10.0;
+STARTING_GAME_SECONDS :: 5.0;
+HIDE_PHASE_SECONDS :: 50.0;
+HUNT_PHASE_SECONDS :: 100.0;
+REVEAL_SECONDS :: 20.0;
 HIDER_NAME_REASON :: "hide_seek_hider";
 SEEKER_RIG :: "$AO/streamed_character";
+MAP_COUNT :: 3;
+MAP_VOTE_HOLD_SECONDS :: 0.6;
+MAP_CARD_WIDTH :: 480.0;
+MAP_PREVIEW_WIDTH :: 440.0;
+MAP_PREVIEW_HEIGHT :: 260.0;
+MAP_VOTE_GREEN :: v4.{0.25, 1.0, 0.45, 1.0};
+// Seekers draw over hiders.
+HIDER_ANIMATOR_LAYER :: 1;
+SEEKER_ANIMATOR_LAYER :: 2;
 
 Hide_Seek_Role :: enum {
     NONE;
@@ -12,24 +23,67 @@ Hide_Seek_Role :: enum {
     SEEKER;
 }
 
+Map_Kind :: enum {
+    BACKROOMS;
+    BACKROOMS_DARK;
+    BACKROOMS_WATER;
+}
+
 Hide_Seek_Phase :: enum {
-    WAITING;
-    COUNTDOWN;
+    WAITING_FOR_PLAYERS;
+    STARTING_MAP_SELECTION;
+    MAP_SELECTION;
+    STARTING_GAME;
     HIDING;
     HUNTING;
-    SEEKERS_WIN;
-    HIDERS_WIN;
+    REVEAL;
+}
+
+Hide_Seek_Winner :: enum {
+    NONE;
+    SEEKERS;
+    HIDERS;
+}
+
+map_display_name :: proc(map: Map_Kind) -> string {
+    switch map {
+        case .BACKROOMS:       return "Backrooms";
+        case .BACKROOMS_DARK:  return "Backrooms Dark";
+        case .BACKROOMS_WATER: return "Backrooms Water";
+        default:               return "Unknown";
+    }
+}
+
+// Placeholder art: each map preview is a flat tinted box until real map
+// screenshots exist.
+map_preview_tint :: proc(map: Map_Kind) -> v4 {
+    switch map {
+        case .BACKROOMS:       return v4.{0.86, 0.78, 0.36, 1};
+        case .BACKROOMS_DARK:  return v4.{0.24, 0.26, 0.34, 1};
+        case .BACKROOMS_WATER: return v4.{0.26, 0.56, 0.86, 1};
+        default:               return v4.{1, 1, 1, 1};
+    }
 }
 
 Hide_Seek_Game :: class : Component {
+    lobby_spawn: Entity   @ao_serialize;
+    map_spawns:  [..]Entity @ao_serialize;
+    min_players: s64      @ao_serialize;
+
     phase: Hide_Seek_Phase;
     phase_end_time: float;
     hiders_left: s64;
     seekers: s64;
+    winner: Hide_Seek_Winner;
+    selected_map: Map_Kind;
+    map_votes: [MAP_COUNT]s64;
 
     ao_start :: method() {
         g_hide_seek = this;
-        phase = .WAITING;
+        phase = .WAITING_FOR_PLAYERS;
+        // The round needs a seeker plus at least one hider, so 2 is the floor
+        // regardless of what the scene asks for.
+        if min_players < 2 { min_players = MIN_PLAYERS_DEFAULT; }
     }
 
     ao_update :: method(dt: float) {
@@ -39,62 +93,87 @@ Hide_Seek_Game :: class : Component {
         if phase == .HIDING || phase == .HUNTING {
             for player: component_iterator(Player) {
                 if player.hide_seek_role == .NONE {
-                    add_mid_round_seeker(player, phase == .HIDING);
+                    add_mid_round_seeker(this, player, phase == .HIDING);
                 }
             }
             refresh_hide_seek_counts(this);
             if seekers <= 0 {
-                finish_hide_seek_round(this, .HIDERS_WIN);
+                finish_hide_seek_round(this, .HIDERS);
                 return;
             }
-        }
-
-        if phase == .WAITING && player_count >= 2 {
-            phase = .COUNTDOWN;
-            phase_end_time = get_time() + LOBBY_COUNTDOWN_SECONDS;
-        } else if phase == .COUNTDOWN {
-            if player_count < 2 {
-                phase = .WAITING;
-            } else if get_time() >= phase_end_time {
-                start_hide_seek_round(this);
-            }
-        } else if phase == .HIDING && get_time() >= phase_end_time {
-            phase = .HUNTING;
-            phase_end_time = get_time() + HUNT_PHASE_SECONDS;
+        } else {
+            // Players spawn wherever the engine drops them, so put anyone who
+            // has not been placed yet into the lobby. Mid-round joiners are
+            // positioned by add_mid_round_seeker instead.
             for player: component_iterator(Player) {
-                if player.seeker_frozen {
-                    player.remove_freeze_reason(SEEKER_FREEZE_REASON);
-                    player.seeker_frozen = false;
+                if !player.spawn_placed {
+                    player.spawn_placed = true;
+                    teleport_player_to_lobby(this, player);
                 }
             }
-        } else if phase == .HUNTING {
-            if hiders_left <= 0 {
-                finish_hide_seek_round(this, .SEEKERS_WIN);
-            } else if get_time() >= phase_end_time {
-                finish_hide_seek_round(this, .HIDERS_WIN);
-            }
-        } else if (phase == .SEEKERS_WIN || phase == .HIDERS_WIN) && get_time() >= phase_end_time {
-            return_players_to_lobby(this);
         }
-    }
-}
 
-add_mid_round_seeker :: proc(player: Player, freeze_until_hunt: bool) {
-    player.hide_seek_role = .SEEKER;
-    if player.hider_name_hidden {
-        player.remove_name_invisibility_reason(HIDER_NAME_REASON);
-        player.hider_name_hidden = false;
-    }
-    exit_paint_mode(player);
-    player.emotes_open = false;
-    player.active_pose = 0;
-    player.role_visual_applied = .NONE;
-    player.seeker_rig_ready = false;
-    player.streamed_seeker_rig_ready = false;
-    player.role_reveal_end_time = get_time() + 5.0;
-    if freeze_until_hunt && !player.seeker_frozen {
-        player.add_freeze_reason(SEEKER_FREEZE_REASON);
-        player.seeker_frozen = true;
+        switch phase {
+            case .WAITING_FOR_PLAYERS: {
+                if player_count >= min_players {
+                    phase = .STARTING_MAP_SELECTION;
+                    phase_end_time = get_time() + MAP_SELECT_COUNTDOWN_SECONDS;
+                }
+            }
+            case .STARTING_MAP_SELECTION: {
+                if player_count < min_players {
+                    phase = .WAITING_FOR_PLAYERS;
+                } else if get_time() >= phase_end_time {
+                    begin_map_selection(this);
+                }
+            }
+            case .MAP_SELECTION: {
+                if player_count < min_players {
+                    phase = .WAITING_FOR_PLAYERS;
+                } else {
+                    // Retallied every frame so the vote counts on the cards
+                    // update live as players click.
+                    tally_map_votes(this);
+                    if get_time() >= phase_end_time {
+                        selected_map = resolve_map_vote(this);
+                        phase = .STARTING_GAME;
+                        phase_end_time = get_time() + STARTING_GAME_SECONDS;
+                    }
+                }
+            }
+            case .STARTING_GAME: {
+                if player_count < min_players {
+                    phase = .WAITING_FOR_PLAYERS;
+                } else if get_time() >= phase_end_time {
+                    start_hide_seek_round(this);
+                }
+            }
+            case .HIDING: {
+                if get_time() >= phase_end_time {
+                    phase = .HUNTING;
+                    phase_end_time = get_time() + HUNT_PHASE_SECONDS;
+                    // Seekers waited out the hide phase in the lobby, so they
+                    // need dropping into the map to hunt.
+                    for player: component_iterator(Player) {
+                        if player.hide_seek_role == .SEEKER {
+                            teleport_player_to_map(this, player);
+                        }
+                    }
+                }
+            }
+            case .HUNTING: {
+                if hiders_left <= 0 {
+                    finish_hide_seek_round(this, .SEEKERS);
+                } else if get_time() >= phase_end_time {
+                    finish_hide_seek_round(this, .HIDERS);
+                }
+            }
+            case .REVEAL: {
+                if get_time() >= phase_end_time {
+                    return_players_to_lobby(this);
+                }
+            }
+        }
     }
 }
 
@@ -109,6 +188,86 @@ get_hide_seek_game :: proc() -> Hide_Seek_Game {
     return null;
 }
 
+// Falls back to the position the engine spawned the player at, so an
+// unassigned lobby_spawn degrades instead of dumping everyone at the origin.
+lobby_position_for :: proc(game: Hide_Seek_Game, player: Player) -> v2 {
+    if #alive(game.lobby_spawn) { return game.lobby_spawn.world_position; }
+    return player.lobby_start_position;
+}
+
+teleport_player_to_lobby :: proc(game: Hide_Seek_Game, player: Player) {
+    player.entity.set_world_position(lobby_position_for(game, player));
+    player.entity.mark_teleported();
+}
+
+teleport_player_to_map :: proc(game: Hide_Seek_Game, player: Player) {
+    index := game.selected_map.(s64);
+    if index < 0 || index >= game.map_spawns.count { return; }
+    spawn := game.map_spawns[index];
+    if !#alive(spawn) { return; }
+    player.entity.set_world_position(spawn.world_position);
+    player.entity.mark_teleported();
+}
+
+tally_map_votes :: proc(game: Hide_Seek_Game) {
+    for i: 0..MAP_COUNT - 1 { game.map_votes[i] = 0; }
+    for player: component_iterator(Player) {
+        if player.map_vote >= 0 && player.map_vote < MAP_COUNT {
+            game.map_votes[player.map_vote] += 1;
+        }
+    }
+}
+
+begin_map_selection :: proc(game: Hide_Seek_Game) {
+    for player: component_iterator(Player) {
+        player.map_vote = -1;
+        player.map_vote_hold_index = -1;
+        player.map_vote_hold_t = 0;
+    }
+    tally_map_votes(game);
+    game.phase = .MAP_SELECTION;
+    game.phase_end_time = get_time() + MAP_SELECTION_SECONDS;
+}
+
+// Ties (including nobody voting) break randomly among the leaders.
+resolve_map_vote :: proc(game: Hide_Seek_Game) -> Map_Kind {
+    tally_map_votes(game);
+    best_votes := game.map_votes[0];
+    for i: 1..MAP_COUNT - 1 {
+        if game.map_votes[i] > best_votes { best_votes = game.map_votes[i]; }
+    }
+    tied: [..]s64;
+    for i: 0..MAP_COUNT - 1 {
+        if game.map_votes[i] == best_votes { tied.append(i); }
+    }
+    if tied.count == 1 { return tied[0].(Map_Kind); }
+    rng := rng_root_seed();
+    return tied[rng_range_int(ref rng, 0, tied.count - 1)].(Map_Kind);
+}
+
+add_mid_round_seeker :: proc(game: Hide_Seek_Game, player: Player, hide_phase: bool) {
+    player.hide_seek_role = .SEEKER;
+    if player.hider_name_hidden {
+        player.remove_name_invisibility_reason(HIDER_NAME_REASON);
+        player.hider_name_hidden = false;
+    }
+    exit_paint_mode(player);
+    player.emotes_open = false;
+    player.active_pose = 0;
+    player.role_visual_applied = .NONE;
+    player.seeker_rig_ready = false;
+    player.streamed_seeker_rig_ready = false;
+    player.role_reveal_end_time = get_time() + 5.0;
+    player.spawn_placed = true;
+    // During the hide phase seekers wait in the lobby; once hunting has begun
+    // a fresh seeker joins straight into the map.
+    if hide_phase {
+        teleport_player_to_lobby(game, player);
+    } else {
+        teleport_player_to_map(game, player);
+    }
+}
+
 refresh_hide_seek_counts :: proc(game: Hide_Seek_Game) {
     game.hiders_left = 0;
     game.seekers = 0;
@@ -118,17 +277,14 @@ refresh_hide_seek_counts :: proc(game: Hide_Seek_Game) {
     }
 }
 
-finish_hide_seek_round :: proc(game: Hide_Seek_Game, winner: Hide_Seek_Phase) {
-    game.phase = winner;
-    game.phase_end_time = get_time() + ROUND_END_SECONDS;
+finish_hide_seek_round :: proc(game: Hide_Seek_Game, winner: Hide_Seek_Winner) {
+    game.winner = winner;
+    game.phase = .REVEAL;
+    game.phase_end_time = get_time() + REVEAL_SECONDS;
 }
 
 return_players_to_lobby :: proc(game: Hide_Seek_Game) {
     for player: component_iterator(Player) {
-        if player.seeker_frozen {
-            player.remove_freeze_reason(SEEKER_FREEZE_REASON);
-            player.seeker_frozen = false;
-        }
         player.hide_seek_role = .HIDER;
         if player.hider_name_hidden {
             player.remove_name_invisibility_reason(HIDER_NAME_REASON);
@@ -138,14 +294,18 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
         player.seeker_rig_ready = false;
         player.streamed_seeker_rig_ready = false;
         player.active_pose = 0;
+        player.map_vote = -1;
+        player.map_vote_hold_index = -1;
+        player.map_vote_hold_t = 0;
+        player.spawn_placed = true;
         exit_paint_mode(player);
         player.emotes_open = false;
-        player.entity.set_world_position(player.lobby_start_position);
-        player.entity.mark_teleported();
+        teleport_player_to_lobby(game, player);
     }
     game.hiders_left = 0;
     game.seekers = 0;
-    game.phase = .WAITING;
+    game.winner = .NONE;
+    game.phase = .WAITING_FOR_PLAYERS;
     game.phase_end_time = 0;
 }
 
@@ -157,16 +317,12 @@ hide_seek_can_shoot :: proc() -> bool {
 start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
     players: [..]Player;
     for player: component_iterator(Player) { players.append(player); }
-    if players.count < 2 { return false; }
+    if players.count < game.min_players { return false; }
 
     rng := rng_root_seed();
     seeker_index := rng_range_int(ref rng, 0, players.count - 1);
     for i: 0..players.count - 1 {
         player := players[i];
-        if player.seeker_frozen {
-            player.remove_freeze_reason(SEEKER_FREEZE_REASON);
-            player.seeker_frozen = false;
-        }
         player.hide_seek_role = .HIDER;
         if i == seeker_index { player.hide_seek_role = .SEEKER; }
         if player.hide_seek_role == .HIDER && !player.hider_name_hidden {
@@ -181,10 +337,13 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
         player.streamed_seeker_rig_ready = false;
         player.role_reveal_end_time = get_time() + 5.0;
         player.active_pose = 0;
+        player.spawn_placed = true;
         exit_paint_mode(player);
+        // The seeker roams the lobby while the hiders get the map to themselves.
         if player.hide_seek_role == .SEEKER {
-            player.add_freeze_reason(SEEKER_FREEZE_REASON);
-            player.seeker_frozen = true;
+            teleport_player_to_lobby(game, player);
+        } else {
+            teleport_player_to_map(game, player);
         }
     }
 
@@ -198,7 +357,7 @@ start :: proc(command_player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
     if !start_hide_seek_round(game) {
-        Notifier.notify(command_player, "At least 2 players are required.");
+        Notifier.notify(command_player, `At least {game.min_players} players are required.`);
     }
 } @chat_command @owner_or_editor
 
@@ -223,8 +382,11 @@ on_hide_seek_player_damaged :: proc(target: Weapon_Target, damage: float, attack
     victim.role_visual_applied = .NONE;
     victim.seeker_rig_ready = false;
     victim.streamed_seeker_rig_ready = false;
+    // Caught hiders respawn at the map entrance as a seeker rather than
+    // carrying on from wherever they were found.
+    teleport_player_to_map(game, victim);
     refresh_hide_seek_counts(game);
-    if game.hiders_left <= 0 { finish_hide_seek_round(game, .SEEKERS_WIN); }
+    if game.hiders_left <= 0 { finish_hide_seek_round(game, .SEEKERS); }
 }
 
 capture_original_player_skins :: proc(player: Player) {
@@ -243,6 +405,7 @@ apply_seeker_visuals :: proc(player: Player) {
     }
     player.animator.set_skeleton(get_asset(Spine_Asset, SEEKER_RIG));
     player.animator.scale = v2.{0.7, 0.7};
+    player.animator.layer = SEEKER_ANIMATOR_LAYER;
     player.animator.disable_all_skins();
     player.animator.enable_skin("base/crewchsia");
     for skin: player.original_player_skins {
@@ -283,6 +446,7 @@ apply_hider_visuals :: proc(player: Player) {
     }
     player.animator.set_skeleton(get_asset(Spine_Asset, MECHA_RIG_PATH));
     player.animator.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
+    player.animator.layer = HIDER_ANIMATOR_LAYER;
     player.animator.disable_all_skins();
     player.animator.enable_skin(MECHA_SKIN);
     player.animator.refresh_skins();
@@ -305,9 +469,33 @@ update_hide_seek_player :: proc(player: Player) {
     }
 }
 
+hide_seek_phase_title :: proc(game: Hide_Seek_Game, player: Player) -> string {
+    switch game.phase {
+        case .WAITING_FOR_PLAYERS:    return "WAITING FOR PLAYERS";
+        case .STARTING_MAP_SELECTION: return "MAP VOTE STARTING";
+        case .MAP_SELECTION:          return "VOTE FOR A MAP";
+        case .STARTING_GAME:          return "GET READY";
+        case .HIDING: {
+            if player.hide_seek_role == .SEEKER { return "WAIT"; }
+            return "HIDE";
+        }
+        case .HUNTING: {
+            if player.hide_seek_role == .SEEKER { return "FIND HIDERS"; }
+            return "STAY HIDDEN";
+        }
+        case .REVEAL: {
+            if game.winner == .SEEKERS { return "SEEKERS WIN"; }
+            return "HIDERS WIN";
+        }
+        default: return "";
+    }
+}
+
 draw_hide_seek_ui :: proc(player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
+    // The vote screen carries its own title and timer.
+    if game.phase == .MAP_SELECTION { return; }
 
     UIK.begin(UIK.window(UI.get_safe_screen_rect()));
     defer UIK.end();
@@ -318,31 +506,21 @@ draw_hide_seek_ui :: proc(player: Player) {
     UIK.overlay_begin(.TOP_CENTER, panel, v2.{0, -20});
     defer UIK.overlay_end();
 
-    title := "WAITING FOR PLAYERS";
-    if game.phase == .COUNTDOWN { title = "ROUND STARTING"; }
-    if game.phase == .HIDING {
-        title = "HIDE";
-        if player.hide_seek_role == .SEEKER { title = "WAIT"; }
-    }
-    if game.phase == .HUNTING {
-        title = "STAY HIDDEN";
-        if player.hide_seek_role == .SEEKER { title = "FIND HIDERS"; }
-    }
-    if game.phase == .SEEKERS_WIN { title = "SEEKERS WIN"; }
-    if game.phase == .HIDERS_WIN { title = "HIDERS WIN"; }
-    role := "Hider";
-    if player.hide_seek_role == .SEEKER { role = "Seeker"; }
+    title := hide_seek_phase_title(game, player);
 
     remaining := 0.0;
-    if game.phase != .WAITING { remaining = max(0.0, game.phase_end_time - get_time()); }
+    if game.phase != .WAITING_FOR_PLAYERS { remaining = max(0.0, game.phase_end_time - get_time()); }
     minutes := remaining.(s64) / 60;
     seconds := remaining.(s64) % 60;
-    if game.phase == .WAITING {
+    if game.phase == .WAITING_FOR_PLAYERS {
         UIK.text(UIK.text_title(), title);
-        UIK.text(UIK.text_body(), "Minimum 2 players");
-    } else if game.phase == .COUNTDOWN {
+        UIK.text(UIK.text_body(), `Minimum {game.min_players} players`);
+    } else if game.phase == .STARTING_MAP_SELECTION || game.phase == .STARTING_GAME {
         UIK.text(UIK.text_title(), title);
         UIK.text(UIK.text_body(), `Starting in {seconds}s`);
+    } else if game.phase == .REVEAL {
+        UIK.text(UIK.text_title(), title);
+        UIK.text(UIK.text_body(), `{map_display_name(game.selected_map)}`);
     } else if active_round {
         seconds_text := `{seconds}`;
         if seconds < 10 { seconds_text = `0{seconds}`; }
@@ -432,6 +610,131 @@ draw_hide_seek_ui :: proc(player: Player) {
     }
 }
 
+draw_map_vote_card :: proc(player: Player, game: Hide_Seek_Game, index: s64, dt: float) {
+    map := index.(Map_Kind);
+
+    card := UIK.layout_column();
+    card.width = UIK.pixels(MAP_CARD_WIDTH);
+    card.height = UIK.fit();
+    card.gap = 12;
+    card.padding = v4.{18, 18, 18, 18};
+    card.background = .MODAL_TRANSP_BLACK;
+    card.cross_align = .CENTER;
+    result := UIK.panel_begin_interactive(`map_vote_{index}`, card);
+    defer UIK.panel_end();
+
+    // Hold to commit a vote. Releasing early discards the partial hold, so a
+    // stray click cannot lock someone into a map.
+    if result.pressed {
+        if player.map_vote_hold_index != index {
+            player.map_vote_hold_index = index;
+            player.map_vote_hold_t = 0;
+        }
+        player.map_vote_hold_t += dt;
+        if player.map_vote_hold_t >= MAP_VOTE_HOLD_SECONDS { player.map_vote = index; }
+    } else if player.map_vote_hold_index == index {
+        player.map_vote_hold_index = -1;
+        player.map_vote_hold_t = 0;
+    }
+
+    fill := 0.0;
+    if player.map_vote == index {
+        fill = 1.0;
+    } else if player.map_vote_hold_index == index {
+        fill = clamp(player.map_vote_hold_t / MAP_VOTE_HOLD_SECONDS, 0.0, 1.0);
+    }
+
+    // Fixed box + wrapping: the map names are long enough to overrun the card
+    // and bleed into its neighbours otherwise.
+    title_box := UIK.layout_column();
+    title_box.width = UIK.pixels(MAP_PREVIEW_WIDTH);
+    title_box.height = UIK.pixels(180);
+    title_box.cross_align = .CENTER;
+    title_box.main_align = .CENTER;
+    title_box.clip_children = true;
+    UIK.panel_begin(title_box);
+    title_desc := UIK.text_title();
+    title_desc.set_size_mult(1.2);
+    title_desc.set_halign(.CENTER);
+    title_desc.set_word_wrap(true);
+    UIK.text(title_desc, map_display_name(map));
+    UIK.panel_end();
+
+    preview := UIK.layout_column();
+    preview.width = UIK.pixels(MAP_PREVIEW_WIDTH);
+    preview.height = UIK.pixels(MAP_PREVIEW_HEIGHT);
+    preview.background = .MODAL_WHITE;
+    preview.tint = map_preview_tint(map);
+    UIK.panel_begin(preview);
+    UIK.panel_end();
+
+    hint := "Click and hold to vote";
+    if player.map_vote == index { hint = "Voted"; }
+    hint_desc := UIK.text_body();
+    hint_desc.set_halign(.CENTER);
+    UIK.text(hint_desc, hint);
+
+    // Built from two panels rather than the kit progress bar, which renders
+    // nothing here.
+    BAR_PADDING :: 5.0;
+    track := UIK.layout_row();
+    track.width = UIK.pixels(MAP_PREVIEW_WIDTH);
+    track.height = UIK.pixels(34);
+    track.background = .MODAL_BLACK;
+    track.padding = v4.{BAR_PADDING, BAR_PADDING, BAR_PADDING, BAR_PADDING};
+    track.main_align = .START;
+    track.cross_align = .STRETCH;
+    UIK.panel_begin(track);
+    if fill > 0.001 {
+        fill_panel := UIK.layout_column();
+        fill_panel.width = UIK.pixels((MAP_PREVIEW_WIDTH - BAR_PADDING * 2) * fill);
+        fill_panel.height = UIK.flex(1);
+        fill_panel.background = .MODAL_WHITE;
+        fill_panel.tint = MAP_VOTE_GREEN;
+        UIK.panel_begin(fill_panel);
+        UIK.panel_end();
+    }
+    UIK.panel_end();
+
+    votes_desc := UIK.text_title();
+    votes_desc.set_size_mult(1.5);
+    votes_desc.set_halign(.CENTER);
+    votes_desc.set_color(MAP_VOTE_GREEN);
+    UIK.text(votes_desc, `Votes: {game.map_votes[index]}`);
+}
+
+draw_map_vote_ui :: proc(player: Player, dt: float) {
+    game := get_hide_seek_game();
+    if !#alive(game) || game.phase != .MAP_SELECTION { return; }
+
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 120;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    column := UIK.layout_column();
+    column.width = UIK.fit();
+    column.height = UIK.fit();
+    column.gap = 18;
+    column.cross_align = .CENTER;
+    UIK.overlay_begin(.CENTER, column, v2.{0, 0});
+    defer UIK.overlay_end();
+
+    row := UIK.layout_row(UIK.fit(), UIK.fit(), 24);
+    row.cross_align = .START;
+    UIK.panel_begin(row);
+    for i: 0..MAP_COUNT - 1 {
+        draw_map_vote_card(player, game, i, dt);
+    }
+    UIK.panel_end();
+
+    remaining := max(0.0, game.phase_end_time - get_time());
+    timer_desc := UIK.text_title();
+    timer_desc.set_size_mult(1.7);
+    timer_desc.set_halign(.CENTER);
+    UIK.text(timer_desc, `Time left to vote: {remaining.(s64)}`);
+}
+
 draw_hide_seek_role_reveal :: proc(player: Player) {
     if get_time() >= player.role_reveal_end_time { return; }
     game := get_hide_seek_game();
@@ -446,7 +749,7 @@ draw_hide_seek_role_reveal :: proc(player: Player) {
     if player.hide_seek_role == .SEEKER {
         theme = .RED;
         role_title = "SEEKER";
-        instruction = "Wait 60 seconds, then shoot every hider to convert them into seekers.";
+        instruction = "Wait in the lobby, then hunt down every hider on the map.";
     }
 
     panel := UIK.panel_modal(theme, UIK.pixels(680), UIK.fit(), 14, v4.{28, 34, 28, 34});

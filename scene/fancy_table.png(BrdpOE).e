@@ -26,22 +26,4 @@
     "texture": "sprites/Clipping_Furniture/fancy_table.png",
     "depth_offset": 0.5194644927978516
   }
-},
-{
-  "cid": 3,
-  "aoid": 1798177317,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Box_Collider",
-  "data": {
-    "make_navmesh_loop": true,
-    "flip_navmesh_loop": true,
-    "size": {
-      "X": 1.5783691406250000,
-      "Y": 0.3240680694580078
-    },
-    "offset": {
-      "X": 0.0263671875000000,
-      "Y": 0.3379659652709961
-    }
-  }
 }

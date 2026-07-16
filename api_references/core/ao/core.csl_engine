@@ -739,43 +739,6 @@ Game :: struct {
     get_server_id :: proc() -> string #foreign "server_get_id";
 }
 
-Live_Event_Presenter :: struct {
-    slot: int;
-    display_name: string;
-    is_speaking: bool;
-    anchor_key: string;
-    ghost: Entity;
-}
-
-Live_Events :: struct {
-    is_active :: proc() -> bool #foreign "live_events_is_active";
-    is_local_player_presenting :: proc() -> bool #foreign "live_events_is_local_player_presenting";
-    presenter_count :: proc() -> int #foreign "live_events_presenter_count";
-
-    _presenter_slot :: proc(index: int) -> int #foreign "live_events_presenter_slot";
-    _presenter_name :: proc(slot: int) -> string #foreign "live_events_presenter_name";
-    _presenter_is_speaking :: proc(slot: int) -> bool #foreign "live_events_presenter_is_speaking";
-    _presenter_anchor_key :: proc(slot: int) -> string #foreign "live_events_presenter_anchor_key";
-    _presenter_ghost :: proc(slot: int) -> Entity #foreign "live_events_presenter_ghost";
-
-    get_presenter :: proc(index: int) -> Live_Event_Presenter, bool {
-        slot := _presenter_slot(index);
-        if slot < 0 return {}, false;
-        return .{
-            slot = slot,
-            display_name = _presenter_name(slot),
-            is_speaking = _presenter_is_speaking(slot),
-            anchor_key = _presenter_anchor_key(slot),
-            ghost = _presenter_ghost(slot),
-        }, true;
-    }
-
-    register_ghost_anchor :: proc(key: string, entity: Entity) #foreign "live_events_register_ghost_anchor";
-    unregister_ghost_anchor :: proc(key: string) #foreign "live_events_unregister_ghost_anchor";
-    set_local_presenter_anchor :: proc(key: string, source_anchor: Entity) #foreign "live_events_set_local_presenter_anchor";
-    clear_local_presenter_anchor :: proc() #foreign "live_events_clear_local_presenter_anchor";
-}
-
 Server :: struct {
     set_matchmaking_priority   :: proc(priority: int) #foreign "server_set_matchmaking_priority";
 
@@ -2727,10 +2690,6 @@ Emote_Fart_VFX :: class : Component {
         animator.depth_offset = -0.6;
         animator.set_skeleton(get_asset(Spine_Asset, "$AO/fart/fart.spine"));
         animator.set_animation("animation", false, 0);
-
-        scale := v2{2.4, 2.4} * player.entity.local_scale * player.animator.instance.scale;
-        animator.instance.scale = scale;
-        animator.instance.update(0);
         animator.set_destroy_entity_when_done_current_animation(true);
     }
 
@@ -2839,9 +2798,10 @@ Emote_Effect :: class : Effect_Base {
 
             fart_entity := Scene.create_entity();
             fart_entity.set_world_position(player.entity.world_position + offset);
-            fart_entity.add_component(Emote_Fart_VFX, player, proc(component: Component, userdata: Object) {
-                component.(Emote_Fart_VFX).player = userdata.(Player);
-            });
+            fart_vfx := fart_entity.add_component(Emote_Fart_VFX);
+            fart_vfx.player = player;
+            fart_vfx.animator.instance.scale = scale;
+            fart_vfx.animator.instance.update(0);
         }
 
         if length_squared(player.input_this_frame) > 0 && !can_move_without_removing_effect {

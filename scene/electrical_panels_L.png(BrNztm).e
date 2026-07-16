@@ -26,22 +26,4 @@
     "texture": "sprites/Zone1b/electrical_panels_L.png",
     "depth_offset": -1.1012611389160156
   }
-},
-{
-  "cid": 2,
-  "aoid": 1806172540,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Box_Collider",
-  "data": {
-    "make_navmesh_loop": true,
-    "flip_navmesh_loop": true,
-    "size": {
-      "X": 1.3318176269531250,
-      "Y": 1.7999999523162842
-    },
-    "offset": {
-      "X": -0.0320129394531250,
-      "Y": -0.1121970340609550
-    }
-  }
 }

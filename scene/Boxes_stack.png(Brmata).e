@@ -26,22 +26,4 @@
     "texture": "sprites/Zone1b/Boxes_stack.png",
     "depth_offset": -0.2662858963012695
   }
-},
-{
-  "cid": 2,
-  "aoid": 1798287328,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Box_Collider",
-  "data": {
-    "make_navmesh_loop": true,
-    "flip_navmesh_loop": true,
-    "size": {
-      "X": 1.2015838623046875,
-      "Y": 0.3544197082519531
-    },
-    "offset": {
-      "X": 0.0134353637695312,
-      "Y": -0.3026361465454102
-    }
-  }
 }

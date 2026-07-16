@@ -3,7 +3,7 @@
 2948362439
 {
   "name": "LobbySpawn",
-  "local_enabled": false,
+  "local_enabled": true,
   "local_position": {
     "X": 220.3040161132812500,
     "Y": -84.1603775024414062
@@ -13,6 +13,6 @@
     "X": 1,
     "Y": 1
   },
-  "previous_sibling": 2942144659,
-  "next_sibling": 2938623902
+  "previous_sibling": 2943448783,
+  "next_sibling": 2947812243
 }

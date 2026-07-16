@@ -29,32 +29,4 @@
       "X": -1
     }
   }
-},
-{
-  "cid": 2,
-  "aoid": 1811719334,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Polygon_Collider",
-  "data": {
-    "make_navmesh_loop": true,
-    "flip_navmesh_loop": true,
-    "points": [
-      {
-        "X": -0.2091050148010254,
-        "Y": -0.5254821777343750
-      },
-      {
-        "X": 0.2826247215270996,
-        "Y": -0.5290069580078125
-      },
-      {
-        "X": 0.1072783470153809,
-        "Y": -0.2044982910156250
-      },
-      {
-        "X": -0.2640290260314941,
-        "Y": -0.2752075195312500
-      }
-    ]
-  }
 }
