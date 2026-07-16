@@ -13,9 +13,24 @@ MAP_CARD_WIDTH :: 480.0;
 MAP_PREVIEW_WIDTH :: 440.0;
 MAP_PREVIEW_HEIGHT :: 260.0;
 MAP_VOTE_GREEN :: v4.{0.25, 1.0, 0.45, 1.0};
+MAP_VOTE_BAR_HEIGHT :: 52.0;
+MAP_VOTE_BAR_INSET :: 6.0;
 // Seekers draw over hiders.
 HIDER_ANIMATOR_LAYER :: 1;
 SEEKER_ANIMATOR_LAYER :: 2;
+
+// Hiders earn points for every second a seeker is within this radius. The
+// score itself ticks continuously, but the board players see only refreshes
+// on LEADERBOARD_PUBLISH_SECONDS.
+SCORE_RADIUS :: 2.0;
+DEFAULT_POINTS_PER_SECOND :: 1;
+LEADERBOARD_PUBLISH_SECONDS :: 20.0;
+LEADERBOARD_MAX_ROWS :: 8;
+HUD_YELLOW :: v4.{1.0, 0.85, 0.2, 1.0};
+
+// Every hider is whistled automatically on this cadence, so camping a corner
+// in silence is not viable.
+FORCED_WHISTLE_SECONDS :: 30.0;
 
 Hide_Seek_Role :: enum {
     NONE;
@@ -69,6 +84,7 @@ Hide_Seek_Game :: class : Component {
     lobby_spawn: Entity   @ao_serialize;
     map_spawns:  [..]Entity @ao_serialize;
     min_players: s64      @ao_serialize;
+    points_per_second: s64 @ao_serialize;
 
     phase: Hide_Seek_Phase;
     phase_end_time: float;
@@ -77,13 +93,18 @@ Hide_Seek_Game :: class : Component {
     winner: Hide_Seek_Winner;
     selected_map: Map_Kind;
     map_votes: [MAP_COUNT]s64;
+    next_publish_time: float;
+    next_forced_whistle_time: float;
 
     ao_start :: method() {
         g_hide_seek = this;
         phase = .WAITING_FOR_PLAYERS;
         // The round needs a seeker plus at least one hider, so 2 is the floor
         // regardless of what the scene asks for.
+        // The round needs a seeker plus at least one hider, so 2 is the floor
+        // regardless of what the scene asks for.
         if min_players < 2 { min_players = MIN_PLAYERS_DEFAULT; }
+        if points_per_second <= 0 { points_per_second = DEFAULT_POINTS_PER_SECOND; }
     }
 
     ao_update :: method(dt: float) {
@@ -97,6 +118,15 @@ Hide_Seek_Game :: class : Component {
                 }
             }
             refresh_hide_seek_counts(this);
+            award_proximity_points(this, dt);
+            if get_time() >= next_forced_whistle_time {
+                next_forced_whistle_time = get_time() + FORCED_WHISTLE_SECONDS;
+                force_all_hiders_whistle(this);
+            }
+            if get_time() >= next_publish_time {
+                next_publish_time = get_time() + LEADERBOARD_PUBLISH_SECONDS;
+                publish_leaderboard(this);
+            }
             if seekers <= 0 {
                 finish_hide_seek_round(this, .HIDERS);
                 return;
@@ -268,6 +298,54 @@ add_mid_round_seeker :: proc(game: Hide_Seek_Game, player: Player, hide_phase: b
     }
 }
 
+// A hider banks points for every whole second a seeker spends inside
+// SCORE_RADIUS. Partial seconds are kept rather than reset, so repeatedly
+// dipping in and out of range still pays out.
+award_proximity_points :: proc(game: Hide_Seek_Game, dt: float) {
+    for hider: component_iterator(Player) {
+        if hider.hide_seek_role != .HIDER { continue; }
+        near := false;
+        for seeker: component_iterator(Player) {
+            if seeker.hide_seek_role != .SEEKER { continue; }
+            offset := seeker.entity.world_position - hider.entity.world_position;
+            if length_squared(offset) <= SCORE_RADIUS * SCORE_RADIUS {
+                near = true;
+                break;
+            }
+        }
+        if !near { continue; }
+        hider.proximity_timer += dt;
+        while hider.proximity_timer >= 1.0 {
+            hider.proximity_timer -= 1.0;
+            hider.score += game.points_per_second;
+        }
+    }
+}
+
+force_all_hiders_whistle :: proc(game: Hide_Seek_Game) {
+    for player: component_iterator(Player) {
+        if player.hide_seek_role != .HIDER { continue; }
+        blow_whistle(player);
+    }
+}
+
+// Copies the live score onto the value the board renders. Scores tick every
+// frame; players only see them move on this cadence.
+publish_leaderboard :: proc(game: Hide_Seek_Game) {
+    for player: component_iterator(Player) {
+        player.published_score = player.score;
+    }
+}
+
+reset_hide_seek_scores :: proc(game: Hide_Seek_Game) {
+    for player: component_iterator(Player) {
+        player.score = 0;
+        player.published_score = 0;
+        player.proximity_timer = 0;
+    }
+    game.next_publish_time = get_time() + LEADERBOARD_PUBLISH_SECONDS;
+}
+
 refresh_hide_seek_counts :: proc(game: Hide_Seek_Game) {
     game.hiders_left = 0;
     game.seekers = 0;
@@ -281,6 +359,8 @@ finish_hide_seek_round :: proc(game: Hide_Seek_Game, winner: Hide_Seek_Winner) {
     game.winner = winner;
     game.phase = .REVEAL;
     game.phase_end_time = get_time() + REVEAL_SECONDS;
+    // Show the true final tally during the reveal instead of a stale snapshot.
+    publish_leaderboard(game);
 }
 
 return_players_to_lobby :: proc(game: Hide_Seek_Game) {
@@ -300,6 +380,9 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
         player.spawn_placed = true;
         exit_paint_mode(player);
         player.emotes_open = false;
+        // Weapon effects (electrocute, poison, tornado) must not survive into
+        // the lobby.
+        remove_all_effects(player.entity);
         teleport_player_to_lobby(game, player);
     }
     game.hiders_left = 0;
@@ -312,6 +395,11 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
 hide_seek_can_shoot :: proc() -> bool {
     game := get_hide_seek_game();
     return #alive(game) && game.phase == .HUNTING;
+}
+
+hide_seek_round_active :: proc() -> bool {
+    game := get_hide_seek_game();
+    return #alive(game) && (game.phase == .HIDING || game.phase == .HUNTING);
 }
 
 start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
@@ -339,6 +427,8 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
         player.active_pose = 0;
         player.spawn_placed = true;
         exit_paint_mode(player);
+        // Start every round clean; nothing carries over from the last one.
+        remove_all_effects(player.entity);
         // The seeker roams the lobby while the hiders get the map to themselves.
         if player.hide_seek_role == .SEEKER {
             teleport_player_to_lobby(game, player);
@@ -349,6 +439,8 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
 
     game.phase = .HIDING;
     game.phase_end_time = get_time() + HIDE_PHASE_SECONDS;
+    game.next_forced_whistle_time = get_time() + FORCED_WHISTLE_SECONDS;
+    reset_hide_seek_scores(game);
     refresh_hide_seek_counts(game);
     return true;
 }
@@ -525,7 +617,7 @@ draw_hide_seek_ui :: proc(player: Player) {
         seconds_text := `{seconds}`;
         if seconds < 10 { seconds_text = `0{seconds}`; }
 
-        scoreboard := UIK.layout_row(UIK.flex(1), UIK.pixels(92), 18);
+        scoreboard := UIK.layout_row(UIK.flex(1), UIK.pixels(132), 18);
         scoreboard.cross_align = .CENTER;
         scoreboard.main_align = .SPACE_BETWEEN;
         UIK.panel_begin(scoreboard);
@@ -557,7 +649,7 @@ draw_hide_seek_ui :: proc(player: Player) {
 
         timer_group := UIK.layout_column();
         timer_group.width = UIK.pixels(250);
-        timer_group.height = UIK.pixels(88);
+        timer_group.height = UIK.pixels(124);
         timer_group.cross_align = .CENTER;
         UIK.panel_begin(timer_group);
         timer_row := UIK.layout_row(UIK.fit(), UIK.pixels(60), 10);
@@ -577,6 +669,22 @@ draw_hide_seek_ui :: proc(player: Player) {
         phase_desc := UIK.text_body();
         phase_desc.set_halign(.CENTER);
         UIK.text(phase_desc, title);
+
+        // Fixed box so the row does not resize as the count drops to a single
+        // digit.
+        whistle_box := UIK.layout_column();
+        whistle_box.width = UIK.pixels(250);
+        whistle_box.height = UIK.pixels(32);
+        whistle_box.cross_align = .CENTER;
+        whistle_box.main_align = .CENTER;
+        whistle_box.clip_children = true;
+        UIK.panel_begin(whistle_box);
+        whistle_remaining := max(0.0, game.next_forced_whistle_time - get_time());
+        whistle_desc := UIK.text_body();
+        whistle_desc.set_halign(.CENTER);
+        whistle_desc.set_color(HUD_YELLOW);
+        UIK.text(whistle_desc, `Whistle {whistle_remaining.(s64)}`);
+        UIK.panel_end();
         UIK.panel_end();
 
         hider_group := UIK.layout_column();
@@ -607,6 +715,112 @@ draw_hide_seek_ui :: proc(player: Player) {
         UIK.panel_end();
     } else {
         UIK.text(UIK.text_title(), title);
+    }
+}
+
+draw_hide_seek_leaderboard :: proc(player: Player) {
+    game := get_hide_seek_game();
+    if !#alive(game) { return; }
+    if game.phase != .HIDING && game.phase != .HUNTING && game.phase != .REVEAL { return; }
+
+    players: [..]Player;
+    for p: component_iterator(Player) { players.append(p); }
+    if players.count == 0 { return; }
+
+    // Insertion sort, highest published score first.
+    if players.count > 1 {
+        for i: 1..players.count - 1 {
+            j := i;
+            while j > 0 && players[j].published_score > players[j - 1].published_score {
+                swap := players[j];
+                players[j] = players[j - 1];
+                players[j - 1] = swap;
+                j -= 1;
+            }
+        }
+    }
+
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 100;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(560), UIK.fit(), 4, v4.{14, 18, 14, 18});
+    UIK.overlay_begin(.TOP_LEFT, panel, v2.{20, -20});
+    defer UIK.overlay_end();
+
+    header := UIK.layout_row(UIK.flex(1), UIK.pixels(96), 10);
+    header.cross_align = .CENTER;
+    header.main_align = .SPACE_BETWEEN;
+    UIK.panel_begin(header);
+    title_desc := UIK.text_title();
+    title_desc.set_size_mult(1.2);
+    UIK.text(title_desc, "Ranking");
+
+    // Label and count are separate fixed lines. As one string the countdown
+    // wraps once it hits two digits, which resizes the panel every tick.
+    remaining := max(0.0, game.next_publish_time - get_time());
+    next_box := UIK.layout_column();
+    next_box.width = UIK.pixels(210);
+    next_box.height = UIK.pixels(96);
+    next_box.gap = 0;
+    next_box.cross_align = .CENTER;
+    next_box.main_align = .CENTER;
+    next_box.clip_children = true;
+    UIK.panel_begin(next_box);
+    next_label := UIK.text_body();
+    next_label.set_halign(.CENTER);
+    next_label.set_color(HUD_YELLOW);
+    UIK.text(next_label, "Next update");
+    next_value := UIK.text_body();
+    next_value.set_halign(.CENTER);
+    next_value.set_color(HUD_YELLOW);
+    UIK.text(next_value, `{remaining.(s64)}`);
+    UIK.panel_end();
+    UIK.panel_end();
+
+    shown := players.count;
+    if shown > LEADERBOARD_MAX_ROWS { shown = LEADERBOARD_MAX_ROWS; }
+    for i: 0..shown - 1 {
+        entry := players[i];
+        row := UIK.layout_row(UIK.flex(1), UIK.pixels(52), 10);
+        row.cross_align = .CENTER;
+        UIK.panel_begin(row);
+
+        rank_box := UIK.layout_column();
+        rank_box.width = UIK.pixels(90);
+        rank_box.cross_align = .CENTER;
+        rank_box.main_align = .CENTER;
+        UIK.panel_begin(rank_box);
+        rank_desc := UIK.text_body();
+        rank_desc.set_halign(.CENTER);
+        UIK.text(rank_desc, `#{i + 1}`);
+        UIK.panel_end();
+
+        name_box := UIK.layout_column();
+        name_box.width = UIK.flex(1);
+        name_box.cross_align = .CENTER;
+        name_box.main_align = .CENTER;
+        name_box.clip_children = true;
+        UIK.panel_begin(name_box);
+        name_desc := UIK.text_body();
+        name_desc.set_halign(.CENTER);
+        color := entry.avatar_color;
+        if color != .NONE { name_desc.set_color(color_replace_get_color(color)); }
+        UIK.text(name_desc, entry.get_username());
+        UIK.panel_end();
+
+        score_box := UIK.layout_column();
+        score_box.width = UIK.pixels(110);
+        score_box.cross_align = .CENTER;
+        score_box.main_align = .CENTER;
+        UIK.panel_begin(score_box);
+        score_desc := UIK.text_body();
+        score_desc.set_halign(.RIGHT);
+        UIK.text(score_desc, `{entry.published_score}`);
+        UIK.panel_end();
+
+        UIK.panel_end();
     }
 }
 
@@ -674,23 +888,22 @@ draw_map_vote_card :: proc(player: Player, game: Hide_Seek_Game, index: s64, dt:
     hint_desc.set_halign(.CENTER);
     UIK.text(hint_desc, hint);
 
-    // Built from two panels rather than the kit progress bar, which renders
-    // nothing here.
-    BAR_PADDING :: 5.0;
+    // Hand-built from two panels. Neither UIK.progress_bar nor progress_t on a
+    // panel renders anything here, and a thin bar makes the nine-sliced panel
+    // art deform, so keep it tall enough to read as a proper capsule.
     track := UIK.layout_row();
     track.width = UIK.pixels(MAP_PREVIEW_WIDTH);
-    track.height = UIK.pixels(34);
+    track.height = UIK.pixels(MAP_VOTE_BAR_HEIGHT);
     track.background = .MODAL_BLACK;
-    track.padding = v4.{BAR_PADDING, BAR_PADDING, BAR_PADDING, BAR_PADDING};
+    track.padding = v4.{MAP_VOTE_BAR_INSET, MAP_VOTE_BAR_INSET, MAP_VOTE_BAR_INSET, MAP_VOTE_BAR_INSET};
     track.main_align = .START;
     track.cross_align = .STRETCH;
     UIK.panel_begin(track);
-    if fill > 0.001 {
-        fill_panel := UIK.layout_column();
-        fill_panel.width = UIK.pixels((MAP_PREVIEW_WIDTH - BAR_PADDING * 2) * fill);
+    if fill > 0.02 {
+        fill_panel := UIK.layout_row();
+        fill_panel.width = UIK.pixels((MAP_PREVIEW_WIDTH - MAP_VOTE_BAR_INSET * 2) * fill);
         fill_panel.height = UIK.flex(1);
-        fill_panel.background = .MODAL_WHITE;
-        fill_panel.tint = MAP_VOTE_GREEN;
+        fill_panel.background = .MODAL_GREEN;
         UIK.panel_begin(fill_panel);
         UIK.panel_end();
     }

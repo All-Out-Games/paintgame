@@ -30,22 +30,4 @@
     "initial_animation": "idle",
     "loop_initial_animation": true
   }
-},
-{
-  "cid": 2,
-  "aoid": 3755970227,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Box_Collider",
-  "data": {
-    "make_navmesh_loop": true,
-    "flip_navmesh_loop": true,
-    "size": {
-      "X": 0.5125427246093750,
-      "Y": 0.2775421142578125
-    },
-    "offset": {
-      "X": 0.0176544189453125,
-      "Y": -0.2096786499023438
-    }
-  }
 }

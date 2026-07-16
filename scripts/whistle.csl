@@ -1,0 +1,26 @@
+WHISTLE_COOLDOWN_SECONDS :: 6.0;
+WHISTLE_SFX :: "SFX/whistle.wav";
+
+// Hiders score by having a seeker close to them, so the whistle is their tool
+// for giving away position on purpose.
+Whistle_Ability :: class : Ability_Base {
+    on_init :: method() {
+        name = "Whistle";
+        icon = get_asset(Texture_Asset, "AbilityIcons/Whistle.png");
+    }
+
+    on_update :: method(params: ref Ability_Update_Params) {
+        if params.clicked && params.can_use {
+            blow_whistle(player);
+            current_cooldown = WHISTLE_COOLDOWN_SECONDS;
+        }
+    }
+}
+
+blow_whistle :: proc(player: Player) {
+    desc := SFX.default_sfx_desc();
+    desc.entity_to_follow = player.entity.id;
+    desc.volume = 0.9;
+    desc.speed_perturb = 0.06;
+    SFX.play(get_asset(SFX_Asset, WHISTLE_SFX), desc);
+}

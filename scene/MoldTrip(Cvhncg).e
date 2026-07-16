@@ -16,14 +16,4 @@
   "previous_sibling": 2944973822,
   "next_sibling": 2945388189,
   "parent": 3747562667
-},
-{
-  "cid": 2,
-  "aoid": 2948504847,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Circle_Collider",
-  "data": {
-    "is_trigger": true,
-    "size": 2
-  }
 }

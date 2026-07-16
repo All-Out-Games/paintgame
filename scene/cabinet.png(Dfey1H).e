@@ -26,22 +26,4 @@
     "texture": "sprites/Zone1b/cabinet.png",
     "depth_offset": -0.8218450546264648
   }
-},
-{
-  "cid": 2,
-  "aoid": 3750061587,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Box_Collider",
-  "data": {
-    "make_navmesh_loop": true,
-    "flip_navmesh_loop": true,
-    "size": {
-      "X": 0.7789001464843750,
-      "Y": 0.5824460983276367
-    },
-    "offset": {
-      "X": -0.0122833251953125,
-      "Y": -0.6312451362609863
-    }
-  }
 }

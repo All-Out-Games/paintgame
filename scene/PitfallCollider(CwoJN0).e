@@ -16,22 +16,4 @@
   "previous_sibling": 2965938189,
   "next_sibling": 2960993406,
   "parent": 2966404827
-},
-{
-  "cid": 1,
-  "aoid": 2962513219,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Box_Collider",
-  "data": {
-    "make_navmesh_loop": true,
-    "flip_navmesh_loop": true,
-    "size": {
-      "X": 1.3946838378906250,
-      "Y": 1.3767776489257812
-    },
-    "offset": {
-      "X": 0.1840515136718750,
-      "Y": -0.1706581115722656
-    }
-  }
 }

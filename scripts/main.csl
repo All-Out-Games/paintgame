@@ -75,6 +75,9 @@ Player :: class : Player_Base {
     hide_seek_role: Hide_Seek_Role;
     role_visual_applied: Hide_Seek_Role;
     spawn_placed: bool;   // set once the game has positioned this player
+    score: s64;             // live, ticks every frame
+    published_score: s64;   // snapshot the leaderboard renders
+    proximity_timer: float; // seconds banked toward the next point
     weapon_target: Weapon_Target;
     equipped_weapon_type: Weapon_Type;
     equipped_item_def: Item_Definition;
@@ -149,6 +152,7 @@ Player :: class : Player_Base {
             draw_paint_mode_button(this);
             draw_emote_menu(this);
             draw_hide_seek_ui(this);
+            draw_hide_seek_leaderboard(this);
             draw_map_vote_ui(this, dt);
             draw_hide_seek_role_reveal(this);
             if paint_mode && picker_open {
@@ -160,6 +164,8 @@ Player :: class : Player_Base {
             }
             if hide_seek_role == .SEEKER && hide_seek_can_shoot() {
                 draw_ability_button(this, Continuous_Fire_Ability, 0);
+            } else if hide_seek_role == .HIDER && hide_seek_round_active() {
+                draw_ability_button(this, Whistle_Ability, 0);
             }
         }
     }
@@ -169,6 +175,9 @@ Player :: class : Player_Base {
     }
 
     ao_can_use_ability :: method(ability: Ability_Base) -> bool {
+        if ability.#type == Whistle_Ability {
+            return hide_seek_role == .HIDER && hide_seek_round_active();
+        }
         return hide_seek_role == .SEEKER && hide_seek_can_shoot();
     }
 

@@ -30,22 +30,4 @@
       "Z": 0.4036364257335663
     }
   }
-},
-{
-  "cid": 2,
-  "aoid": 3741688946,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Box_Collider",
-  "data": {
-    "make_navmesh_loop": true,
-    "flip_navmesh_loop": true,
-    "size": {
-      "X": 4.5245361328125000,
-      "Y": 0.7686004638671875
-    },
-    "offset": {
-      "X": -0.0065917968750000,
-      "Y": 0.2357101440429688
-    }
-  }
 }

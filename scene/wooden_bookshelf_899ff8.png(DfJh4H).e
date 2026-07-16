@@ -25,22 +25,4 @@
     "texture": "wooden_bookshelf_899ff8.png",
     "depth_offset": -0.9370956420898438
   }
-},
-{
-  "cid": 2,
-  "aoid": 3757037310,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Box_Collider",
-  "data": {
-    "make_navmesh_loop": true,
-    "flip_navmesh_loop": true,
-    "size": {
-      "X": 2.2174072265625000,
-      "Y": 0.2505493164062500
-    },
-    "offset": {
-      "X": 0.0042572021484375,
-      "Y": -0.9453353881835938
-    }
-  }
 }

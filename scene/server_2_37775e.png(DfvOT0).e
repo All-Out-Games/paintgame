@@ -26,22 +26,4 @@
     "texture": "server_2_37775e.png",
     "depth_offset": -0.6552047729492188
   }
-},
-{
-  "cid": 2,
-  "aoid": 3747202305,
-  "component_type": "Internal_Component",
-  "internal_component_type": "Box_Collider",
-  "data": {
-    "make_navmesh_loop": true,
-    "flip_navmesh_loop": true,
-    "size": {
-      "X": 1.5880279541015625,
-      "Y": 0.2722320556640625
-    },
-    "offset": {
-      "X": 0.0691604614257812,
-      "Y": -0.6616134643554688
-    }
-  }
 }
