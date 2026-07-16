@@ -1,0 +1,101 @@
+CATCH_COOLDOWN_SECONDS :: 1.2;
+// How far from the seeker the reticle can be placed.
+CATCH_RANGE :: 6.0;
+CATCH_INDICATOR_RADIUS :: 0.4;
+CATCH_INDICATOR_SPRITE :: "sprites/reticle w.png";
+CATCH_ICON :: "AbilityIcons/Whistle.png";
+
+// Seekers catch by placing a reticle on a hider rather than firing projectiles,
+// so a hit has to be earned by actually spotting them.
+Catch_Ability :: class : Ability_Base {
+    on_init :: method() {
+        name = "Catch";
+        icon = get_asset(Texture_Asset, CATCH_ICON);
+        is_aimed_ability = true;
+        disable_keybind = true;
+    }
+
+    on_update :: method(params: ref Ability_Update_Params) {
+        p := player.(Player);
+
+        // Both platforms go through the ability button. PC clicks it to enter
+        // aim mode (right-click cancels); touch presses and drags from it.
+        targeted := Ability_Utilities.update_targeted_ability(p, this, ref params);
+        if !targeted.targeting {
+            p.set_mouse_ik_enabled(false);
+            return;
+        }
+
+        aiming := Ability_Utilities.update_aiming_ability(p, ref params);
+        if aiming.cancel {
+            p.active_ability = null;
+            p.set_mouse_ik_enabled(false);
+            return;
+        }
+
+        target := catch_target_position(p, aiming.aim_direction);
+        if aiming.aim {
+            p.last_aim_direction = aiming.aim_direction;
+            // Drive the AIM bone at the reticle so the body reads as aiming.
+            p.set_mouse_ik_enabled(true);
+            p.set_aim_target(target);
+            draw_catch_indicator(target);
+        } else {
+            p.set_mouse_ik_enabled(false);
+        }
+
+        should_catch := false;
+        if p.device_kind == .PC {
+            should_catch = aiming.activate;
+        } else {
+            should_catch = aiming.aim && params.released;
+        }
+
+        if should_catch {
+            p.active_ability = null;
+            if params.can_use && current_cooldown <= 0 {
+                try_catch_at(p, target);
+                current_cooldown = CATCH_COOLDOWN_SECONDS;
+            }
+        }
+    }
+}
+
+// PC aims with the cursor itself; touch has no cursor, so the reticle is
+// pushed out along the drag direction instead.
+catch_target_position :: proc(p: Player, aim_direction: v2) -> v2 {
+    origin := p.entity.world_position;
+    if p.device_kind != .PC {
+        return origin + aim_direction * CATCH_RANGE;
+    }
+    target := get_mouse_world_position();
+    offset := target - origin;
+    if length(offset) > CATCH_RANGE {
+        target = origin + normalize(offset) * CATCH_RANGE;
+    }
+    return target;
+}
+
+draw_catch_indicator :: proc(target: v2) {
+    center := world_to_screen(target);
+    edge := world_to_screen(target + v2.{CATCH_INDICATOR_RADIUS, 0});
+    radius := length(edge - center);
+    rect := Rect.{min = center - v2.{radius, radius}, max = center + v2.{radius, radius}};
+    UI.quad(rect, get_asset(Texture_Asset, CATCH_INDICATOR_SPRITE), v4.{1, 1, 1, 0.9});
+}
+
+// Only called on activation: the mesh hit test walks the live Spine triangles
+// and is far too expensive to run every frame.
+try_catch_at :: proc(seeker: Player, target: v2) {
+    game := get_hide_seek_game();
+    if !#alive(game) || game.phase != .HUNTING { return; }
+    for hider: component_iterator(Player) {
+        if hider.hide_seek_role != .HIDER { continue; }
+        if hider.animator == null || hider.skin_canvas == null { continue; }
+        uv, on_hider := hider.animator.try_get_paint_canvas_uv(target, hider.skin_canvas);
+        if on_hider {
+            convert_hider_to_seeker(game, hider);
+            return;
+        }
+    }
+}

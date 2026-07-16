@@ -310,18 +310,40 @@ ensure_mecha_rig :: proc(player: Player) {
 setup_mecha_locomotion :: proc(sm: State_Machine) -> bool {
     if sm.try_get_variable("moving") == null { return false; }
     moving := sm.create_variable("mecha_moving", .BOOL);
+    pose := sm.create_variable("mecha_pose", .INT);
     layer := sm.create_layer("mecha_locomotion", 3);
     idle_state := layer.create_state("Idle", true);
     run_state  := layer.create_state("Run_Fast", true);
+    // Pose clips do not key every bone, so whatever plays underneath bleeds
+    // through and the character still looks like it is running. Park this
+    // track entirely while an emote is active. Pose 0 means "no emote", and
+    // there is no NOT_EQUAL condition, hence >= 1.
+    empty_state := layer.create_state("__CLEAR_TRACK__", true);
     layer.set_initial_state(idle_state);
     layer.create_transition(idle_state, run_state, false).create_bool_condition(moving, true);
     layer.create_transition(run_state, idle_state, false).create_bool_condition(moving, false);
-    setup_mecha_emotes(sm);
+    layer.create_global_transition(empty_state, false).create_int_condition(pose, 1, .GREATER_EQUAL);
+    layer.create_transition(empty_state, idle_state, false).create_int_condition(pose, 0, .EQUAL);
+    silence_built_in_locomotion_while_emoting(sm, pose);
+    setup_mecha_emotes(sm, pose);
     return true;
 }
 
-setup_mecha_emotes :: proc(sm: State_Machine) {
-    pose := sm.create_variable("mecha_pose", .INT);
+// The engine's own "main" layer keeps playing Idle underneath everything, and
+// its leg keys show through any pose that does not key them. Park it while an
+// emote is active, then hand control back to the engine's initial state.
+silence_built_in_locomotion_while_emoting :: proc(sm: State_Machine, pose: State_Machine_Variable) {
+    layer := sm.try_get_layer("main");
+    if layer == null { return; }
+    initial := layer.get_initial_state();
+    empty_state := layer.create_state("__CLEAR_TRACK__", true);
+    layer.create_global_transition(empty_state, false).create_int_condition(pose, 1, .GREATER_EQUAL);
+    if initial != null {
+        layer.create_transition(empty_state, initial, false).create_int_condition(pose, 0, .EQUAL);
+    }
+}
+
+setup_mecha_emotes :: proc(sm: State_Machine, pose: State_Machine_Variable) {
     layer := sm.create_layer("mecha_emotes", 4);
     empty := layer.create_state("__CLEAR_TRACK__", true);
     layer.set_initial_state(empty);

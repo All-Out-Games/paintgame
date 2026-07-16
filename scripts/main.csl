@@ -163,7 +163,7 @@ Player :: class : Player_Base {
                 draw_paint_cursor(this);
             }
             if hide_seek_role == .SEEKER && hide_seek_can_shoot() {
-                draw_ability_button(this, Continuous_Fire_Ability, 0);
+                draw_ability_button(this, Catch_Ability, 0);
             } else if hide_seek_role == .HIDER && hide_seek_round_active() {
                 draw_ability_button(this, Whistle_Ability, 0);
             }

@@ -465,6 +465,10 @@ on_hide_seek_player_damaged :: proc(target: Weapon_Target, damage: float, attack
     }
     if !#alive(attacker) || attacker.hide_seek_role != .SEEKER { return; }
 
+    convert_hider_to_seeker(game, victim);
+}
+
+convert_hider_to_seeker :: proc(game: Hide_Seek_Game, victim: Player) {
     victim.hide_seek_role = .SEEKER;
     if victim.hider_name_hidden {
         victim.remove_name_invisibility_reason(HIDER_NAME_REASON);
