@@ -354,7 +354,7 @@ wear_paint :: proc(player: Player, skin: Dynamic_Canvas) {
 // character-space texel scale used by Dynamic_Canvas, so it matches the
 // painted footprint at every camera zoom level.
 draw_paint_cursor :: proc(player: Player) {
-    if !player.paint_mode || !player.wear_paint_enabled || player.eyedropper_active || player.skin_canvas == null { return; }
+    if !player.paint_mode || !player.wear_paint_enabled || player.skin_canvas == null { return; }
 
     mouse := get_mouse_screen_position();
     world := screen_to_world(mouse);
@@ -365,12 +365,16 @@ draw_paint_cursor :: proc(player: Player) {
 
     UI.push_screen_draw_context();
     defer UI.pop_draw_context();
+    UI.push_layer(130);
+    defer UI.pop_layer();
     UI.push_interpolation_offset(player.paint_cursor_interp.update(mouse));
     defer UI.pop_interpolation_offset();
 
     circle := get_asset(Texture_Asset, "$AO/circle.png");
     brush_rect := Rect{min=mouse - v2.{radius, radius}, max=mouse + v2.{radius, radius}};
-    UI.quad(brush_rect, circle, v4.{player.brush_color.x, player.brush_color.y, player.brush_color.z, 0.38});
+    cursor_alpha := 0.38;
+    if player.eyedropper_active { cursor_alpha = 0.55; }
+    UI.quad(brush_rect, circle, v4.{player.brush_color.x, player.brush_color.y, player.brush_color.z, cursor_alpha});
 
     // The dark outer keyline remains readable over pale paint and the white
     // inner ring remains readable over dark paint.
@@ -447,12 +451,14 @@ draw_paint_mode_button :: proc(player: Player) {
         }
     }
 
-    emote_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_PURPLE);
-    emote_desc.panel.min_width = 190;
-    emote_desc.panel.min_height = 64;
-    emote_result := UIK.button("emotes_button", "Emotes", emote_desc);
-    if UIK.clicked(emote_result) {
-        player.emotes_open = !player.emotes_open;
+    if player.hide_seek_role != .SEEKER {
+        emote_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_PURPLE);
+        emote_desc.panel.min_width = 190;
+        emote_desc.panel.min_height = 64;
+        emote_result := UIK.button("emotes_button", "Emotes", emote_desc);
+        if UIK.clicked(emote_result) {
+            player.emotes_open = !player.emotes_open;
+        }
     }
 
     if player.paint_mode {
@@ -474,9 +480,15 @@ enter_paint_mode :: proc(player: Player) {
     player.paint_mode = true;
     player.picker_open = true;
     player.pre_paint_camera_size = player.camera.size;
+    if !player.zoom_initialized && player.camera.size > 0 {
+        player.zoom_base_size = player.camera.size;
+        player.zoom_t = 0.5;
+        player.zoom_initialized = true;
+    }
     if player.zoom_initialized {
         player.pre_paint_zoom_t = player.zoom_t;
         player.zoom_t = PAINT_MODE_ZOOM_T;
+        player.camera.size = player.zoom_base_size * ZOOM_MIN_MUL;
     }
     if !player.paint_controls_disabled {
         player.add_freeze_reason(PAINT_FREEZE_REASON);
@@ -569,13 +581,13 @@ draw_emote_menu :: proc(player: Player) {
 // All sizes are 1080p-reference pixels (rect methods auto-scale).
 
 PICKER_MARGIN  :: 28.0;   // gap from the screen corner
-PICKER_PAD     :: 18.0;   // panel inner padding
-PICKER_SV_SIZE :: 340.0;  // SV box side
-PICKER_HUE_W   :: 46.0;   // hue bar width
-PICKER_GAP     :: 16.0;
-PICKER_LABEL_H :: 44.0;
-PICKER_BRUSH_H :: 34.0;   // brush-size slider row height
-PICKER_PICK_W  :: 110.0;  // eyedropper (PICK) button width
+PICKER_PAD     :: 24.3;   // picker controls are 35% larger for touch input
+PICKER_SV_SIZE :: 459.0;  // SV box side
+PICKER_HUE_W   :: 62.1;   // hue bar width
+PICKER_GAP     :: 21.6;
+PICKER_LABEL_H :: 59.4;
+PICKER_BRUSH_H :: 45.9;   // brush-size slider row height
+PICKER_PICK_W  :: 148.5;  // eyedropper (PICK) button width
 SV_CELLS       :: 16;     // SV gradient resolution (cells per axis)
 HUE_CELLS      :: 24;     // hue bar resolution
 
@@ -701,13 +713,13 @@ draw_color_picker :: proc(player: Player) {
 
     // SV knob.
     knob := sv_rect.subrect(player.picker_s, player.picker_v, player.picker_s, player.picker_v);
-    UI.quad(knob.grow(9), core_globals.white_sprite, v4.{0, 0, 0, 1});
-    UI.quad(knob.grow(6), core_globals.white_sprite, v4.{1, 1, 1, 1});
+    UI.quad(knob.grow(12), core_globals.white_sprite, v4.{0, 0, 0, 1});
+    UI.quad(knob.grow(8), core_globals.white_sprite, v4.{1, 1, 1, 1});
 
     // Hue marker.
     hm := hue_rect.subrect(0, player.picker_h, 1, player.picker_h);
-    UI.quad(hm.grow(5, 5, 5, 5), core_globals.white_sprite, v4.{0, 0, 0, 1});
-    UI.quad(hm.grow(2, 5, 2, 5), core_globals.white_sprite, v4.{1, 1, 1, 1});
+    UI.quad(hm.grow(7, 7, 7, 7), core_globals.white_sprite, v4.{0, 0, 0, 1});
+    UI.quad(hm.grow(3, 7, 3, 7), core_globals.white_sprite, v4.{1, 1, 1, 1});
 
     // Brush-size slider: thin track, filled portion, round handle.
     brush_frac := clamp((player.brush_radius - BRUSH_MIN) / (BRUSH_MAX - BRUSH_MIN), 0, 1);
@@ -715,8 +727,8 @@ draw_color_picker :: proc(player: Player) {
     UI.quad(track, core_globals.white_sprite, v4.{0, 0, 0, 0.55});
     UI.quad(brush_row.subrect(0, 0.34, brush_frac, 0.66), core_globals.white_sprite, v4.{0.85, 0.85, 0.9, 1});
     handle := brush_row.subrect(brush_frac, 0.5, brush_frac, 0.5);
-    UI.quad(handle.grow(11), core_globals.white_sprite, v4.{0, 0, 0, 1});
-    UI.quad(handle.grow(8), core_globals.white_sprite, v4.{1, 1, 1, 1});
+    UI.quad(handle.grow(15), core_globals.white_sprite, v4.{0, 0, 0, 1});
+    UI.quad(handle.grow(11), core_globals.white_sprite, v4.{1, 1, 1, 1});
 
     // Swatch + PICK (eyedropper) button + brush-size label.
     swatch := label_row.cut_left(PICKER_LABEL_H);
@@ -738,7 +750,7 @@ draw_color_picker :: proc(player: Player) {
         pick_bs.hovered_color = v4.{0.28, 0.90, 0.42, 1};
     }
     pick_ts := UI.default_text_settings();
-    pick_ts.size = 26;
+    pick_ts.size = 35;
     pick_ts.color = v4.{1, 1, 1, 1};
     UI.push_id("picker_eyedrop");
     pick := UI.button(pick_rect, pick_bs, pick_ts, "PICK");
@@ -748,7 +760,7 @@ draw_color_picker :: proc(player: Player) {
     }
 
     ts := UI.default_text_settings();
-    ts.size   = 30;
+    ts.size   = 40;
     ts.color  = v4.{1, 1, 1, 1};
     ts.halign = .LEFT;
     ts.valign = .CENTER;

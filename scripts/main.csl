@@ -74,9 +74,12 @@ Player :: class : Player_Base {
     boomwheel_cannon: Boomwheel_Cannon;
     weapon_state_ready: bool;
     seeker_rig_ready: bool;
+    streamed_seeker_rig_ready: bool;
     lobby_start_position: v2;
     role_reveal_end_time: float;
     hider_name_hidden: bool;
+    original_player_skins: [..]string;
+    original_player_skins_captured: bool;
 
     ao_start :: method() {
         brush_color = v4.{0.9, 0.15, 0.15, 1};
@@ -95,6 +98,7 @@ Player :: class : Player_Base {
         weapon_target.owner_entity_id = entity.id;
         weapon_target.on_damaged_userdata = this;
         weapon_target.on_damaged = on_hide_seek_player_damaged;
+        capture_original_player_skins(this);
         // Swap to the Mecha silhouette rig. Retried from ao_update if the
         // animator isn't ready yet.
         if hide_seek_role != .SEEKER {
@@ -107,8 +111,12 @@ Player :: class : Player_Base {
         // Painting runs through normal client prediction and server
         // reconciliation. Canvas pixels, worn attachment overrides, and the
         // sampled colors are all ordinary scene/input state.
-        ensure_mecha_rig(this);
-        if locomotion_ready {
+        capture_original_player_skins(this);
+        if hide_seek_role != .SEEKER {
+            ensure_mecha_rig(this);
+        }
+        update_hide_seek_player(this);
+        if hide_seek_role != .SEEKER && locomotion_ready {
             // The engine's built-in `moving` value is derived from position
             // delta. For remote players in a deployed game, their simulation
             // position advances at snapshot cadence, which makes that value

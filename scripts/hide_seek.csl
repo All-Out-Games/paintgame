@@ -4,7 +4,7 @@ LOBBY_COUNTDOWN_SECONDS :: 30.0;
 ROUND_END_SECONDS :: 5.0;
 SEEKER_FREEZE_REASON :: "hide_seek_countdown";
 HIDER_NAME_REASON :: "hide_seek_hider";
-SEEKER_RIG :: "reusable_weapons/anims/reusable-weapons/player/player.merged_spine_rig#output";
+SEEKER_RIG :: "$AO/streamed_character";
 
 Hide_Seek_Role :: enum {
     NONE;
@@ -36,6 +36,19 @@ Hide_Seek_Game :: class : Component {
         player_count := 0;
         for player: component_iterator(Player) { player_count += 1; }
 
+        if phase == .HIDING || phase == .HUNTING {
+            for player: component_iterator(Player) {
+                if player.hide_seek_role == .NONE {
+                    add_mid_round_seeker(player, phase == .HIDING);
+                }
+            }
+            refresh_hide_seek_counts(this);
+            if seekers <= 0 {
+                finish_hide_seek_round(this, .HIDERS_WIN);
+                return;
+            }
+        }
+
         if phase == .WAITING && player_count >= 2 {
             phase = .COUNTDOWN;
             phase_end_time = get_time() + LOBBY_COUNTDOWN_SECONDS;
@@ -55,7 +68,6 @@ Hide_Seek_Game :: class : Component {
                 }
             }
         } else if phase == .HUNTING {
-            refresh_hide_seek_counts(this);
             if hiders_left <= 0 {
                 finish_hide_seek_round(this, .SEEKERS_WIN);
             } else if get_time() >= phase_end_time {
@@ -64,6 +76,25 @@ Hide_Seek_Game :: class : Component {
         } else if (phase == .SEEKERS_WIN || phase == .HIDERS_WIN) && get_time() >= phase_end_time {
             return_players_to_lobby(this);
         }
+    }
+}
+
+add_mid_round_seeker :: proc(player: Player, freeze_until_hunt: bool) {
+    player.hide_seek_role = .SEEKER;
+    if player.hider_name_hidden {
+        player.remove_name_invisibility_reason(HIDER_NAME_REASON);
+        player.hider_name_hidden = false;
+    }
+    exit_paint_mode(player);
+    player.emotes_open = false;
+    player.active_pose = 0;
+    player.role_visual_applied = .NONE;
+    player.seeker_rig_ready = false;
+    player.streamed_seeker_rig_ready = false;
+    player.role_reveal_end_time = get_time() + 5.0;
+    if freeze_until_hunt && !player.seeker_frozen {
+        player.add_freeze_reason(SEEKER_FREEZE_REASON);
+        player.seeker_frozen = true;
     }
 }
 
@@ -105,6 +136,7 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
         }
         player.role_visual_applied = .NONE;
         player.seeker_rig_ready = false;
+        player.streamed_seeker_rig_ready = false;
         player.active_pose = 0;
         exit_paint_mode(player);
         player.emotes_open = false;
@@ -146,6 +178,7 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
         }
         player.role_visual_applied = .NONE;
         player.seeker_rig_ready = false;
+        player.streamed_seeker_rig_ready = false;
         player.role_reveal_end_time = get_time() + 5.0;
         player.active_pose = 0;
         exit_paint_mode(player);
@@ -189,8 +222,17 @@ on_hide_seek_player_damaged :: proc(target: Weapon_Target, damage: float, attack
     exit_paint_mode(victim);
     victim.role_visual_applied = .NONE;
     victim.seeker_rig_ready = false;
+    victim.streamed_seeker_rig_ready = false;
     refresh_hide_seek_counts(game);
     if game.hiders_left <= 0 { finish_hide_seek_round(game, .SEEKERS_WIN); }
+}
+
+capture_original_player_skins :: proc(player: Player) {
+    if player.original_player_skins_captured || player.animator == null { return; }
+    for skin: player.animator.get_skins() {
+        player.original_player_skins.append(skin);
+    }
+    player.original_player_skins_captured = true;
 }
 
 apply_seeker_visuals :: proc(player: Player) {
@@ -202,17 +244,35 @@ apply_seeker_visuals :: proc(player: Player) {
     player.animator.set_skeleton(get_asset(Spine_Asset, SEEKER_RIG));
     player.animator.scale = v2.{0.7, 0.7};
     player.animator.disable_all_skins();
-    player.animator.enable_skin("full_character/shleem_head");
+    player.animator.enable_skin("base/crewchsia");
+    for skin: player.original_player_skins {
+        if skin != "base/crewchsia" { player.animator.enable_skin(skin); }
+    }
+    player.animator.enable_skin("weapons/hand_gun");
     player.animator.refresh_skins();
+    player.emotes_open = false;
 
-    if !player.weapon_state_ready {
-        setup_reusable_weapons_player_state_machine(player);
+    if !player.streamed_seeker_rig_ready {
+        setup_streamed_seeker_weapon_state_machine(player);
         player.weapon_state_ready = true;
     }
     player.equipped_weapon_type = .WATER_GUN;
-    weapon_equip(player, .WATER_GUN);
     player.seeker_rig_ready = true;
+    player.streamed_seeker_rig_ready = true;
     player.role_visual_applied = .SEEKER;
+}
+
+setup_streamed_seeker_weapon_state_machine :: proc(player: Player) {
+    sm := player.animator.state_machine;
+    sm.create_variable("use_1h_ik", .BOOL);
+    shoot_start := sm.create_variable("shoot_fast_start", .TRIGGER);
+    shoot_end := sm.create_variable("shoot_fast_end", .TRIGGER);
+    layer := sm.create_layer("streamed_seeker_weapon", 5);
+    idle := layer.create_state("__CLEAR_TRACK__", true);
+    shooting := layer.create_state("Shoot_Gun_mIK_AL", true);
+    layer.set_initial_state(idle);
+    layer.create_transition(idle, shooting, false).create_trigger_condition(shoot_start);
+    layer.create_transition(shooting, idle, false).create_trigger_condition(shoot_end);
 }
 
 apply_hider_visuals :: proc(player: Player) {
@@ -229,6 +289,7 @@ apply_hider_visuals :: proc(player: Player) {
     player.mecha_skin_applied = true;
     if player.wear_paint_enabled { wear_paint(player, player.skin_canvas); }
     player.seeker_rig_ready = false;
+    player.streamed_seeker_rig_ready = false;
     player.role_visual_applied = .HIDER;
 }
 
@@ -236,7 +297,7 @@ update_hide_seek_player :: proc(player: Player) {
     if player.weapon_target != null {
         player.weapon_target.health = player.weapon_target.max_health;
     }
-    if player.hide_seek_role == .SEEKER && (!player.seeker_rig_ready || player.role_visual_applied != .SEEKER) {
+    if player.hide_seek_role == .SEEKER && (!player.streamed_seeker_rig_ready || player.role_visual_applied != .SEEKER) {
         exit_paint_mode(player);
         apply_seeker_visuals(player);
     } else if player.hide_seek_role == .HIDER && player.role_visual_applied != .HIDER {
@@ -250,7 +311,10 @@ draw_hide_seek_ui :: proc(player: Player) {
 
     UIK.begin(UIK.window(UI.get_safe_screen_rect()));
     defer UIK.end();
-    panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(520), UIK.fit(), 8, v4.{14, 22, 14, 22});
+    active_round := game.phase == .HIDING || game.phase == .HUNTING;
+    panel_width := 520.0;
+    if active_round { panel_width = 640; }
+    panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(panel_width), UIK.fit(), 8, v4.{14, 22, 14, 22});
     UIK.overlay_begin(.TOP_CENTER, panel, v2.{0, -20});
     defer UIK.overlay_end();
 
@@ -273,20 +337,98 @@ draw_hide_seek_ui :: proc(player: Player) {
     if game.phase != .WAITING { remaining = max(0.0, game.phase_end_time - get_time()); }
     minutes := remaining.(s64) / 60;
     seconds := remaining.(s64) % 60;
-    UIK.text(UIK.text_title(), title);
     if game.phase == .WAITING {
+        UIK.text(UIK.text_title(), title);
         UIK.text(UIK.text_body(), "Minimum 2 players");
     } else if game.phase == .COUNTDOWN {
+        UIK.text(UIK.text_title(), title);
         UIK.text(UIK.text_body(), `Starting in {seconds}s`);
-    } else if game.phase == .HIDING || game.phase == .HUNTING {
+    } else if active_round {
         seconds_text := `{seconds}`;
         if seconds < 10 { seconds_text = `0{seconds}`; }
+
+        scoreboard := UIK.layout_row(UIK.flex(1), UIK.pixels(92), 18);
+        scoreboard.cross_align = .CENTER;
+        scoreboard.main_align = .SPACE_BETWEEN;
+        UIK.panel_begin(scoreboard);
+
+        seeker_group := UIK.layout_column();
+        seeker_group.width = UIK.pixels(150);
+        seeker_group.height = UIK.pixels(84);
+        seeker_group.gap = 2;
+        seeker_group.cross_align = .CENTER;
+        UIK.panel_begin(seeker_group);
+        seeker_row := UIK.layout_row(UIK.fit(), UIK.pixels(56), 8);
+        seeker_row.cross_align = .CENTER;
+        UIK.panel_begin(seeker_row);
+        seeker_icon_box := UIK.layout_column();
+        seeker_icon_box.width = UIK.pixels(48);
+        seeker_icon_box.height = UIK.pixels(52);
+        UIK.panel_begin(seeker_icon_box);
+        UIK.image_fitted(get_asset(Texture_Asset, "$AO/ui/kit/Icons/misc_icons_2/player_level_1_small.png"), UIK.image_desc(.CONTAIN), v4.{1, 0.18, 0.18, 1});
+        UIK.panel_end();
+        seeker_count_desc := UIK.text_title();
+        seeker_count_desc.set_size_mult(1.35);
+        seeker_count_desc.set_color(v4.{1, 0.18, 0.18, 1});
+        UIK.text(seeker_count_desc, `{game.seekers}`);
+        UIK.panel_end();
+        seeker_label_desc := UIK.text_body();
+        seeker_label_desc.set_halign(.CENTER);
+        UIK.text(seeker_label_desc, "SEEKERS");
+        UIK.panel_end();
+
+        timer_group := UIK.layout_column();
+        timer_group.width = UIK.pixels(250);
+        timer_group.height = UIK.pixels(88);
+        timer_group.cross_align = .CENTER;
+        UIK.panel_begin(timer_group);
+        timer_row := UIK.layout_row(UIK.fit(), UIK.pixels(60), 10);
+        timer_row.cross_align = .CENTER;
+        UIK.panel_begin(timer_row);
+        timer_icon_box := UIK.layout_column();
+        timer_icon_box.width = UIK.pixels(42);
+        timer_icon_box.height = UIK.pixels(48);
+        UIK.panel_begin(timer_icon_box);
+        UIK.image_fitted(get_asset(Texture_Asset, "$AO/ui/kit/Icons/misc_icons_1/timer_icon.png"), UIK.image_desc(.CONTAIN));
+        UIK.panel_end();
         timer_desc := UIK.text_title();
         timer_desc.set_size_mult(1.8);
         timer_desc.set_halign(.CENTER);
         UIK.text(timer_desc, `{minutes}:{seconds_text}`);
-        UIK.text(UIK.text_body(), `You are a {role}`);
-        UIK.text(UIK.text_body(), `Hiders: {game.hiders_left}  |  Seekers: {game.seekers}`);
+        UIK.panel_end();
+        phase_desc := UIK.text_body();
+        phase_desc.set_halign(.CENTER);
+        UIK.text(phase_desc, title);
+        UIK.panel_end();
+
+        hider_group := UIK.layout_column();
+        hider_group.width = UIK.pixels(150);
+        hider_group.height = UIK.pixels(84);
+        hider_group.gap = 2;
+        hider_group.cross_align = .CENTER;
+        UIK.panel_begin(hider_group);
+        hider_row := UIK.layout_row(UIK.fit(), UIK.pixels(56), 8);
+        hider_row.cross_align = .CENTER;
+        UIK.panel_begin(hider_row);
+        hider_icon_box := UIK.layout_column();
+        hider_icon_box.width = UIK.pixels(48);
+        hider_icon_box.height = UIK.pixels(52);
+        UIK.panel_begin(hider_icon_box);
+        UIK.image_fitted(get_asset(Texture_Asset, "$AO/ui/kit/Icons/misc_icons_2/player_level_1_small.png"), UIK.image_desc(.CONTAIN), v4.{0.25, 1, 0.45, 1});
+        UIK.panel_end();
+        hider_count_desc := UIK.text_title();
+        hider_count_desc.set_size_mult(1.35);
+        hider_count_desc.set_color(v4.{0.25, 1, 0.45, 1});
+        UIK.text(hider_count_desc, `{game.hiders_left}`);
+        UIK.panel_end();
+        hider_label_desc := UIK.text_body();
+        hider_label_desc.set_halign(.CENTER);
+        UIK.text(hider_label_desc, "HIDERS");
+        UIK.panel_end();
+
+        UIK.panel_end();
+    } else {
+        UIK.text(UIK.text_title(), title);
     }
 }
 
