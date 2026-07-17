@@ -215,6 +215,23 @@ Paint_Demo :: class : Component {
             }
         }
 
+        // Line tool: first click anchors, second commits. Returning early keeps
+        // a click that lands off the character from being read as a scene-fill
+        // sample, which would flood the whole canvas.
+        if player.line_tool_active {
+            if left_down && !mouse_over_paint_ui(player, get_mouse_screen_position()) {
+                if player.line_anchor_set {
+                    player.line_anchor_set = false;
+                    paint_world_line(player, skin, player.line_anchor_world, mouse);
+                } else {
+                    player.line_anchor_world = mouse;
+                    player.line_anchor_set = true;
+                }
+            }
+            player.was_painting = false;
+            return;
+        }
+
         // Animated mesh inversion walks the current Spine triangles, so only do
         // it on frames where a left-button action can consume the result.
         if !player.eyedropper_active && (left_held || left_down) {
@@ -262,6 +279,62 @@ Paint_Demo :: class : Component {
 
 brush_world_radius :: proc(player: Player) -> float {
     return player.brush_radius * ((PAINT_RECT_MAX_X - PAINT_RECT_MIN_X) / SKIN_TEXELS_X.(float)) * MECHA_RENDER_SCALE;
+}
+
+// World-space spacing between mesh probes along a committed line, and a ceiling
+// on how many a single line may cost. The step only sets how precisely the paint
+// stops at the silhouette edge - stamp() draws a capsule between consecutive
+// probes, so a coarse step never leaves gaps in the line itself.
+LINE_PROBE_STEP :: 0.03;
+LINE_PROBE_MAX  :: 256;
+
+// Walk the segment and paint only the stretches that land on the animated
+// silhouette. Either endpoint may sit well off the character: a probe that
+// misses just breaks the run, so a line clipping a shoulder paints the shoulder
+// and nothing else. Unlike the freehand brush this uses the raw mesh test with
+// no outward probing - "only on the player" means exactly on it.
+//
+// Every probe reads the same frame's pose, and this only runs on the commit
+// click, never per-frame, so the cost lands once per line.
+paint_world_line :: proc(player: Player, skin: Dynamic_Canvas, from_world: v2, to_world: v2) {
+    segment := to_world - from_world;
+    line_length := length(segment);
+    if line_length <= 0.0001 { return; }
+
+    steps := (line_length / LINE_PROBE_STEP).(s64) + 1;
+    if steps > LINE_PROBE_MAX { steps = LINE_PROBE_MAX; }
+
+    begin_paint_stroke_undo(player);
+
+    have_previous := false;
+    previous_px: v2;
+    painted := false;
+    for i: 0..steps {
+        probe := from_world + segment * (i.(float) / steps.(float));
+        uv, on_character := player.animator.try_get_paint_canvas_uv(probe, skin);
+        if !on_character {
+            have_previous = false;
+            continue;
+        }
+        px := v2.{uv.x * skin.width.(float), uv.y * skin.height.(float)};
+        // The first probe of a run stamps a dot; the rest extend from the last
+        // one, which is what keeps a run continuous without bridging a gap.
+        from_px := px;
+        if have_previous { from_px = previous_px; }
+        record_paint_segment_undo(player, skin, from_px, px);
+        skin.stamp(from_px, px, player.brush_radius, player.brush_color, 0.4, 1.0);
+        previous_px = px;
+        have_previous = true;
+        painted = true;
+    }
+
+    if !painted { return; }
+    desc := SFX.default_sfx_desc();
+    desc.entity_to_follow = player.entity.id;
+    desc.specific_to_player = player;
+    desc.volume = 0.35;
+    desc.speed_perturb = 0.1;
+    SFX.play(get_asset(SFX_Asset, "reusable_weapons/sounds/reusable-weapons/geyser_splash_02.wav"), desc);
 }
 
 // The canvas mapping only exists on the mesh, so a cursor just off the
@@ -414,6 +487,28 @@ wear_paint :: proc(player: Player, skin: Dynamic_Canvas) {
     player.override_ids[0] = player.animator.instance.override_attachment_canvas(MECHA_PAINT_ATTACHMENT, skin, true);
 }
 
+// Rubber-band from the anchor to the cursor once the first point is down.
+// Without it the second click is a guess. The anchor is a fixed world point and
+// the camera is parked while painting, so no interpolation is needed.
+draw_paint_line_preview :: proc(player: Player) {
+    if !player.line_tool_active || !player.line_anchor_set { return; }
+    if !player.wear_paint_enabled || player.skin_canvas == null { return; }
+
+    UI.push_screen_draw_context();
+    defer UI.pop_draw_context();
+    UI.push_layer(129);
+    defer UI.pop_layer();
+
+    start := world_to_screen(player.line_anchor_world);
+    end := get_mouse_screen_position();
+    white := core_globals.white_sprite;
+    // Dark backing keeps the preview readable over pale paint, same as the cursor.
+    UI.line(start, end, 5.0, white, v4.{0.05, 0.05, 0.06, 0.7});
+    UI.line(start, end, 2.0, white, v4.{player.brush_color.x, player.brush_color.y, player.brush_color.z, 0.95});
+    UI.wire_circle(start, 8.0, 3.5, v4.{0.05, 0.05, 0.06, 0.8}, 24);
+    UI.wire_circle(start, 8.0, 2.0, v4.{1, 1, 1, 0.95}, 24);
+}
+
 // Screen-space brush preview. Its diameter is derived from the same
 // character-space texel scale used by Dynamic_Canvas, so it matches the
 // painted footprint at every camera zoom level.
@@ -513,9 +608,26 @@ draw_paint_mode_button :: proc(player: Player) {
                 enter_paint_mode(player);
             }
         }
+
+        // The round HUD runs across the top of the screen, right where the head
+        // sits at paint-mode zoom. This clears it out of the way. The paint
+        // controls stay up - including this button, or there would be no way back.
+        if player.paint_mode {
+            hide_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_BLUE);
+            hide_desc.panel.min_width = 190;
+            hide_desc.panel.min_height = 64;
+            hide_label := "Hide UI";
+            if player.hide_game_ui { hide_label = "Show UI"; }
+            hide_result := UIK.button("hide_game_ui_button", hide_label, hide_desc);
+            if UIK.clicked(hide_result) {
+                player.hide_game_ui = !player.hide_game_ui;
+            }
+        }
     }
 
 }
+
+EMOTE_BUTTON_RIGHT_INSET :: 104.0;
 
 draw_emote_button :: proc(player: Player) {
     if player.hide_seek_role == .SEEKER { return; }
@@ -525,7 +637,10 @@ draw_emote_button :: proc(player: Player) {
     UIK.begin(begin_desc);
     defer UIK.end();
 
-    UIK.overlay_begin(.CENTER_RIGHT, v2.{-28, 0});
+    // Clears the zoom bar, which occupies the 80pt strip inset 10 from the right
+    // edge (see draw_zoom_slider). Fixed rather than paint-mode only, so the
+    // button does not jump sideways when the bar appears.
+    UIK.overlay_begin(.CENTER_RIGHT, v2.{-EMOTE_BUTTON_RIGHT_INSET, 0});
     defer UIK.overlay_end();
 
     emote_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_PURPLE);
@@ -585,6 +700,10 @@ exit_paint_mode :: proc(player: Player) {
     player.picker_open = false;
     player.eyedropper_active = false;
     player.was_painting = false;
+    player.line_tool_active = false;
+    player.line_anchor_set = false;
+    // Only reachable from the paint controls, so it must not outlive them.
+    player.hide_game_ui = false;
     if player.paint_controls_disabled {
         player.remove_freeze_reason(PAINT_FREEZE_REASON);
         if player.device_kind == .PHONE || player.device_kind == .TABLET {
@@ -688,14 +807,61 @@ PICKER_LABEL_H :: 59.4;
 PICKER_BRUSH_H :: 45.9;   // brush-size slider row height
 PICKER_BRUSH_LABEL_H :: 38.0;
 PICKER_PICK_W  :: 148.5;  // eyedropper (PICK) button width
+PICKER_TOOL_H  :: 59.4;   // LINE tool row height
 SV_CELLS       :: 16;     // SV gradient resolution (cells per axis)
 HUE_CELLS      :: 24;     // hue bar resolution
+
+// Shared so the picker, the undo button that parks against it, and the line
+// tool's input guard all derive from one set of numbers.
+picker_panel_size :: proc() -> float, float {
+    width := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_HUE_W;
+    height := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_BRUSH_LABEL_H + PICKER_BRUSH_H + PICKER_GAP + PICKER_LABEL_H + PICKER_GAP + PICKER_TOOL_H;
+    return width, height;
+}
+
+picker_panel_rect :: proc() -> Rect {
+    panel_w, panel_h := picker_panel_size();
+    return UI.get_safe_screen_rect().bottom_left_rect().grow(panel_h, panel_w, 0, 0).offset(PICKER_MARGIN, PICKER_MARGIN);
+}
+
+// The line tool accepts clicks anywhere on screen, so it has to hand back the
+// regions the paint controls sit in - otherwise dragging the hue bar or hitting
+// Cancel would drop a line anchor. These mirror the rects the draw procs build;
+// they deliberately over-cover rather than track each widget exactly.
+PICKER_UNDO_GUTTER :: 178.0;  // gap + undo button, see draw_paint_undo_button
+ZOOM_RAIL_WIDTH    :: 100.0;  // the zoom bar's 80pt strip plus its 10pt inset
+EMOTE_RAIL_WIDTH   :: 260.0;  // out to the far edge of the emote button
+RIGHT_RAIL_HALF_H  :: 160.0;  // matches the zoom bar's half height
+PAINT_BUTTON_HALF_W :: 197.0; // Cancel plus Hide UI, both 190 wide with a 14 gap
+PAINT_BUTTON_H      :: 92.0;  // their height plus the 28pt offset off the bottom
+
+point_in_rect :: proc(rect: Rect, point: v2) -> bool {
+    return point.x >= rect.min.x && point.x <= rect.max.x && point.y >= rect.min.y && point.y <= rect.max.y;
+}
+
+mouse_over_paint_ui :: proc(player: Player, mouse_screen: v2) -> bool {
+    screen := UI.get_safe_screen_rect();
+    // Cancel, Hide UI and the zoom bar all survive Hide UI, so they block
+    // whatever else is on screen.
+    paint_button := screen.bottom_center_rect().grow(PAINT_BUTTON_H, PAINT_BUTTON_HALF_W, 0, PAINT_BUTTON_HALF_W);
+    if point_in_rect(paint_button, mouse_screen) { return true; }
+    zoom_rail := screen.right_center_rect().grow(RIGHT_RAIL_HALF_H, 0, RIGHT_RAIL_HALF_H, ZOOM_RAIL_WIDTH);
+    if point_in_rect(zoom_rail, mouse_screen) { return true; }
+
+    // The rest is hidden by Hide UI, and hidden controls must not go on eating
+    // clicks aimed at the character behind them.
+    if player.hide_game_ui { return false; }
+    if player.picker_open {
+        if point_in_rect(picker_panel_rect().grow(0, PICKER_UNDO_GUTTER, 0, 0), mouse_screen) { return true; }
+    }
+    emote_rail := screen.right_center_rect().grow(RIGHT_RAIL_HALF_H, 0, RIGHT_RAIL_HALF_H, EMOTE_RAIL_WIDTH);
+    return point_in_rect(emote_rail, mouse_screen);
+}
 
 draw_paint_undo_button :: proc(player: Player) {
     if !player.paint_mode || !player.picker_open { return; }
 
-    panel_w := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_HUE_W;
-    panel_h := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_BRUSH_LABEL_H + PICKER_BRUSH_H + PICKER_GAP + PICKER_LABEL_H;
+    panel_w, panel_h := picker_panel_size();
 
     begin_desc := UIK.window(UI.get_safe_screen_rect());
     begin_desc.layer = 135;
@@ -785,13 +951,12 @@ draw_color_picker :: proc(player: Player) {
     UI.push_layer(100);
     defer UI.pop_layer();
 
-    screen := UI.get_safe_screen_rect();
-    panel_w := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_HUE_W;
-    panel_h := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_BRUSH_LABEL_H + PICKER_BRUSH_H + PICKER_GAP + PICKER_LABEL_H;
-    panel := screen.bottom_left_rect().grow(panel_h, panel_w, 0, 0).offset(PICKER_MARGIN, PICKER_MARGIN);
+    panel := picker_panel_rect();
     UI.quad(panel, core_globals.white_sprite, v4.{0.10, 0.10, 0.13, 0.88});
 
     work := panel.inset(PICKER_PAD);
+    tool_row := work.cut_bottom(PICKER_TOOL_H);
+    work.cut_bottom(PICKER_GAP);
     label_row := work.cut_bottom(PICKER_LABEL_H);
     work.cut_bottom(PICKER_GAP);
     brush_row := work.cut_bottom(PICKER_BRUSH_H);
@@ -885,7 +1050,14 @@ draw_color_picker :: proc(player: Player) {
     UI.pop_id();
     pick_icon_rect := pick_rect.subrect(0.66, 0.12, 0.96, 0.88);
     UI.quad(pick_icon_rect, get_asset(Texture_Asset, "picker-color-icon.png"));
-    if pick.clicked { player.eyedropper_active = !player.eyedropper_active; }
+    if pick.clicked {
+        player.eyedropper_active = !player.eyedropper_active;
+        // The two click modes would fight over the same click.
+        if player.eyedropper_active {
+            player.line_tool_active = false;
+            player.line_anchor_set = false;
+        }
+    }
 
     ts := UI.default_text_settings();
     ts.size = 40;
@@ -893,4 +1065,31 @@ draw_color_picker :: proc(player: Player) {
     ts.halign = .LEFT;
     ts.valign = .CENTER;
     UI.text(label_row, ts, `Brush: {(player.brush_radius + 0.5).(s64)}px`);
+
+    // The label doubles as the tool's only prompt, so it has to say which click
+    // comes next rather than just naming the mode.
+    line_label := "LINE";
+    if player.line_tool_active {
+        line_label = "LINE: CLICK START";
+        if player.line_anchor_set { line_label = "LINE: CLICK END"; }
+    }
+    line_bs := UI.default_button_settings();
+    line_bs.color = v4.{0.30, 0.30, 0.36, 1};
+    line_bs.hovered_color = v4.{0.40, 0.40, 0.46, 1};
+    line_bs.pressed_color = v4.{0.18, 0.60, 0.28, 1};
+    if player.line_tool_active {
+        line_bs.color = v4.{0.20, 0.80, 0.35, 1};
+        line_bs.hovered_color = v4.{0.28, 0.90, 0.42, 1};
+    }
+    line_ts := UI.default_text_settings();
+    line_ts.size = 35;
+    line_ts.color = v4.{1, 1, 1, 1};
+    UI.push_id("picker_line_tool");
+    line := UI.button(tool_row, line_bs, line_ts, line_label);
+    UI.pop_id();
+    if line.clicked {
+        player.line_tool_active = !player.line_tool_active;
+        player.line_anchor_set = false;
+        if player.line_tool_active { player.eyedropper_active = false; }
+    }
 }

@@ -6,7 +6,8 @@ HIDE_PHASE_SECONDS :: 50.0;
 HUNT_PHASE_SECONDS :: 100.0;
 REVEAL_SECONDS :: 20.0;
 HIDER_WIN_REVEAL_SECONDS :: 10.0;
-HIDER_NAME_REASON :: "hide_seek_hider";
+// Value kept as-is so a reason added before a hot reload still resolves.
+ROUND_NAME_REASON :: "hide_seek_hider";
 SEEKER_RIG :: "$AO/streamed_character";
 MAP_COUNT :: 3;
 MAP_VOTE_HOLD_SECONDS :: 0.6;
@@ -276,12 +277,24 @@ resolve_map_vote :: proc(game: Hide_Seek_Game) -> Map_Kind {
     return tied[rng_range_int(ref rng, 0, tied.count - 1)].(Map_Kind);
 }
 
+// No nameplate renders while a round is live, whatever the role: hiders stay
+// anonymous, and a floating seeker name would give the hunt away from across
+// the map. Names come back in the lobby.
+hide_round_name :: proc(player: Player) {
+    if player.name_hidden { return; }
+    player.add_name_invisibility_reason(ROUND_NAME_REASON);
+    player.name_hidden = true;
+}
+
+show_round_name :: proc(player: Player) {
+    if !player.name_hidden { return; }
+    player.remove_name_invisibility_reason(ROUND_NAME_REASON);
+    player.name_hidden = false;
+}
+
 add_mid_round_seeker :: proc(game: Hide_Seek_Game, player: Player, hide_phase: bool) {
     player.hide_seek_role = .SEEKER;
-    if player.hider_name_hidden {
-        player.remove_name_invisibility_reason(HIDER_NAME_REASON);
-        player.hider_name_hidden = false;
-    }
+    hide_round_name(player);
     exit_paint_mode(player);
     player.emotes_open = false;
     player.active_pose = 0;
@@ -369,10 +382,7 @@ finish_hide_seek_round :: proc(game: Hide_Seek_Game, winner: Hide_Seek_Winner) {
 return_players_to_lobby :: proc(game: Hide_Seek_Game) {
     for player: component_iterator(Player) {
         player.hide_seek_role = .HIDER;
-        if player.hider_name_hidden {
-            player.remove_name_invisibility_reason(HIDER_NAME_REASON);
-            player.hider_name_hidden = false;
-        }
+        show_round_name(player);
         player.role_visual_applied = .NONE;
         player.seeker_rig_ready = false;
         player.streamed_seeker_rig_ready = false;
@@ -421,13 +431,7 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
         player := players[i];
         player.hide_seek_role = .HIDER;
         if i == seeker_index { player.hide_seek_role = .SEEKER; }
-        if player.hide_seek_role == .HIDER && !player.hider_name_hidden {
-            player.add_name_invisibility_reason(HIDER_NAME_REASON);
-            player.hider_name_hidden = true;
-        } else if player.hide_seek_role == .SEEKER && player.hider_name_hidden {
-            player.remove_name_invisibility_reason(HIDER_NAME_REASON);
-            player.hider_name_hidden = false;
-        }
+        hide_round_name(player);
         player.role_visual_applied = .NONE;
         player.seeker_rig_ready = false;
         player.streamed_seeker_rig_ready = false;
@@ -481,10 +485,7 @@ on_hide_seek_player_damaged :: proc(target: Weapon_Target, damage: float, attack
 
 convert_hider_to_seeker :: proc(game: Hide_Seek_Game, victim: Player) {
     victim.hide_seek_role = .SEEKER;
-    if victim.hider_name_hidden {
-        victim.remove_name_invisibility_reason(HIDER_NAME_REASON);
-        victim.hider_name_hidden = false;
-    }
+    hide_round_name(victim);
     exit_paint_mode(victim);
     victim.emotes_open = false;
     victim.active_pose = 0;

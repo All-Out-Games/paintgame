@@ -49,6 +49,7 @@ Player :: class : Player_Base {
     picker_open: bool;
     paint_mode: bool;
     paint_controls_disabled: bool;
+    hide_game_ui: bool;   // paint mode's Hide UI button; clears on exit
     emotes_open: bool;
     active_pose: s64;
     pre_paint_zoom_t: float;
@@ -58,6 +59,12 @@ Player :: class : Player_Base {
     picker_v:    float;
     brush_radius: float;   // texels; set by the picker's brush-size slider
     eyedropper_active: bool;  // armed by the picker's PICK button; next scene click samples
+
+    // Line tool (picker's LINE button): click once to anchor, once more to
+    // commit. Both ends may sit off the character. See paint_world_line.
+    line_tool_active: bool;
+    line_anchor_set: bool;
+    line_anchor_world: v2;
     paint_cursor_interp: Position_Interpolation_Helper;
     paint_undo_pixels: [..]Paint_Undo_Pixel;
     paint_undo_recorded: [SKIN_TEXELS_X * SKIN_TEXELS_Y]bool;
@@ -91,7 +98,7 @@ Player :: class : Player_Base {
     map_vote_hold_index: s64;   // card currently being held; -1 when none
     map_vote_hold_t: float;
     role_reveal_end_time: float;
-    hider_name_hidden: bool;
+    name_hidden: bool;
     original_player_skins: [..]string;
     original_player_skins_captured: bool;
 
@@ -149,19 +156,24 @@ Player :: class : Player_Base {
     ao_late_update :: method(dt: float) {
         // UI must be drawn from player late_update, gated on is_local_or_server.
         if is_local_or_server() {
+            // Cancel and Hide UI survive Hide UI, otherwise there is no way back.
             draw_paint_mode_button(this);
-            draw_emote_button(this);
             draw_emote_menu(this);
-            draw_hide_seek_ui(this);
-            draw_hide_seek_leaderboard(this);
-            draw_map_vote_ui(this, dt);
-            draw_hide_seek_role_reveal(this);
-            if paint_mode && picker_open {
+            if !hide_game_ui {
+                draw_emote_button(this);
+                draw_hide_seek_ui(this);
+                draw_hide_seek_leaderboard(this);
+                draw_hide_seek_role_reveal(this);
+                draw_map_vote_ui(this, dt);
+            }
+            if paint_mode && picker_open && !hide_game_ui {
                 draw_color_picker(this);
                 draw_paint_undo_button(this);
             }
             if paint_mode {
+                // Zoom survives Hide UI - framing the shot is the point of it.
                 draw_zoom_slider(this);
+                draw_paint_line_preview(this);
                 draw_paint_cursor(this);
             }
             if hide_seek_role == .SEEKER && hide_seek_can_shoot() {

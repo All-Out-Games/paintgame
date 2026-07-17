@@ -54,8 +54,9 @@ Catch_Ability :: class : Ability_Base {
         if should_catch {
             p.active_ability = null;
             if params.can_use && current_cooldown <= 0 {
-                weapon_shoot(p, .WATER_GUN);
-                spawn_water_gun_projectile(p, aiming.aim_direction, .WATER_GUN);
+                // weapon_shoot(p, .WATER_GUN);
+                // spawn_water_gun_projectile(p, aiming.aim_direction, .WATER_GUN);
+                try_catch_at(p, target);
                 current_cooldown = CATCH_COOLDOWN_SECONDS;
             }
         }
