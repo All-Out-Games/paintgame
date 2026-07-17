@@ -1,0 +1,23 @@
+174cabd51f325391.png
+	size: 2048, 1024
+	filter: Linear, Linear
+imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_1
+	bounds: 6, 6, 313, 269
+	offsets: 1, 1, 315, 271
+imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_2
+	bounds: 1327, 267, 598, 468
+	offsets: 1, 1, 600, 470
+	rotate: 90
+imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_3
+	bounds: 677, 319, 644, 546
+	offsets: 1, 1, 646, 548
+imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_4
+	bounds: 6, 281, 665, 584
+	offsets: 1, 1, 667, 586
+imposter/hydro_dipped_poop/hydro_dip_puddle
+	bounds: 677, 59, 627, 254
+	offsets: 1, 1, 629, 256
+imposter/hydro_dipped_poop/hydro_dipped_poop
+	bounds: 325, 126, 149, 144
+	offsets: 1, 1, 151, 146
+	rotate: 90

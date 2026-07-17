@@ -468,24 +468,35 @@ silence_built_in_locomotion_while_emoting :: proc(sm: State_Machine, pose: State
     }
 }
 
+// Active emote count and the pose-value -> clip mapping, shared so the emote
+// state machine and anything replaying a captured pose (the death body) agree.
+// Kept in lockstep with the labels/icons in draw_emote_menu - same order, same
+// count - so a button's grid index maps to the matching pose value.
+// Commented entries can come back by uncommenting in all three places together.
+MECHA_EMOTE_COUNT :: 4;
+
+// pose is the player.active_pose value: 0 means no emote, 1..N select a clip.
+mecha_pose_clip :: proc(pose: s64) -> string {
+    if pose == 1 { return "pose/balancing"; }
+    if pose == 2 { return "pose/idle"; }
+    if pose == 3 { return "pose/star"; }
+    if pose == 4 { return "pose/t_pose"; }
+    // if pose == 5 { return "pose/ball"; }
+    // ... "pose/bend", "pose/bridge", "pose/costanza", "pose/future",
+    //     "pose/handstand", "pose/lying", "pose/mid_run", "pose/sitting",
+    //     "pose/superman", "pose/surrender", "pose/yoga"
+    return "";
+}
+
 setup_mecha_emotes :: proc(sm: State_Machine, pose: State_Machine_Variable) {
     layer := sm.create_layer("mecha_emotes", 4);
     empty := layer.create_state("__CLEAR_TRACK__", true);
     layer.set_initial_state(empty);
     layer.create_global_transition(empty, false).create_int_condition(pose, 0, .EQUAL);
 
-    // Kept in lockstep with the labels/icons in draw_emote_menu - same order,
-    // same count - so a button's grid index maps to the matching pose value.
-    // Commented entries can come back by uncommenting here and there together.
-    names: [4]string = {
-        "pose/balancing", "pose/idle", "pose/star", "pose/t_pose",
-        // "pose/ball", "pose/bend", "pose/bridge", "pose/costanza",
-        // "pose/future", "pose/handstand", "pose/lying", "pose/mid_run",
-        // "pose/sitting", "pose/superman", "pose/surrender", "pose/yoga"
-    };
-    for i: 0..names.count - 1 {
-        state := layer.create_state(names[i], true);
-        layer.create_global_transition(state, false).create_int_condition(pose, i + 1, .EQUAL);
+    for i: 1..MECHA_EMOTE_COUNT {
+        state := layer.create_state(mecha_pose_clip(i), true);
+        layer.create_global_transition(state, false).create_int_condition(pose, i, .EQUAL);
     }
 }
 

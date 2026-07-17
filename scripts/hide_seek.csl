@@ -15,8 +15,9 @@ MAP_CARD_WIDTH :: 480.0;
 MAP_PREVIEW_WIDTH :: 440.0;
 MAP_PREVIEW_HEIGHT :: 260.0;
 MAP_VOTE_GREEN :: v4.{0.25, 1.0, 0.45, 1.0};
-MAP_VOTE_BAR_HEIGHT :: 52.0;
-MAP_VOTE_BAR_INSET :: 6.0;
+MAP_VOTE_TRACK_COLOR :: v4.{0.06, 0.06, 0.08, 1.0};
+MAP_VOTE_BAR_HEIGHT :: 46.0;
+MAP_VOTE_BAR_INSET :: 7.0;
 // Seekers draw over hiders.
 HIDER_ANIMATOR_LAYER :: 1;
 SEEKER_ANIMATOR_LAYER :: 2;
@@ -68,6 +69,18 @@ map_display_name :: proc(map: Map_Kind) -> string {
         case .BACKROOMS_DARK:  return "Backrooms Dark";
         case .BACKROOMS_WATER: return "Backrooms Water";
         default:               return "Unknown";
+    }
+}
+
+// The vote card title as two fixed lines so every card is the same height and
+// nothing wraps unpredictably or clips. The names all share "Backrooms"; the
+// second line is the variant, or a space to hold the line when there is none.
+map_name_lines :: proc(map: Map_Kind) -> string, string {
+    switch map {
+        case .BACKROOMS:       return "Backrooms", " ";
+        case .BACKROOMS_DARK:  return "Backrooms", "Dark";
+        case .BACKROOMS_WATER: return "Backrooms", "Water";
+        default:               return "Unknown", " ";
     }
 }
 
@@ -403,6 +416,8 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
         }
         teleport_player_to_lobby(game, player);
     }
+    // The bodies belonged to the round that just ended.
+    clear_hide_seek_corpses();
     game.hiders_left = 0;
     game.seekers = 0;
     game.winner = .NONE;
@@ -424,6 +439,9 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
     players: [..]Player;
     for player: component_iterator(Player) { players.append(player); }
     if players.count < game.min_players { return false; }
+
+    // Clear last round's bodies in case this start skipped the reveal (e.g. /start).
+    clear_hide_seek_corpses();
 
     rng := rng_root_seed();
     seeker_index := rng_range_int(ref rng, 0, players.count - 1);
@@ -483,7 +501,144 @@ on_hide_seek_player_damaged :: proc(target: Weapon_Target, damage: float, attack
     convert_hider_to_seeker(game, victim);
 }
 
+POOP_SPINE :: "rainbow_poop_puddle_174cab/rainbow_poop_puddle.spine";
+POOP_EXPLOSION_ANIM :: "poop_explosion";
+POOP_FREEZE_TIME :: 0.2;           // hold the burst here instead of playing on to the null frame
+CORPSE_LAYER :: 1;                 // same layer as live hiders
+POOP_LAYER :: 0;                   // a lasting splat on the ground beneath the body
+
+// A caught hider leaves their painted body where they fell. It owns a private
+// snapshot of the paint rather than sharing the player's live canvas: the
+// player becomes a seeker and could repaint next round, and could disconnect
+// (which destroys their canvas), either of which would corrupt or dangle a
+// shared reference. Cleared at round boundaries by clear_hide_seek_corpses.
+CORPSE_IDLE_CLIP :: "Idle";      // caught standing still, not emoting
+CORPSE_RUN_CLIP  :: "Run_Fast";  // caught mid-run, not emoting
+
+Hide_Seek_Corpse :: class : Component {
+    canvas: Dynamic_Canvas;
+    pose_clip: string;   // set at spawn; synced, so every client can pose the body
+
+    ao_end :: method() {
+        if canvas != null { canvas.destroy(); }
+    }
+
+    // Spawn code only runs on the server and the catching client. Every other
+    // client receives the replicated entity WITHOUT the set_animation call, so
+    // it showed the skeleton's default pose until sync caught up - the corpse
+    // looked different per screen. So each client poses the body itself from
+    // the synced clip name.
+    //
+    // The marker variable identifies our inert state machine. Missing means
+    // whatever machine is attached (the rig's own, or a reconciled replacement)
+    // could drive track 0 over the clip - swap in a fresh inert one and set the
+    // pose. Runs once per machine, on every client, and self-heals if the
+    // machine is ever replaced.
+    ao_update :: method(dt: float) {
+        if pose_clip == "" { return; }
+        anim := entity.get_component(Spine_Animator);
+        if anim == null { return; }
+        sm := anim.state_machine;
+        if sm != null && sm.try_get_variable("hide_seek_corpse") != null { return; }
+        inert := State_Machine.create();
+        inert.create_variable("hide_seek_corpse", .BOOL);
+        anim.set_state_machine(inert, true);
+        anim.set_animation(pose_clip, false, 0);
+    }
+}
+
+// The death splat. Plays the burst, then freezes it partway so a splat stays on
+// the ground rather than playing on to the animation's empty final frame. It
+// lingers as a death marker and is cleared at round boundaries alongside bodies.
+Poop_Explosion :: class : Component {
+    lifetime: float;
+    frozen: bool;
+
+    ao_update :: method(dt: float) {
+        if frozen { return; }
+        lifetime += dt;
+        if lifetime >= POOP_FREEZE_TIME {
+            anim := entity.get_component(Spine_Animator);
+            if anim != null { anim.speed_multiplier = 0; }
+            frozen = true;
+        }
+    }
+}
+
+spawn_hider_death :: proc(victim: Player) {
+    pos := victim.entity.world_position;
+
+    // Rainbow poop burst at the point of the catch.
+    poop_e := Scene.create_entity();
+    poop_e.set_world_position(pos);
+    poop := poop_e.add_component(Spine_Animator);
+    poop.awaken();
+    poop.set_skeleton(get_asset(Spine_Asset, POOP_SPINE));
+    poop.layer = POOP_LAYER;
+    poop.set_animation(POOP_EXPLOSION_ANIM, false, 0);
+    poop_e.add_component(Poop_Explosion);
+
+    desc := SFX.default_sfx_desc();
+    desc.entity_to_follow = poop_e.id;
+    desc.volume = 0.6;
+    desc.speed_perturb = 0.1;
+    SFX.play(get_asset(SFX_Asset, "reusable_weapons/sounds/reusable-weapons/geyser_splash_02.wav"), desc);
+
+    // The body itself, wearing the hider's paint and frozen in their pose.
+    if victim.animator == null || victim.skin_canvas == null { return; }
+    body_e := Scene.create_entity();
+    body_e.set_world_position(pos);
+    body := body_e.add_component(Spine_Animator);
+    body.awaken();
+    body.set_skeleton(get_asset(Spine_Asset, MECHA_RIG_PATH));
+    body.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
+    body.layer = CORPSE_LAYER;
+    body.disable_all_skins();
+    body.enable_skin(MECHA_SKIN);
+    body.refresh_skins();
+
+    // Snapshot the paint into a canvas the corpse owns outright.
+    corpse := body_e.add_component(Hide_Seek_Corpse);
+    snapshot := Dynamic_Canvas.create(SKIN_TEXELS_X, SKIN_TEXELS_Y, 32);
+    for y: 0..SKIN_TEXELS_Y - 1 {
+        for x: 0..SKIN_TEXELS_X - 1 {
+            snapshot.set_pixel(x, y, victim.skin_canvas.get_pixel(x, y));
+        }
+    }
+    corpse.canvas = snapshot;
+    body.instance.set_paint_canvas_rect(v2.{PAINT_RECT_MIN_X, PAINT_RECT_MIN_Y}, v2.{PAINT_RECT_MAX_X, PAINT_RECT_MAX_Y});
+    body.instance.override_attachment_canvas(MECHA_PAINT_ATTACHMENT, snapshot, true);
+
+    // Record the clip the victim was showing when caught: their emote if they
+    // were mid-emote (read before the caller resets active_pose), else run,
+    // else idle. The corpse's ao_update applies it on every client - the pose
+    // must ride synced component data, not a local set_animation call, or only
+    // the catching client and the server ever see it.
+    clip := CORPSE_IDLE_CLIP;
+    if victim.active_pose >= 1 && victim.active_pose <= MECHA_EMOTE_COUNT {
+        clip = mecha_pose_clip(victim.active_pose);
+    } else if length_squared(victim.input_this_frame) > 0.0001 {
+        clip = CORPSE_RUN_CLIP;
+    }
+    corpse.pose_clip = clip;
+}
+
+clear_hide_seek_corpses :: proc() {
+    corpses: [..]Hide_Seek_Corpse;
+    for corpse: component_iterator(Hide_Seek_Corpse) { corpses.append(corpse); }
+    for corpse: corpses {
+        if #alive(corpse) { corpse.entity.destroy(); }
+    }
+    splats: [..]Poop_Explosion;
+    for splat: component_iterator(Poop_Explosion) { splats.append(splat); }
+    for splat: splats {
+        if #alive(splat) { splat.entity.destroy(); }
+    }
+}
+
 convert_hider_to_seeker :: proc(game: Hide_Seek_Game, victim: Player) {
+    // Mark the spot before the teleport moves the victim off it.
+    spawn_hider_death(victim);
     victim.hide_seek_role = .SEEKER;
     hide_round_name(victim);
     exit_paint_mode(victim);
@@ -871,20 +1026,22 @@ draw_map_vote_card :: proc(player: Player, game: Hide_Seek_Game, index: s64, dt:
         fill = clamp(player.map_vote_hold_t / MAP_VOTE_HOLD_SECONDS, 0.0, 1.0);
     }
 
-    // Fixed box + wrapping: the map names are long enough to overrun the card
-    // and bleed into its neighbours otherwise.
+    // Two explicit lines instead of one wrapping label: every card is the same
+    // two-line height so the previews line up, and no line can clip or bleed
+    // into a neighbour. The box is content-sized (fit), so no pixel height has
+    // to be guessed against the font.
+    line1, line2 := map_name_lines(map);
     title_box := UIK.layout_column();
     title_box.width = UIK.pixels(MAP_PREVIEW_WIDTH);
-    title_box.height = UIK.pixels(180);
+    title_box.height = UIK.fit();
+    title_box.gap = 0;
     title_box.cross_align = .CENTER;
-    title_box.main_align = .CENTER;
-    title_box.clip_children = true;
     UIK.panel_begin(title_box);
     title_desc := UIK.text_title();
     title_desc.set_size_mult(1.2);
     title_desc.set_halign(.CENTER);
-    title_desc.set_word_wrap(true);
-    UIK.text(title_desc, map_display_name(map));
+    UIK.text(title_desc, line1);
+    UIK.text(title_desc, line2);
     UIK.panel_end();
 
     preview := UIK.layout_column();
@@ -901,26 +1058,30 @@ draw_map_vote_card :: proc(player: Player, game: Hide_Seek_Game, index: s64, dt:
     hint_desc.set_halign(.CENTER);
     UIK.text(hint_desc, hint);
 
-    // Hand-built from two panels. Neither UIK.progress_bar nor progress_t on a
-    // panel renders anything here, and a thin bar makes the nine-sliced panel
-    // art deform, so keep it tall enough to read as a proper capsule.
-    track := UIK.layout_row();
-    track.width = UIK.pixels(MAP_PREVIEW_WIDTH);
-    track.height = UIK.pixels(MAP_VOTE_BAR_HEIGHT);
-    track.background = .MODAL_BLACK;
-    track.padding = v4.{MAP_VOTE_BAR_INSET, MAP_VOTE_BAR_INSET, MAP_VOTE_BAR_INSET, MAP_VOTE_BAR_INSET};
-    track.main_align = .START;
-    track.cross_align = .STRETCH;
-    UIK.panel_begin(track);
-    if fill > 0.02 {
-        fill_panel := UIK.layout_row();
-        fill_panel.width = UIK.pixels((MAP_PREVIEW_WIDTH - MAP_VOTE_BAR_INSET * 2) * fill);
-        fill_panel.height = UIK.flex(1);
-        fill_panel.background = .MODAL_GREEN;
-        UIK.panel_begin(fill_panel);
-        UIK.panel_end();
-    }
+    // Reserve the bar's slot in the card layout with an empty panel, then paint
+    // it with flat quads from that slot's rect. The kit's nine-sliced panels bake
+    // asymmetric margins into the black track and the green fill that never line
+    // up (the offset you'd see otherwise); a flat white-sprite quad has none, so
+    // the fill sits exactly inside the track. Same method the colour picker's
+    // sliders use, and the engine's own progress bar (subrect(0,0,fill,1)).
+    bar_slot := UIK.layout_row();
+    bar_slot.width = UIK.pixels(MAP_PREVIEW_WIDTH);
+    bar_slot.height = UIK.pixels(MAP_VOTE_BAR_HEIGHT);
+    bar_res := UIK.panel_begin_interactive(`map_vote_bar_{index}`, bar_slot, false);
     UIK.panel_end();
+
+    bar := bar_res.rect;
+    if bar.max.x > bar.min.x {
+        UI.push_screen_draw_context();
+        defer UI.pop_draw_context();
+        UI.push_layer(122);
+        defer UI.pop_layer();
+        UI.quad(bar, core_globals.white_sprite, MAP_VOTE_TRACK_COLOR);
+        if fill > 0 {
+            inner := bar.inset(MAP_VOTE_BAR_INSET);
+            UI.quad(inner.subrect(0, 0, fill, 1), core_globals.white_sprite, MAP_VOTE_GREEN);
+        }
+    }
 
     votes_desc := UIK.text_title();
     votes_desc.set_size_mult(1.5);
