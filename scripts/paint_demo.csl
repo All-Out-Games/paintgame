@@ -412,8 +412,28 @@ ensure_mecha_rig :: proc(player: Player) {
 // the built-in layer valid via the rig's Idle / Run_Fast clips, but cover it with
 // a Mecha locomotion layer driven by stable, replicated input intent instead.
 // Returns false until the built-in state machine is fully initialized.
+// Clears a running emote and hands the locomotion tracks back to their initial
+// states. Pose clips park "main" and mecha_locomotion on __CLEAR_TRACK__ while
+// mecha_pose is above zero, and only mecha_pose returning to 0 releases them -
+// so the machine has to be told, not just the player field.
+//
+// Safe on any rig: a machine that never had the mecha variables has no emote to
+// release, hence the try_get_variable guard rather than a role check.
+release_mecha_emote :: proc(player: Player) {
+    player.active_pose = 0;
+    if player.animator == null { return; }
+    sm := player.animator.state_machine;
+    if sm == null { return; }
+    if sm.try_get_variable("mecha_pose") == null { return; }
+    sm.set_int("mecha_pose", 0);
+    sm.set_bool("mecha_moving", false);
+}
+
 setup_mecha_locomotion :: proc(sm: State_Machine) -> bool {
     if sm.try_get_variable("moving") == null { return false; }
+    // Idempotent on purpose: if a machine ever survives a rig swap with these
+    // layers still attached, building them again would duplicate every state.
+    if sm.try_get_variable("mecha_moving") != null { return true; }
     moving := sm.create_variable("mecha_moving", .BOOL);
     pose := sm.create_variable("mecha_pose", .INT);
     layer := sm.create_layer("mecha_locomotion", 3);
@@ -454,11 +474,14 @@ setup_mecha_emotes :: proc(sm: State_Machine, pose: State_Machine_Variable) {
     layer.set_initial_state(empty);
     layer.create_global_transition(empty, false).create_int_condition(pose, 0, .EQUAL);
 
-    names: [16]string = {
-        "pose/balancing", "pose/ball", "pose/bend", "pose/bridge",
-        "pose/costanza", "pose/future", "pose/handstand", "pose/idle",
-        "pose/lying", "pose/mid_run", "pose/sitting", "pose/star",
-        "pose/superman", "pose/surrender", "pose/t_pose", "pose/yoga"
+    // Kept in lockstep with the labels/icons in draw_emote_menu - same order,
+    // same count - so a button's grid index maps to the matching pose value.
+    // Commented entries can come back by uncommenting here and there together.
+    names: [4]string = {
+        "pose/balancing", "pose/idle", "pose/star", "pose/t_pose",
+        // "pose/ball", "pose/bend", "pose/bridge", "pose/costanza",
+        // "pose/future", "pose/handstand", "pose/lying", "pose/mid_run",
+        // "pose/sitting", "pose/superman", "pose/surrender", "pose/yoga"
     };
     for i: 0..names.count - 1 {
         state := layer.create_state(names[i], true);
@@ -737,28 +760,32 @@ draw_emote_menu :: proc(player: Player) {
 
     UIK.grid_begin(4, 112);
 
-    labels: [16]string = {
-        "Balancing", "Ball", "Bend", "Bridge", "Costanza", "Future",
-        "Handstand", "Idle", "Lying", "Mid Run", "Sitting", "Star",
-        "Superman", "Surrender", "T Pose", "Yoga"
+    // Must stay in lockstep with the names array in setup_mecha_emotes - same
+    // order, same count - so a button's grid index maps to the matching pose.
+    // Commented entries can come back by uncommenting here and there together.
+    labels: [4]string = {
+        "Balancing", "Idle", "Star", "T Pose",
+        // "Ball", "Bend", "Bridge", "Costanza", "Future",
+        // "Handstand", "Lying", "Mid Run", "Sitting",
+        // "Superman", "Surrender", "Yoga"
     };
-    icons: [16]string = {
+    icons: [4]string = {
         "emote-icons/mc_player_silhouette-clean-pose-balancing_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-ball_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-bend_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-bridge_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-costanza_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-future_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-handstand_0.png",
         "emote-icons/mc_player_silhouette-clean-pose-idle_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-lying_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-mid_run_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-sitting_0.png",
         "emote-icons/mc_player_silhouette-clean-pose-star_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-superman_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-surrender_0.png",
         "emote-icons/mc_player_silhouette-clean-pose-t_pose_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-yoga_0.png"
+        // "emote-icons/mc_player_silhouette-clean-pose-ball_0.png",
+        // "emote-icons/mc_player_silhouette-clean-pose-bend_0.png",
+        // "emote-icons/mc_player_silhouette-clean-pose-bridge_0.png",
+        // "emote-icons/mc_player_silhouette-clean-pose-costanza_0.png",
+        // "emote-icons/mc_player_silhouette-clean-pose-future_0.png",
+        // "emote-icons/mc_player_silhouette-clean-pose-handstand_0.png",
+        // "emote-icons/mc_player_silhouette-clean-pose-lying_0.png",
+        // "emote-icons/mc_player_silhouette-clean-pose-mid_run_0.png",
+        // "emote-icons/mc_player_silhouette-clean-pose-sitting_0.png",
+        // "emote-icons/mc_player_silhouette-clean-pose-superman_0.png",
+        // "emote-icons/mc_player_silhouette-clean-pose-surrender_0.png",
+        // "emote-icons/mc_player_silhouette-clean-pose-yoga_0.png"
     };
     pose_desc := UIK.widget_desc_button_default(.BUTTON_SHINY_BLUE);
     pose_desc.panel.width = UIK.flex(1);

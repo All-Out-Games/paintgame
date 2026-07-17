@@ -513,6 +513,11 @@ apply_seeker_visuals :: proc(player: Player) {
         player.animator.instance.clear_attachment_sprite_override(player.override_ids[0]);
         player.override_ids[0] = 0;
     }
+    // Drop any emote before the swap. An emote parks the locomotion tracks on
+    // __CLEAR_TRACK__ and only releases them when mecha_pose returns to 0 - but
+    // ao_update only pushes the pose for non-seekers, so once the role flips
+    // nothing would ever clear it and the new rig stays frozen mid-pose.
+    release_mecha_emote(player);
     player.animator.set_skeleton(get_asset(Spine_Asset, SEEKER_RIG));
     player.animator.scale = v2.{0.7, 0.7};
     player.animator.layer = SEEKER_ANIMATOR_LAYER;
@@ -521,31 +526,14 @@ apply_seeker_visuals :: proc(player: Player) {
     for skin: player.original_player_skins {
         if skin != "base/crewchsia" { player.animator.enable_skin(skin); }
     }
-    player.animator.enable_skin("weapons/hand_gun");
     player.animator.refresh_skins();
     player.emotes_open = false;
-
-    if !player.streamed_seeker_rig_ready {
-        setup_streamed_seeker_weapon_state_machine(player);
-        player.weapon_state_ready = true;
-    }
-    player.equipped_weapon_type = .WATER_GUN;
+    // The mecha state machine died with the old skeleton; ensure_mecha_rig has
+    // to rebuild its layers from scratch if this player is ever a hider again.
+    player.locomotion_ready = false;
     player.seeker_rig_ready = true;
     player.streamed_seeker_rig_ready = true;
     player.role_visual_applied = .SEEKER;
-}
-
-setup_streamed_seeker_weapon_state_machine :: proc(player: Player) {
-    sm := player.animator.state_machine;
-    sm.create_variable("use_1h_ik", .BOOL);
-    shoot_start := sm.create_variable("shoot_fast_start", .TRIGGER);
-    shoot_end := sm.create_variable("shoot_fast_end", .TRIGGER);
-    layer := sm.create_layer("streamed_seeker_weapon", 5);
-    idle := layer.create_state("__CLEAR_TRACK__", true);
-    shooting := layer.create_state("Shoot_Gun_mIK_AL", true);
-    layer.set_initial_state(idle);
-    layer.create_transition(idle, shooting, false).create_trigger_condition(shoot_start);
-    layer.create_transition(shooting, idle, false).create_trigger_condition(shoot_end);
 }
 
 apply_hider_visuals :: proc(player: Player) {
@@ -561,6 +549,12 @@ apply_hider_visuals :: proc(player: Player) {
     player.animator.enable_skin(MECHA_SKIN);
     player.animator.refresh_skins();
     player.mecha_skin_applied = true;
+    // A new skeleton means a new state machine, so the mecha locomotion and
+    // emote layers built on the old one are gone. Without clearing this latch
+    // ensure_mecha_rig believes they are still installed and never rebuilds
+    // them, leaving ao_update setting mecha_moving on a machine that has no
+    // such variable.
+    player.locomotion_ready = false;
     if player.wear_paint_enabled { wear_paint(player, player.skin_canvas); }
     player.seeker_rig_ready = false;
     player.streamed_seeker_rig_ready = false;
