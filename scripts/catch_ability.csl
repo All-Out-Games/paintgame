@@ -5,11 +5,87 @@ CATCH_INDICATOR_RADIUS :: 0.4;
 CATCH_INDICATOR_SPRITE :: "sprites/reticle w.png";
 CATCH_ICON :: "reusable_weapons/sprites/reusable-weapons/weapon_icons/weapon_icons_250x250/watergun.png";
 
-// Seekers aim with the targeted ability controls, then fire a real reusable-
-// weapons projectile. The projectile's damage callback converts the hider.
+// Fraction of a full button-radius drag below which touch is not aiming yet.
+// Matches the deadzone core's update_aiming_ability uses.
+TOUCH_DRAG_DEADZONE :: 0.25;
+
+Targeted_Point_Result :: struct {
+    point:    v2;
+    aiming:   bool;
+    activate: bool;
+}
+
+// A point-on-the-ground version of core's full_update_targeted_aimed_ability.
+//
+// That helper cannot express this: update_aiming_ability hands back a
+// NORMALIZED aim_direction and throws the distance away, which is no use when
+// the target is a specific spot rather than a heading. It also hardcodes
+// draw_aiming_line, so there is no way to swap in a reticle. CSL has no
+// targeting types to lean on - is_aimed_ability is a bool that only picks the
+// button art - so the whole thing is composed by hand from the two primitives.
+//
+// Same two-device contract as the original:
+//   PC     - click the button to arm, the cursor IS the point, click to
+//            activate, right click cancels.
+//   Mobile - press and drag off the button: direction aims, how far the finger
+//            travelled sets distance, release activates.
+full_update_targeted_point_ability :: proc(player: Player, ability: Ability_Base, params: ref Ability_Update_Params, max_range: float) -> Targeted_Point_Result {
+    result: Targeted_Point_Result;
+    targeted := Ability_Utilities.update_targeted_ability(player, ability, ref params);
+    if !targeted.targeting { return result; }
+
+    origin := player.entity.world_position;
+    activate := false;
+
+    if player.device_kind == .PC {
+        // Full-screen catcher parked behind every real control, exactly as core
+        // does it, so this only sees clicks that land on open world.
+        UI.push_layer(-1000);
+        defer UI.pop_layer();
+        UI.push_id("targeted point");
+        defer UI.pop_id();
+        interact := UI.button(UI.get_screen_rect(), {}, {}, "");
+
+        if interact.right.clicked {
+            player.active_ability = null;
+            return result;
+        }
+        // Resolved every frame, not just while hovering, so the point is always
+        // valid on the frame the click lands.
+        result.point = clamp_point_to_range(origin, get_mouse_world_position(), max_range);
+        if interact.hovering { result.aiming = true; }
+        if interact.active   { activate = true; }
+    } else {
+        // Touch never hovers, so the drag off the button is the only signal there is.
+        drag := length(params.drag_offset);
+        if drag > TOUCH_DRAG_DEADZONE {
+            result.point = origin + params.drag_direction * (drag * max_range);
+            if params.released { activate = true; }
+            else               { result.aiming = true; }
+        }
+    }
+
+    // Mirrors core: disarm whatever happens, but only report a usable activate.
+    if activate {
+        player.active_ability = null;
+        if params.can_use { result.activate = true; }
+    }
+    return result;
+}
+
+clamp_point_to_range :: proc(origin: v2, point: v2, max_range: float) -> v2 {
+    offset := point - origin;
+    if length(offset) > max_range {
+        return origin + normalize(offset) * max_range;
+    }
+    return point;
+}
+
+// Seekers aim a reticle at a point on the ground; the catch lands on whichever
+// hider's live Spine mesh is under it.
 Catch_Ability :: class : Ability_Base {
     on_init :: method() {
-        name = "Shoot";
+        name = "Catch";
         icon = get_asset(Texture_Asset, CATCH_ICON);
         is_aimed_ability = true;
         disable_keybind = true;
@@ -17,65 +93,25 @@ Catch_Ability :: class : Ability_Base {
 
     on_update :: method(params: ref Ability_Update_Params) {
         p := player.(Player);
+        targeted := full_update_targeted_point_ability(p, this, ref params, CATCH_RANGE);
 
-        // Both platforms go through the ability button. PC clicks it to enter
-        // aim mode (right-click cancels); touch presses and drags from it.
-        targeted := Ability_Utilities.update_targeted_ability(p, this, ref params);
-        if !targeted.targeting {
-            p.set_mouse_ik_enabled(false);
-            return;
-        }
-
-        aiming := Ability_Utilities.update_aiming_ability(p, ref params);
-        if aiming.cancel {
-            p.active_ability = null;
-            p.set_mouse_ik_enabled(false);
-            return;
-        }
-
-        target := catch_target_position(p, aiming.aim_direction);
-        if aiming.aim {
-            p.last_aim_direction = aiming.aim_direction;
+        if targeted.aiming {
             // Drive the AIM bone at the reticle so the body reads as aiming.
             p.set_mouse_ik_enabled(true);
-            p.set_aim_target(target);
-            draw_catch_indicator(target);
+            p.set_aim_target(targeted.point);
+            offset := targeted.point - p.entity.world_position;
+            if length_squared(offset) > 0.0001 { p.last_aim_direction = normalize(offset); }
+            draw_catch_indicator(targeted.point);
         } else {
             p.set_mouse_ik_enabled(false);
         }
 
-        should_catch := false;
-        if p.device_kind == .PC {
-            should_catch = aiming.activate;
-        } else {
-            should_catch = aiming.aim && params.released;
-        }
-
-        if should_catch {
-            p.active_ability = null;
-            if params.can_use && current_cooldown <= 0 {
-                // weapon_shoot(p, .WATER_GUN);
-                // spawn_water_gun_projectile(p, aiming.aim_direction, .WATER_GUN);
-                try_catch_at(p, target);
-                current_cooldown = CATCH_COOLDOWN_SECONDS;
-            }
+        if targeted.activate && current_cooldown <= 0 {
+            p.set_mouse_ik_enabled(false);
+            try_catch_at(p, targeted.point);
+            current_cooldown = CATCH_COOLDOWN_SECONDS;
         }
     }
-}
-
-// PC aims with the cursor itself; touch has no cursor, so the reticle is
-// pushed out along the drag direction instead.
-catch_target_position :: proc(p: Player, aim_direction: v2) -> v2 {
-    origin := p.entity.world_position;
-    if p.device_kind != .PC {
-        return origin + aim_direction * CATCH_RANGE;
-    }
-    target := get_mouse_world_position();
-    offset := target - origin;
-    if length(offset) > CATCH_RANGE {
-        target = origin + normalize(offset) * CATCH_RANGE;
-    }
-    return target;
 }
 
 draw_catch_indicator :: proc(target: v2) {

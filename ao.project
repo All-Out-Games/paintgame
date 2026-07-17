@@ -1,11 +1,13 @@
 {
-    csl: true
-    manual_mip_divisor: 32
-    projects:
-    [
-        {
-            name: "Paint Demo (Dynamic Textures)"
-            id: "69656dbdda5626277f25de72"
-        }
-    ]
+  "csl": true,
+  "projects": [
+    {
+      "name": "Paint Demo (Dynamic Textures)",
+      "id": "69656dbdda5626277f25de72"
+    },
+    {
+      "name": "Meccha Staging",
+      "id": "6a5a114c5e160be9216e4ad1"
+    }
+  ]
 }

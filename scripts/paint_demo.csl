@@ -308,7 +308,6 @@ paint_world_line :: proc(player: Player, skin: Dynamic_Canvas, from_world: v2, t
 
     have_previous := false;
     previous_px: v2;
-    painted := false;
     for i: 0..steps {
         probe := from_world + segment * (i.(float) / steps.(float));
         uv, on_character := player.animator.try_get_paint_canvas_uv(probe, skin);
@@ -325,16 +324,7 @@ paint_world_line :: proc(player: Player, skin: Dynamic_Canvas, from_world: v2, t
         skin.stamp(from_px, px, player.brush_radius, player.brush_color, 0.4, 1.0);
         previous_px = px;
         have_previous = true;
-        painted = true;
     }
-
-    if !painted { return; }
-    desc := SFX.default_sfx_desc();
-    desc.entity_to_follow = player.entity.id;
-    desc.specific_to_player = player;
-    desc.volume = 0.35;
-    desc.speed_perturb = 0.1;
-    SFX.play(get_asset(SFX_Asset, "reusable_weapons/sounds/reusable-weapons/geyser_splash_02.wav"), desc);
 }
 
 // The canvas mapping only exists on the mesh, so a cursor just off the
