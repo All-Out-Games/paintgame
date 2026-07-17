@@ -218,8 +218,7 @@ Paint_Demo :: class : Component {
         // Animated mesh inversion walks the current Spine triangles, so only do
         // it on frames where a left-button action can consume the result.
         if !player.eyedropper_active && (left_held || left_down) {
-            character_uv, over_character := player.animator.try_get_paint_canvas_uv(mouse, skin);
-            character_px := v2.{character_uv.x * skin.width.(float), character_uv.y * skin.height.(float)};
+            character_px, over_character, brush_scale := try_get_brush_canvas_px(player, skin, mouse);
 
             // Hold left mouse over your character: paint directly on the body
             // with the current brush colour. Leaving the animated silhouette
@@ -233,7 +232,7 @@ Paint_Demo :: class : Component {
                     begin_paint_stroke_undo(player);
                 }
                 record_paint_segment_undo(player, skin, from, character_px);
-                skin.stamp(from, character_px, player.brush_radius, player.brush_color, 0.4, 1.0);
+                skin.stamp(from, character_px, player.brush_radius * brush_scale, player.brush_color, 0.4, 1.0);
                 player.last_paint_px = character_px;
                 player.was_painting = true;
                 return;
@@ -259,6 +258,49 @@ Paint_Demo :: class : Component {
         }
         player.was_painting = false;
     }
+}
+
+brush_world_radius :: proc(player: Player) -> float {
+    return player.brush_radius * ((PAINT_RECT_MAX_X - PAINT_RECT_MIN_X) / SKIN_TEXELS_X.(float)) * MECHA_RENDER_SCALE;
+}
+
+// The canvas mapping only exists on the mesh, so a cursor just off the
+// silhouette has no UV of its own. Probe outward and paint at the closest
+// point the brush covers.
+//
+// Returns a radius scale alongside the hit: a brush whose centre sits `d` away
+// from the character only overlaps it by (R - d), so the stamp has to shrink by
+// the same amount. Stamping the full radius at the snapped point is what made
+// a barely-touching brush splatter deep inside the body.
+BRUSH_PROBE_RINGS :: 3;
+BRUSH_PROBE_DIRS  :: 8;
+BRUSH_MIN_SCALE   :: 0.05;
+
+try_get_brush_canvas_px :: proc(player: Player, skin: Dynamic_Canvas, mouse: v2) -> v2, bool, float {
+    uv, hit := player.animator.try_get_paint_canvas_uv(mouse, skin);
+    if hit {
+        return v2.{uv.x * skin.width.(float), uv.y * skin.height.(float)}, true, 1.0;
+    }
+
+    world_radius := brush_world_radius(player);
+    if world_radius <= 0 { return v2.{0, 0}, false, 0.0; }
+
+    // Walk outward so the nearest overlap wins. Only reached when the cursor
+    // itself misses, so a normal stroke still costs one mesh test.
+    for ring: 1..BRUSH_PROBE_RINGS {
+        distance := world_radius * ring.(float) / BRUSH_PROBE_RINGS.(float);
+        scale := 1.0 - distance / world_radius;
+        if scale < BRUSH_MIN_SCALE { break; }
+        for dir: 0..BRUSH_PROBE_DIRS - 1 {
+            angle := dir.(float) / BRUSH_PROBE_DIRS.(float) * PI * 2.0;
+            probe := mouse + v2.{cos(angle), sin(angle)} * distance;
+            probe_uv, probe_hit := player.animator.try_get_paint_canvas_uv(probe, skin);
+            if probe_hit {
+                return v2.{probe_uv.x * skin.width.(float), probe_uv.y * skin.height.(float)}, true, scale;
+            }
+        }
+    }
+    return v2.{0, 0}, false, 0.0;
 }
 
 MECHA_RIG_PATH :: "Spines/MechaCharacter/mc_player_silhouette.spine";
@@ -380,7 +422,7 @@ draw_paint_cursor :: proc(player: Player) {
 
     mouse := get_mouse_screen_position();
     world := screen_to_world(mouse);
-    world_radius := player.brush_radius * ((PAINT_RECT_MAX_X - PAINT_RECT_MIN_X) / SKIN_TEXELS_X.(float)) * MECHA_RENDER_SCALE;
+    world_radius := brush_world_radius(player);
     edge_screen := world_to_screen(world + v2.{world_radius, 0});
     radius := length(edge_screen - mouse);
     radius = max(radius, 5.0);

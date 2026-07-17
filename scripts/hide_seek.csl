@@ -380,9 +380,14 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
         player.spawn_placed = true;
         exit_paint_mode(player);
         player.emotes_open = false;
-        // Weapon effects (electrocute, poison, tornado) must not survive into
-        // the lobby.
+        // Nothing from the round follows players into the lobby: effects,
+        // a half-aimed ability, its aim IK, or any running cooldown.
         remove_all_effects(player.entity);
+        player.active_ability = null;
+        player.set_mouse_ik_enabled(false);
+        for i: 0..player.abilities.count - 1 {
+            player.abilities[i].current_cooldown = 0;
+        }
         teleport_player_to_lobby(game, player);
     }
     game.hiders_left = 0;
@@ -427,6 +432,9 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
         player.active_pose = 0;
         player.spawn_placed = true;
         exit_paint_mode(player);
+        // The emote menu is an input-blocking modal, so leaving it open across
+        // the round start swallows clicks on the ability button underneath.
+        player.emotes_open = false;
         // Start every round clean; nothing carries over from the last one.
         remove_all_effects(player.entity);
         // The seeker roams the lobby while the hiders get the map to themselves.
@@ -475,6 +483,8 @@ convert_hider_to_seeker :: proc(game: Hide_Seek_Game, victim: Player) {
         victim.hider_name_hidden = false;
     }
     exit_paint_mode(victim);
+    victim.emotes_open = false;
+    victim.active_pose = 0;
     victim.role_visual_applied = .NONE;
     victim.seeker_rig_ready = false;
     victim.streamed_seeker_rig_ready = false;
