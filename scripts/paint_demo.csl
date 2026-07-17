@@ -515,16 +515,42 @@ draw_paint_mode_button :: proc(player: Player) {
         }
     }
 
-    if player.hide_seek_role != .SEEKER {
-        emote_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_PURPLE);
-        emote_desc.panel.min_width = 190;
-        emote_desc.panel.min_height = 64;
-        emote_result := UIK.button("emotes_button", "Emotes", emote_desc);
-        if UIK.clicked(emote_result) {
-            player.emotes_open = !player.emotes_open;
-        }
-    }
+}
 
+draw_emote_button :: proc(player: Player) {
+    if player.hide_seek_role == .SEEKER { return; }
+
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 110;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    UIK.overlay_begin(.CENTER_RIGHT, v2.{-28, 0});
+    defer UIK.overlay_end();
+
+    emote_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_PURPLE);
+    emote_desc.panel.width = UIK.pixels(150);
+    emote_desc.panel.height = UIK.pixels(166);
+    emote_desc.panel.axis = .VERTICAL;
+    emote_desc.panel.cross_align = .CENTER;
+    emote_desc.panel.main_align = .CENTER;
+    emote_desc.panel.gap = 6;
+    emote_desc.panel.padding = v4.{10, 12, 10, 12};
+    emote_result := UIK.panel_begin_interactive("emotes_button", emote_desc.panel, false);
+    icon_box := UIK.layout_column();
+    icon_box.width = UIK.pixels(81);
+    icon_box.height = UIK.pixels(81);
+    UIK.panel_begin(icon_box);
+    UIK.image_fitted(get_asset(Texture_Asset, "emotebubble.png"), UIK.image_desc(.CONTAIN));
+    UIK.panel_end();
+    label_desc := UIK.text_body();
+    label_desc.set_halign(.CENTER);
+    UIK.text(label_desc, "Emotes");
+    UIK.panel_end();
+
+    if UIK.clicked(emote_result) {
+        player.emotes_open = !player.emotes_open;
+    }
 }
 
 PAINT_FREEZE_REASON :: "paint_mode";
@@ -739,18 +765,14 @@ rgb_to_hsv :: proc(c: v4) -> float, float, float {
     return h, s, mx;
 }
 
-// A transparent button used purely to hit-test a rect. Its Interact_Result
-// gives mouse_position in the same space as the rect, so no manual screen
-// mapping is needed. active is true only where a real mouse exists (the local
-// client), so this never mutates state on the server or for remote players.
 picker_hit :: proc(rect: Rect, id: string) -> Interact_Result {
     bs := UI.default_button_settings();
-    bs.sprite         = core_globals.white_sprite;
-    bs.color          = v4.{0, 0, 0, 0};
-    bs.hovered_color  = v4.{0, 0, 0, 0};
-    bs.pressed_color  = v4.{0, 0, 0, 0};
+    bs.sprite = core_globals.white_sprite;
+    bs.color = v4.{0, 0, 0, 0};
+    bs.hovered_color = v4.{0, 0, 0, 0};
+    bs.pressed_color = v4.{0, 0, 0, 0};
     bs.disabled_color = v4.{0, 0, 0, 0};
-    bs.press_scaling  = 0;
+    bs.press_scaling = 0;
     ts := UI.default_text_settings();
     UI.push_id(id);
     defer UI.pop_id();
@@ -767,11 +789,8 @@ draw_color_picker :: proc(player: Player) {
     panel_w := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_HUE_W;
     panel_h := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_BRUSH_LABEL_H + PICKER_BRUSH_H + PICKER_GAP + PICKER_LABEL_H;
     panel := screen.bottom_left_rect().grow(panel_h, panel_w, 0, 0).offset(PICKER_MARGIN, PICKER_MARGIN);
-
     UI.quad(panel, core_globals.white_sprite, v4.{0.10, 0.10, 0.13, 0.88});
 
-    // Rows from the bottom up: swatch+label, brush-size slider, then the SV box
-    // (with the hue bar cut off its right edge).
     work := panel.inset(PICKER_PAD);
     label_row := work.cut_bottom(PICKER_LABEL_H);
     work.cut_bottom(PICKER_GAP);
@@ -782,7 +801,6 @@ draw_color_picker :: proc(player: Player) {
     work.cut_right(PICKER_GAP);
     sv_rect := work;
 
-    // Interaction (local client only; see picker_hit).
     sv := picker_hit(sv_rect, "picker_sv");
     if sv.active {
         r := sv.rect;
@@ -798,7 +816,6 @@ draw_color_picker :: proc(player: Player) {
         player.brush_color = hsv_to_rgb(player.picker_h, player.picker_s, player.picker_v, 1.0);
     }
 
-    // Brush-size slider (horizontal). Drag anywhere in the row to set radius.
     brush := picker_hit(brush_row, "picker_brush");
     if brush.active {
         r := brush.rect;
@@ -806,32 +823,26 @@ draw_color_picker :: proc(player: Player) {
         player.brush_radius = BRUSH_MIN + f * (BRUSH_MAX - BRUSH_MIN);
     }
 
-    // SV gradient (saturation on X, value on Y) as a grid of solid cells.
     for yi: 0..SV_CELLS - 1 {
         for xi: 0..SV_CELLS - 1 {
-            s0 := xi.(float)       / SV_CELLS.(float);
+            s0 := xi.(float) / SV_CELLS.(float);
             s1 := (xi + 1).(float) / SV_CELLS.(float);
-            v0 := yi.(float)       / SV_CELLS.(float);
+            v0 := yi.(float) / SV_CELLS.(float);
             v1 := (yi + 1).(float) / SV_CELLS.(float);
             cell := sv_rect.subrect(s0, v0, s1, v1);
             UI.quad(cell, core_globals.white_sprite, hsv_to_rgb(player.picker_h, (s0 + s1) * 0.5, (v0 + v1) * 0.5, 1.0));
         }
     }
-
-    // Hue bar.
     for i: 0..HUE_CELLS - 1 {
-        t0 := i.(float)       / HUE_CELLS.(float);
+        t0 := i.(float) / HUE_CELLS.(float);
         t1 := (i + 1).(float) / HUE_CELLS.(float);
         cell := hue_rect.subrect(0, t0, 1, t1);
         UI.quad(cell, core_globals.white_sprite, hsv_to_rgb((t0 + t1) * 0.5, 1.0, 1.0, 1.0));
     }
 
-    // SV knob.
     knob := sv_rect.subrect(player.picker_s, player.picker_v, player.picker_s, player.picker_v);
     UI.quad(knob.grow(12), core_globals.white_sprite, v4.{0, 0, 0, 1});
     UI.quad(knob.grow(8), core_globals.white_sprite, v4.{1, 1, 1, 1});
-
-    // Hue marker.
     hm := hue_rect.subrect(0, player.picker_h, 1, player.picker_h);
     UI.quad(hm.grow(7, 7, 7, 7), core_globals.white_sprite, v4.{0, 0, 0, 1});
     UI.quad(hm.grow(3, 7, 3, 7), core_globals.white_sprite, v4.{1, 1, 1, 1});
@@ -843,7 +854,6 @@ draw_color_picker :: proc(player: Player) {
     brush_label_ts.valign = .CENTER;
     UI.text(brush_label_row, brush_label_ts, "Brush Size");
 
-    // Brush-size slider: thick touch-readable track, fill, and round handle.
     brush_frac := clamp((player.brush_radius - BRUSH_MIN) / (BRUSH_MAX - BRUSH_MIN), 0, 1);
     track := brush_row.subrect(0, 0.18, 1, 0.82);
     UI.quad(track, core_globals.white_sprite, v4.{0, 0, 0, 0.55});
@@ -852,38 +862,34 @@ draw_color_picker :: proc(player: Player) {
     UI.quad(handle.grow(15), core_globals.white_sprite, v4.{0, 0, 0, 1});
     UI.quad(handle.grow(11), core_globals.white_sprite, v4.{1, 1, 1, 1});
 
-    // Swatch + PICK (eyedropper) button + brush-size label.
     swatch := label_row.cut_left(PICKER_LABEL_H);
     label_row.cut_left(PICKER_GAP);
-
     UI.quad(swatch, core_globals.white_sprite, v4.{0, 0, 0, 1});
     UI.quad(swatch.inset(3), core_globals.white_sprite, hsv_to_rgb(player.picker_h, player.picker_s, player.picker_v, 1.0));
 
-    // Eyedropper toggle: arms sampling of a scene colour on the next click.
     pick_rect := label_row.cut_right(PICKER_PICK_W);
     label_row.cut_right(PICKER_GAP);
     pick_bs := UI.default_button_settings();
-    pick_bs.color         = v4.{0.30, 0.30, 0.36, 1};
+    pick_bs.color = v4.{0.30, 0.30, 0.36, 1};
     pick_bs.hovered_color = v4.{0.40, 0.40, 0.46, 1};
     pick_bs.pressed_color = v4.{0.18, 0.60, 0.28, 1};
     if player.eyedropper_active {
-        // Armed: highlight green so the mode is obvious.
-        pick_bs.color         = v4.{0.20, 0.80, 0.35, 1};
+        pick_bs.color = v4.{0.20, 0.80, 0.35, 1};
         pick_bs.hovered_color = v4.{0.28, 0.90, 0.42, 1};
     }
     pick_ts := UI.default_text_settings();
     pick_ts.size = 35;
     pick_ts.color = v4.{1, 1, 1, 1};
     UI.push_id("picker_eyedrop");
-    pick := UI.button(pick_rect, pick_bs, pick_ts, "PICK");
+    pick := UI.button(pick_rect, pick_bs, pick_ts, "PICK     ");
     UI.pop_id();
-    if pick.clicked {
-        player.eyedropper_active = !player.eyedropper_active;
-    }
+    pick_icon_rect := pick_rect.subrect(0.66, 0.12, 0.96, 0.88);
+    UI.quad(pick_icon_rect, get_asset(Texture_Asset, "picker-color-icon.png"));
+    if pick.clicked { player.eyedropper_active = !player.eyedropper_active; }
 
     ts := UI.default_text_settings();
-    ts.size   = 40;
-    ts.color  = v4.{1, 1, 1, 1};
+    ts.size = 40;
+    ts.color = v4.{1, 1, 1, 1};
     ts.halign = .LEFT;
     ts.valign = .CENTER;
     UI.text(label_row, ts, `Brush: {(player.brush_radius + 0.5).(s64)}px`);
