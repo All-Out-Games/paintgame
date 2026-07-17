@@ -525,16 +525,6 @@ draw_paint_mode_button :: proc(player: Player) {
         }
     }
 
-    if player.paint_mode {
-        undo_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_BLUE);
-        undo_desc.panel.min_width = 150;
-        undo_desc.panel.min_height = 64;
-        undo_desc.disabled = player.paint_undo_pixels.count == 0;
-        undo_result := UIK.button("undo_paint_stroke", "Undo", undo_desc);
-        if UIK.clicked(undo_result) {
-            undo_last_paint_stroke(player);
-        }
-    }
 }
 
 PAINT_FREEZE_REASON :: "paint_mode";
@@ -587,7 +577,7 @@ draw_emote_menu :: proc(player: Player) {
     UIK.begin(begin_desc);
     defer UIK.end();
 
-    menu := UIK.panel_modal(.WHITE, UIK.pixels(760), UIK.pixels(610), 14, v4.{24, 28, 24, 28});
+    menu := UIK.panel_modal(.WHITE, UIK.pixels(760), UIK.pixels(650), 14, v4.{24, 28, 24, 28});
     menu.cross_align = .STRETCH;
     UIK.overlay_begin(.CENTER, menu);
     defer UIK.overlay_end();
@@ -610,24 +600,43 @@ draw_emote_menu :: proc(player: Player) {
         return;
     }
 
-    UIK.grid_begin(3, 76);
-    defer UIK.grid_end();
+    UIK.grid_begin(4, 112);
 
     labels: [16]string = {
         "Balancing", "Ball", "Bend", "Bridge", "Costanza", "Future",
         "Handstand", "Idle", "Lying", "Mid Run", "Sitting", "Star",
         "Superman", "Surrender", "T Pose", "Yoga"
     };
-    pose_desc := UIK.widget_desc_button_auto_default(.BUTTON_SHINY_BLUE);
+    icons: [16]string = {
+        "emote-icons/mc_player_silhouette-clean-pose-balancing_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-ball_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-bend_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-bridge_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-costanza_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-future_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-handstand_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-idle_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-lying_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-mid_run_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-sitting_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-star_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-superman_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-surrender_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-t_pose_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-yoga_0.png"
+    };
+    pose_desc := UIK.widget_desc_button_default(.BUTTON_SHINY_BLUE);
     pose_desc.panel.width = UIK.flex(1);
-    pose_desc.panel.height = UIK.pixels(68);
+    pose_desc.panel.height = UIK.pixels(104);
     for i: 0..labels.count - 1 {
-        result := UIK.button(labels[i], labels[i], pose_desc);
+        icon := get_asset(Texture_Asset, icons[i]);
+        result := UIK.icon_button(labels[i], icon, pose_desc);
         if UIK.clicked(result) {
             player.active_pose = i + 1;
             player.emotes_open = false;
         }
     }
+    UIK.grid_end();
 
     stop_desc := UIK.widget_desc_button_auto_default(.BUTTON_BASIC_RED);
     stop_desc.panel.width = UIK.flex(1);
@@ -651,9 +660,50 @@ PICKER_HUE_W   :: 62.1;   // hue bar width
 PICKER_GAP     :: 21.6;
 PICKER_LABEL_H :: 59.4;
 PICKER_BRUSH_H :: 45.9;   // brush-size slider row height
+PICKER_BRUSH_LABEL_H :: 38.0;
 PICKER_PICK_W  :: 148.5;  // eyedropper (PICK) button width
 SV_CELLS       :: 16;     // SV gradient resolution (cells per axis)
 HUE_CELLS      :: 24;     // hue bar resolution
+
+draw_paint_undo_button :: proc(player: Player) {
+    if !player.paint_mode || !player.picker_open { return; }
+
+    panel_w := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_HUE_W;
+    panel_h := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_BRUSH_LABEL_H + PICKER_BRUSH_H + PICKER_GAP + PICKER_LABEL_H;
+
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 135;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    undo_w := 160.0;
+    undo_h := 76.0;
+    undo_x := PICKER_MARGIN + panel_w + 18.0;
+    undo_y := PICKER_MARGIN + (panel_h - undo_h) * 0.5;
+    UIK.overlay_begin(.BOTTOM_LEFT, v2.{undo_x, undo_y});
+    defer UIK.overlay_end();
+
+    undo_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_BLUE);
+    undo_desc.panel.width = UIK.pixels(undo_w);
+    undo_desc.panel.height = UIK.pixels(undo_h);
+    undo_desc.disabled = player.paint_undo_pixels.count == 0;
+    undo_desc.panel.axis = .HORIZONTAL;
+    undo_desc.panel.cross_align = .CENTER;
+    undo_desc.panel.main_align = .CENTER;
+    undo_desc.panel.gap = 10;
+    undo_result := UIK.panel_begin_interactive("undo_paint_stroke", undo_desc.panel, undo_desc.disabled);
+    UIK.text(undo_desc.label_text, "Undo");
+    undo_icon_box := UIK.layout_column();
+    undo_icon_box.width = UIK.pixels(38);
+    undo_icon_box.height = UIK.pixels(38);
+    UIK.panel_begin(undo_icon_box);
+    UIK.image_fitted(get_asset(Texture_Asset, "Undo Outline 256.png"), UIK.image_desc(.CONTAIN));
+    UIK.panel_end();
+    UIK.panel_end();
+    if UIK.clicked(undo_result) {
+        undo_last_paint_stroke(player);
+    }
+}
 
 hsv_to_rgb :: proc(h: float, s: float, v: float, a: float = 1.0) -> v4 {
     hh := clamp(h, 0, 1) * 6.0;
@@ -715,7 +765,7 @@ draw_color_picker :: proc(player: Player) {
 
     screen := UI.get_safe_screen_rect();
     panel_w := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_HUE_W;
-    panel_h := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_BRUSH_H + PICKER_GAP + PICKER_LABEL_H;
+    panel_h := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_BRUSH_LABEL_H + PICKER_BRUSH_H + PICKER_GAP + PICKER_LABEL_H;
     panel := screen.bottom_left_rect().grow(panel_h, panel_w, 0, 0).offset(PICKER_MARGIN, PICKER_MARGIN);
 
     UI.quad(panel, core_globals.white_sprite, v4.{0.10, 0.10, 0.13, 0.88});
@@ -726,6 +776,7 @@ draw_color_picker :: proc(player: Player) {
     label_row := work.cut_bottom(PICKER_LABEL_H);
     work.cut_bottom(PICKER_GAP);
     brush_row := work.cut_bottom(PICKER_BRUSH_H);
+    brush_label_row := work.cut_bottom(PICKER_BRUSH_LABEL_H);
     work.cut_bottom(PICKER_GAP);
     hue_rect := work.cut_right(PICKER_HUE_W);
     work.cut_right(PICKER_GAP);
@@ -785,11 +836,18 @@ draw_color_picker :: proc(player: Player) {
     UI.quad(hm.grow(7, 7, 7, 7), core_globals.white_sprite, v4.{0, 0, 0, 1});
     UI.quad(hm.grow(3, 7, 3, 7), core_globals.white_sprite, v4.{1, 1, 1, 1});
 
-    // Brush-size slider: thin track, filled portion, round handle.
+    brush_label_ts := UI.default_text_settings();
+    brush_label_ts.size = 34;
+    brush_label_ts.color = v4.{1, 1, 1, 1};
+    brush_label_ts.halign = .CENTER;
+    brush_label_ts.valign = .CENTER;
+    UI.text(brush_label_row, brush_label_ts, "Brush Size");
+
+    // Brush-size slider: thick touch-readable track, fill, and round handle.
     brush_frac := clamp((player.brush_radius - BRUSH_MIN) / (BRUSH_MAX - BRUSH_MIN), 0, 1);
-    track := brush_row.subrect(0, 0.34, 1, 0.66);
+    track := brush_row.subrect(0, 0.18, 1, 0.82);
     UI.quad(track, core_globals.white_sprite, v4.{0, 0, 0, 0.55});
-    UI.quad(brush_row.subrect(0, 0.34, brush_frac, 0.66), core_globals.white_sprite, v4.{0.85, 0.85, 0.9, 1});
+    UI.quad(brush_row.subrect(0, 0.18, brush_frac, 0.82), core_globals.white_sprite, v4.{0.85, 0.85, 0.9, 1});
     handle := brush_row.subrect(brush_frac, 0.5, brush_frac, 0.5);
     UI.quad(handle.grow(15), core_globals.white_sprite, v4.{0, 0, 0, 1});
     UI.quad(handle.grow(11), core_globals.white_sprite, v4.{1, 1, 1, 1});

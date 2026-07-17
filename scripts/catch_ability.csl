@@ -3,13 +3,13 @@ CATCH_COOLDOWN_SECONDS :: 1.2;
 CATCH_RANGE :: 6.0;
 CATCH_INDICATOR_RADIUS :: 0.4;
 CATCH_INDICATOR_SPRITE :: "sprites/reticle w.png";
-CATCH_ICON :: "AbilityIcons/Whistle.png";
+CATCH_ICON :: "reusable_weapons/sprites/reusable-weapons/weapon_icons/weapon_icons_250x250/watergun.png";
 
-// Seekers catch by placing a reticle on a hider rather than firing projectiles,
-// so a hit has to be earned by actually spotting them.
+// Seekers aim with the targeted ability controls, then fire a real reusable-
+// weapons projectile. The projectile's damage callback converts the hider.
 Catch_Ability :: class : Ability_Base {
     on_init :: method() {
-        name = "Catch";
+        name = "Shoot";
         icon = get_asset(Texture_Asset, CATCH_ICON);
         is_aimed_ability = true;
         disable_keybind = true;
@@ -54,7 +54,8 @@ Catch_Ability :: class : Ability_Base {
         if should_catch {
             p.active_ability = null;
             if params.can_use && current_cooldown <= 0 {
-                try_catch_at(p, target);
+                weapon_shoot(p, .WATER_GUN);
+                spawn_water_gun_projectile(p, aiming.aim_direction, .WATER_GUN);
                 current_cooldown = CATCH_COOLDOWN_SECONDS;
             }
         }

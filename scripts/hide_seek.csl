@@ -5,6 +5,7 @@ STARTING_GAME_SECONDS :: 5.0;
 HIDE_PHASE_SECONDS :: 50.0;
 HUNT_PHASE_SECONDS :: 100.0;
 REVEAL_SECONDS :: 20.0;
+HIDER_WIN_REVEAL_SECONDS :: 10.0;
 HIDER_NAME_REASON :: "hide_seek_hider";
 SEEKER_RIG :: "$AO/streamed_character";
 MAP_COUNT :: 3;
@@ -358,7 +359,9 @@ refresh_hide_seek_counts :: proc(game: Hide_Seek_Game) {
 finish_hide_seek_round :: proc(game: Hide_Seek_Game, winner: Hide_Seek_Winner) {
     game.winner = winner;
     game.phase = .REVEAL;
-    game.phase_end_time = get_time() + REVEAL_SECONDS;
+    reveal_seconds := REVEAL_SECONDS;
+    if winner == .HIDERS { reveal_seconds = HIDER_WIN_REVEAL_SECONDS; }
+    game.phase_end_time = get_time() + reveal_seconds;
     // Show the true final tally during the reveal instead of a stale snapshot.
     publish_leaderboard(game);
 }
@@ -603,9 +606,10 @@ draw_hide_seek_ui :: proc(player: Player) {
     // The vote screen carries its own title and timer.
     if game.phase == .MAP_SELECTION { return; }
 
+    active_round := game.phase == .HIDING || game.phase == .HUNTING;
+
     UIK.begin(UIK.window(UI.get_safe_screen_rect()));
     defer UIK.end();
-    active_round := game.phase == .HIDING || game.phase == .HUNTING;
     panel_width := 520.0;
     if active_round { panel_width = 640; }
     panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(panel_width), UIK.fit(), 8, v4.{14, 22, 14, 22});

@@ -157,6 +157,7 @@ Player :: class : Player_Base {
             draw_hide_seek_role_reveal(this);
             if paint_mode && picker_open {
                 draw_color_picker(this);
+                draw_paint_undo_button(this);
             }
             if paint_mode {
                 draw_zoom_slider(this);
