@@ -154,6 +154,16 @@ Player :: class : Player_Base {
     }
 
     ao_late_update :: method(dt: float) {
+        // Global reveal flash: runs on every client for every player (ungated),
+        // so all hiders pulse red on all screens during REVEAL. Sets only rgb.
+        update_reveal_pulse(this);
+        // Per-client cosmetic visibility: hide other hiders from a local hider.
+        // is_local() only (not or_server) - it is a render-side effect, re-applied
+        // every frame because the server wipes local cosmetic state on reconcile.
+        // Sets only alpha, so it composes with the pulse above.
+        if is_local() {
+            apply_hider_stealth(this);
+        }
         // UI must be drawn from player late_update, gated on is_local_or_server.
         if is_local_or_server() {
             // Cancel and Hide UI survive Hide UI, otherwise there is no way back.

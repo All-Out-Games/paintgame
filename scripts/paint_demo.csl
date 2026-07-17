@@ -577,18 +577,25 @@ Paint_Mode_Splash :: class : Component {
 }
 
 play_paint_mode_splash :: proc(player: Player) {
-    splash_entity := Scene.create_entity();
-    splash_entity.set_parent(player.entity, false);
-    splash_entity.set_local_position(v2.{0, 0.75});
-    splash_entity.set_local_scale(v2.{0.42, 0.42});
+    // Local only: spawn the visual on the entering player's own client, never on
+    // the server, so it is not replicated. A splash everyone can see would flag a
+    // hider's position the moment they open paint mode. The sound below is already
+    // player-specific, so it never leaked. If the local entity ever flickers, the
+    // fallback is to drop the visual entirely.
+    if player.is_local() {
+        splash_entity := Scene.create_entity();
+        splash_entity.set_parent(player.entity, false);
+        splash_entity.set_local_position(v2.{0, 0.75});
+        splash_entity.set_local_scale(v2.{0.42, 0.42});
 
-    splash := splash_entity.add_component(Spine_Animator);
-    splash.awaken();
-    splash.set_skeleton(get_asset(Spine_Asset, "reusable_weapons/anims/reusable-weapons/water_splash/013RED_Water_Splash.spine"));
-    splash.color_multiplier = player.brush_color;
-    splash.layer = 20;
-    splash.set_animation("013RED/Splash", false, 0);
-    splash_entity.add_component(Paint_Mode_Splash);
+        splash := splash_entity.add_component(Spine_Animator);
+        splash.awaken();
+        splash.set_skeleton(get_asset(Spine_Asset, "reusable_weapons/anims/reusable-weapons/water_splash/013RED_Water_Splash.spine"));
+        splash.color_multiplier = player.brush_color;
+        splash.layer = 20;
+        splash.set_animation("013RED/Splash", false, 0);
+        splash_entity.add_component(Paint_Mode_Splash);
+    }
 
     desc := SFX.default_sfx_desc();
     desc.entity_to_follow = player.entity.id;

@@ -425,6 +425,56 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
     game.phase_end_time = 0;
 }
 
+// Hiders must not see other hiders: a hider who learns the hiding spots would
+// walk straight to them the moment they are caught and turn seeker. This is a
+// per-VIEWER effect - the same hider is hidden from hiders but plainly visible
+// to seekers - so it cannot use add_invisibility_reason (which hides a player
+// from everyone). Instead each client's local player dims the others' animators
+// itself. It runs under is_local() every frame and stores nothing, because the
+// server wipes local cosmetic state on each reconcile; re-applying keeps it on.
+REVEAL_PULSE_SPEED :: 7.0;
+REVEAL_PULSE_RED :: v4.{1.0, 0.12, 0.12, 1.0};
+
+// During REVEAL every surviving hider flashes red so the whole lobby can see
+// where they were hiding. Unlike the stealth dimming this is a GLOBAL effect,
+// not per-viewer, so it runs from each player's own update on every client (P's
+// lifecycle runs everywhere) rather than from the local viewer. It only ever
+// touches the animator's colour channels; the alpha is left to the stealth pass
+// and the two never fight - stealth is inactive in REVEAL, pulse is inactive in
+// the round. Outside REVEAL it resets rgb to white so no red tint lingers.
+update_reveal_pulse :: proc(player: Player) {
+    if player.animator == null { return; }
+    game := get_hide_seek_game();
+    if #alive(game) && game.phase == .REVEAL && player.hide_seek_role == .HIDER {
+        t := (sin(get_time() * REVEAL_PULSE_SPEED) + 1.0) * 0.5;
+        r := lerp(1.0, REVEAL_PULSE_RED.x, t);
+        g := lerp(1.0, REVEAL_PULSE_RED.y, t);
+        b := lerp(1.0, REVEAL_PULSE_RED.z, t);
+        player.animator.color_multiplier = v4.{r, g, b, 1.0};
+    } else {
+        c := player.animator.color_multiplier;
+        c.x = 1.0; c.y = 1.0; c.z = 1.0;
+        player.animator.color_multiplier = c;
+    }
+}
+
+apply_hider_stealth :: proc(local: Player) {
+    // Only a hider mid-round is blind to fellow hiders. Otherwise everyone is
+    // visible (seekers must see hiders; the lobby shows everyone).
+    blind := local.hide_seek_role == .HIDER && hide_seek_round_active();
+    for other: component_iterator(Player) {
+        if other.entity.id == local.entity.id { continue; }
+        if other.animator == null { continue; }
+        c := other.animator.color_multiplier;
+        if blind && other.hide_seek_role == .HIDER {
+            c.w = 0;
+        } else {
+            c.w = 1;
+        }
+        other.animator.color_multiplier = c;
+    }
+}
+
 hide_seek_can_shoot :: proc() -> bool {
     game := get_hide_seek_game();
     return #alive(game) && game.phase == .HUNTING;
@@ -505,7 +555,7 @@ POOP_SPINE :: "rainbow_poop_puddle_174cab/rainbow_poop_puddle.spine";
 POOP_EXPLOSION_ANIM :: "poop_explosion";
 POOP_FREEZE_TIME :: 0.2;           // hold the burst here instead of playing on to the null frame
 CORPSE_LAYER :: 1;                 // same layer as live hiders
-POOP_LAYER :: 0;                   // a lasting splat on the ground beneath the body
+POOP_LAYER :: 1;                   // same layer as the body
 
 // A caught hider leaves their painted body where they fell. It owns a private
 // snapshot of the paint rather than sharing the player's live canvas: the
