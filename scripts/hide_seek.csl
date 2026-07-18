@@ -535,8 +535,11 @@ update_countdown_tick_sound :: proc(player: Player) {
 
 start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
     players: [..]Player;
-    for player: component_iterator(Player) { players.append(player); }
-    if players.count < game.min_players { return false; }
+    for player: component_iterator(Player) {
+        if #alive(player) && #alive(player.entity) { players.append(player); }
+    }
+    required_players := max(game.min_players, MIN_PLAYERS_DEFAULT);
+    if players.count < required_players { return false; }
 
     // Clear last round's bodies in case this start skipped the reveal (e.g. /start).
     clear_hide_seek_corpses();
@@ -580,7 +583,8 @@ start :: proc(command_player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
     if !start_hide_seek_round(game) {
-        Notifier.notify(command_player, `At least {game.min_players} players are required.`);
+        required_players := max(game.min_players, MIN_PLAYERS_DEFAULT);
+        Notifier.notify(command_player, `At least {required_players} players are required.`);
     }
 } @chat_command @owner_or_editor
 
@@ -694,44 +698,6 @@ spawn_hider_death :: proc(victim: Player) {
     desc.volume = 0.6;
     desc.speed_perturb = 0.1;
     SFX.play(get_asset(SFX_Asset, "reusable_weapons/sounds/reusable-weapons/geyser_splash_02.wav"), desc);
-
-    // The body itself, wearing the hider's paint and frozen in their pose.
-    if victim.animator == null || victim.skin_canvas == null { return; }
-    body_e := Scene.create_entity();
-    body_e.set_world_position(pos);
-    body := body_e.add_component(Spine_Animator);
-    body.awaken();
-    body.set_skeleton(get_asset(Spine_Asset, MECHA_RIG_PATH));
-    body.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
-    body.layer = CORPSE_LAYER;
-    body.disable_all_skins();
-    body.enable_skin(MECHA_SKIN);
-    body.refresh_skins();
-
-    // Snapshot the paint into a canvas the corpse owns outright.
-    corpse := body_e.add_component(Hide_Seek_Corpse);
-    snapshot := Dynamic_Canvas.create(SKIN_TEXELS_X, SKIN_TEXELS_Y, 32);
-    for y: 0..SKIN_TEXELS_Y - 1 {
-        for x: 0..SKIN_TEXELS_X - 1 {
-            snapshot.set_pixel(x, y, victim.skin_canvas.get_pixel(x, y));
-        }
-    }
-    corpse.canvas = snapshot;
-    body.instance.set_paint_canvas_rect(v2.{PAINT_RECT_MIN_X, PAINT_RECT_MIN_Y}, v2.{PAINT_RECT_MAX_X, PAINT_RECT_MAX_Y});
-    body.instance.override_attachment_canvas(MECHA_PAINT_ATTACHMENT, snapshot, true);
-
-    // Record the clip the victim was showing when caught: their emote if they
-    // were mid-emote (read before the caller resets active_pose), else run,
-    // else idle. The corpse's ao_update applies it on every client - the pose
-    // must ride synced component data, not a local set_animation call, or only
-    // the catching client and the server ever see it.
-    clip := CORPSE_IDLE_CLIP;
-    if victim.active_pose >= 1 && victim.active_pose <= MECHA_EMOTE_COUNT {
-        clip = mecha_pose_clip(victim.active_pose);
-    } else if length_squared(victim.input_this_frame) > 0.0001 {
-        clip = CORPSE_RUN_CLIP;
-    }
-    corpse.pose_clip = clip;
 }
 
 clear_hide_seek_corpses :: proc() {
@@ -846,7 +812,7 @@ hide_seek_phase_title :: proc(game: Hide_Seek_Game, player: Player) -> string {
         case .WAITING_FOR_PLAYERS:    return "WAITING FOR PLAYERS";
         case .STARTING_MAP_SELECTION: return "MAP VOTE STARTING";
         case .MAP_SELECTION:          return "VOTE FOR A MAP";
-        case .STARTING_GAME:          return "GET READY";
+        case .STARTING_GAME:          return "STARTING IN";
         case .HIDING: {
             if player.hide_seek_role == .SEEKER { return "WAIT"; }
             return "HIDE";
@@ -881,7 +847,7 @@ draw_found_feed :: proc(player: Player) {
     UIK.begin(begin_desc);
     defer UIK.end();
 
-    message := UIK.layout_row(UIK.fit(), UIK.pixels(58), 4);
+    message := UIK.layout_row(UIK.fit(), UIK.pixels(58), 16);
     message.cross_align = .CENTER;
     message.main_align = .CENTER;
     message.padding = v4.{8, 14, 8, 14};
@@ -889,13 +855,15 @@ draw_found_feed :: proc(player: Player) {
     defer UIK.overlay_end();
 
     seeker_desc := UIK.text_title();
-    seeker_desc.set_size_mult(0.85);
+    seeker_scale := clamp(10.0 / max(10.0, game.found_feed_seeker_name.count.(float)), 0.58, 1.0);
+    seeker_desc.set_size_mult(0.85 * seeker_scale);
     seeker_desc.set_halign(.CENTER);
     seeker_desc.set_color(v4.{game.found_feed_seeker_color.x, game.found_feed_seeker_color.y, game.found_feed_seeker_color.z, alpha});
     seeker_box := UIK.layout_column();
-    seeker_box.width = UIK.pixels(clamp(game.found_feed_seeker_name.count.(float) * 22.0, 80.0, 300.0));
+    seeker_box.width = UIK.pixels(clamp(game.found_feed_seeker_name.count.(float) * 22.0 * seeker_scale, 90.0, 240.0));
     seeker_box.height = UIK.pixels(52);
     seeker_box.main_align = .CENTER;
+    seeker_box.clip_children = true;
     UIK.panel_begin(seeker_box);
     UIK.text(seeker_desc, game.found_feed_seeker_name);
     UIK.panel_end();
@@ -905,7 +873,7 @@ draw_found_feed :: proc(player: Player) {
     found_desc.set_halign(.CENTER);
     found_desc.set_color(v4.{1, 1, 1, alpha});
     found_box := UIK.layout_column();
-    found_box.width = UIK.pixels(96);
+    found_box.width = UIK.pixels(116);
     found_box.height = UIK.pixels(52);
     found_box.main_align = .CENTER;
     UIK.panel_begin(found_box);
@@ -913,13 +881,15 @@ draw_found_feed :: proc(player: Player) {
     UIK.panel_end();
 
     hider_desc := UIK.text_title();
-    hider_desc.set_size_mult(0.85);
+    hider_scale := clamp(10.0 / max(10.0, game.found_feed_hider_name.count.(float)), 0.58, 1.0);
+    hider_desc.set_size_mult(0.85 * hider_scale);
     hider_desc.set_halign(.CENTER);
     hider_desc.set_color(v4.{game.found_feed_hider_color.x, game.found_feed_hider_color.y, game.found_feed_hider_color.z, alpha});
     hider_box := UIK.layout_column();
-    hider_box.width = UIK.pixels(clamp(game.found_feed_hider_name.count.(float) * 22.0, 80.0, 300.0));
+    hider_box.width = UIK.pixels(clamp(game.found_feed_hider_name.count.(float) * 22.0 * hider_scale, 90.0, 240.0));
     hider_box.height = UIK.pixels(52);
     hider_box.main_align = .CENTER;
+    hider_box.clip_children = true;
     UIK.panel_begin(hider_box);
     UIK.text(hider_desc, game.found_feed_hider_name);
     UIK.panel_end();
@@ -1122,10 +1092,11 @@ draw_hide_seek_ui :: proc(player: Player) {
 
     UIK.begin(UIK.window(UI.get_safe_screen_rect()));
     defer UIK.end();
-    panel_width := 520.0;
+    panel_width := 680.0;
     if game.phase == .STARTING_MAP_SELECTION { panel_width = 364; }
     if active_round { panel_width = 640; }
     panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(panel_width), UIK.fit(), 8, v4.{14, 22, 14, 22});
+    panel.cross_align = .CENTER;
     UIK.overlay_begin(.TOP_CENTER, panel, v2.{0, -20});
     defer UIK.overlay_end();
 
@@ -1135,8 +1106,14 @@ draw_hide_seek_ui :: proc(player: Player) {
     if game.phase != .WAITING_FOR_PLAYERS { remaining = max(0.0, game.phase_end_time - get_time()); }
     total_seconds := remaining.(s64);
     if game.phase == .WAITING_FOR_PLAYERS {
-        UIK.text(UIK.text_title(), title);
-        UIK.text(UIK.text_body(), `Minimum {game.min_players} players`);
+        connected_players := 0;
+        for connected_player: component_iterator(Player) { connected_players += 1; }
+        waiting_title_desc := UIK.text_title();
+        waiting_title_desc.set_halign(.CENTER);
+        UIK.text(waiting_title_desc, title);
+        waiting_count_desc := UIK.text_body();
+        waiting_count_desc.set_halign(.CENTER);
+        UIK.text(waiting_count_desc, `{connected_players}/{game.min_players} Players`);
     } else if game.phase == .STARTING_MAP_SELECTION {
         vote_start_desc := UIK.text_title();
         vote_start_desc.set_size_mult(0.8);
@@ -1144,9 +1121,10 @@ draw_hide_seek_ui :: proc(player: Player) {
         UIK.text(vote_start_desc, "MAP VOTE STARTING IN");
         draw_uik_countdown(game, 0.7);
     } else if game.phase == .STARTING_GAME {
-        UIK.text(UIK.text_title(), title);
+        starting_desc := UIK.text_title();
+        starting_desc.set_halign(.CENTER);
+        UIK.text(starting_desc, title);
         draw_uik_countdown(game);
-        UIK.text(UIK.text_body(), "Starting in");
     } else if game.phase == .REVEAL {
         UIK.text(UIK.text_title(), title);
         draw_uik_countdown(game);

@@ -68,6 +68,8 @@ Player :: class : Player_Base {
     paint_cursor_interp: Position_Interpolation_Helper;
     paint_undo_pixels: [..]Paint_Undo_Pixel;
     paint_undo_recorded: [SKIN_TEXELS_X * SKIN_TEXELS_Y]bool;
+    paint_undo_history_pixels: [..]Paint_Undo_Pixel;
+    paint_undo_history_starts: [..]s64;
 
     // Right-side camera zoom slider (see zoom_slider.csl).
     zoom_initialized: bool;

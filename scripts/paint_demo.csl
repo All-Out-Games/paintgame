@@ -53,7 +53,35 @@ Paint_Undo_Pixel :: struct {
     color: v4;
 }
 
+PAINT_UNDO_STROKES :: 5;
+
+commit_paint_stroke_undo :: proc(player: Player) {
+    if player.paint_undo_pixels.count == 0 { return; }
+
+    // The live stroke is a fifth undo level. Keep four completed strokes
+    // behind it, dropping the oldest delta when the bounded history is full.
+    if player.paint_undo_history_starts.count >= PAINT_UNDO_STROKES - 1 {
+        drop_count := player.paint_undo_history_starts[1];
+        remaining: [..]Paint_Undo_Pixel;
+        for i: drop_count..player.paint_undo_history_pixels.count - 1 {
+            remaining.append(player.paint_undo_history_pixels[i]);
+        }
+        player.paint_undo_history_pixels.clear();
+        for saved: remaining { player.paint_undo_history_pixels.append(saved); }
+        player.paint_undo_history_starts.ordered_remove_by_index(0);
+        for i: 0..player.paint_undo_history_starts.count - 1 {
+            player.paint_undo_history_starts[i] -= drop_count;
+        }
+    }
+
+    player.paint_undo_history_starts.append(player.paint_undo_history_pixels.count);
+    for saved: player.paint_undo_pixels {
+        player.paint_undo_history_pixels.append(saved);
+    }
+}
+
 begin_paint_stroke_undo :: proc(player: Player) {
+    commit_paint_stroke_undo(player);
     for saved: player.paint_undo_pixels {
         player.paint_undo_recorded[saved.y * SKIN_TEXELS_X + saved.x] = false;
     }
@@ -89,11 +117,24 @@ record_paint_segment_undo :: proc(player: Player, skin: Dynamic_Canvas, from: v2
 
 undo_last_paint_stroke :: proc(player: Player) {
     if player.skin_canvas == null { return; }
-    for saved: player.paint_undo_pixels {
-        player.skin_canvas.set_pixel(saved.x, saved.y, saved.color);
-        player.paint_undo_recorded[saved.y * SKIN_TEXELS_X + saved.x] = false;
+    if player.paint_undo_pixels.count > 0 {
+        for saved: player.paint_undo_pixels {
+            player.skin_canvas.set_pixel(saved.x, saved.y, saved.color);
+            player.paint_undo_recorded[saved.y * SKIN_TEXELS_X + saved.x] = false;
+        }
+        player.paint_undo_pixels.clear();
+    } else if player.paint_undo_history_starts.count > 0 {
+        history_index := player.paint_undo_history_starts.count - 1;
+        stroke_start := player.paint_undo_history_starts[history_index];
+        for i: stroke_start..player.paint_undo_history_pixels.count - 1 {
+            saved := player.paint_undo_history_pixels[i];
+            player.skin_canvas.set_pixel(saved.x, saved.y, saved.color);
+        }
+        while player.paint_undo_history_pixels.count > stroke_start {
+            player.paint_undo_history_pixels.pop();
+        }
+        player.paint_undo_history_starts.pop();
     }
-    player.paint_undo_pixels.clear();
     player.was_painting = false;
 }
 
@@ -914,7 +955,7 @@ draw_paint_undo_button :: proc(player: Player) {
     undo_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_BLUE);
     undo_desc.panel.width = UIK.pixels(undo_w);
     undo_desc.panel.height = UIK.pixels(undo_h);
-    undo_desc.disabled = player.paint_undo_pixels.count == 0;
+    undo_desc.disabled = player.paint_undo_pixels.count == 0 && player.paint_undo_history_starts.count == 0;
     undo_desc.panel.axis = .HORIZONTAL;
     undo_desc.panel.cross_align = .CENTER;
     undo_desc.panel.main_align = .CENTER;
