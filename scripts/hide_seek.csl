@@ -1,4 +1,4 @@
-MIN_PLAYERS_DEFAULT :: 2;
+MIN_PLAYERS_DEFAULT :: 4;
 MAP_SELECT_COUNTDOWN_SECONDS :: 10.0;
 MAP_SELECTION_SECONDS :: 10.0;
 STARTING_GAME_SECONDS :: 5.0;
@@ -126,7 +126,7 @@ Hide_Seek_Game :: class : Component {
         // regardless of what the scene asks for.
         // The round needs a seeker plus at least one hider, so 2 is the floor
         // regardless of what the scene asks for.
-        if min_players < 2 { min_players = MIN_PLAYERS_DEFAULT; }
+        if min_players < MIN_PLAYERS_DEFAULT { min_players = MIN_PLAYERS_DEFAULT; }
         if points_per_second <= 0 { points_per_second = DEFAULT_POINTS_PER_SECOND; }
     }
 

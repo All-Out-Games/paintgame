@@ -5,8 +5,8 @@
   "name": "LobbySpawn",
   "local_enabled": true,
   "local_position": {
-    "X": 220.3040161132812500,
-    "Y": -84.1603775024414062
+    "X": 144.4668579101562500,
+    "Y": -94.4152374267578125
   },
   "local_rotation": 0,
   "local_scale": {

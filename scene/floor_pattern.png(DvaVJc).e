@@ -1,0 +1,29 @@
+14
+10273561772033
+4016656988
+{
+  "name": "floor_pattern.png",
+  "local_enabled": true,
+  "local_position": {
+    "X": 3.3288474082946777,
+    "Y": 0.0571999549865723
+  },
+  "local_rotation": 0,
+  "local_scale": {
+    "X": 1,
+    "Y": 1
+  },
+  "previous_sibling": 362229347,
+  "next_sibling": 2402580150,
+  "parent": 770652119
+},
+{
+  "cid": 1,
+  "aoid": 3162484711,
+  "component_type": "Internal_Component",
+  "internal_component_type": "Sprite_Renderer",
+  "data": {
+    "texture": "Environmental/Structures/Floors/floor_pattern.png",
+    "layer": -6
+  }
+}
