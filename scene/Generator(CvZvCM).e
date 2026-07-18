@@ -14,6 +14,7 @@
     "Y": 1
   },
   "previous_sibling": 1804982722,
+  "next_sibling": 1245761481,
   "linked_prefab": "Generator.prefab"
 },
 {

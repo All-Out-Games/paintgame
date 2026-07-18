@@ -1,0 +1,124 @@
+{
+"skeleton": { "hash": "AxpruIT+rwQ", "spine": "4.0.64" },
+"bones": [
+	{ "name": "root" },
+	{ "name": "explosion", "parent": "root" },
+	{ "name": "hydro_dip_puddle", "parent": "root" }
+],
+"slots": [
+	{ "name": "hydro_dip_poop_explosion_1", "bone": "explosion" },
+	{ "name": "imposter/hydro_dipped_poop/hydro_dipped_poop", "bone": "explosion" },
+	{ "name": "imposter/hydro_dipped_poop/hydro_dip_puddle", "bone": "hydro_dip_puddle" }
+],
+"skins": [
+	{
+		"name": "default",
+		"attachments": {
+			"hydro_dip_poop_explosion_1": {
+				"imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_1": { "width": 315, "height": 271 },
+				"imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_2": { "x": -24, "y": 29, "width": 600, "height": 470 },
+				"imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_3": { "x": -33, "y": 19, "width": 646, "height": 548 },
+				"imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_4": { "x": -32, "y": 27, "width": 667, "height": 586 }
+			},
+			"imposter/hydro_dipped_poop/hydro_dipped_poop": {
+				"imposter/hydro_dipped_poop/hydro_dipped_poop": { "x": 6, "y": 8, "width": 151, "height": 146 }
+			},
+			"imposter/hydro_dipped_poop/hydro_dip_puddle": {
+				"imposter/hydro_dipped_poop/hydro_dip_puddle": { "x": 25.43, "y": -22.04, "width": 629, "height": 256 }
+			}
+		}
+	}
+],
+"animations": {
+	"poop_explosion": {
+		"slots": {
+			"hydro_dip_poop_explosion_1": {
+				"attachment": [
+					{ "time": 0.0333, "name": "imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_1" },
+					{ "time": 0.1, "name": "imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_2" },
+					{ "time": 0.1667, "name": "imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_3" },
+					{ "time": 0.2333, "name": "imposter/hydro_dipped_poop/hydro_dip_poop_explosion/hydro_dip_poop_explosion_4" },
+					{ "time": 0.3, "name": null }
+				]
+			}
+		}
+	},
+	"poop_projectile": {
+		"slots": {
+			"imposter/hydro_dipped_poop/hydro_dipped_poop": {
+				"attachment": [
+					{ "name": "imposter/hydro_dipped_poop/hydro_dipped_poop" }
+				]
+			}
+		},
+		"bones": {
+			"explosion": {
+				"rotate": [
+					{},
+					{ "time": 0.6667, "value": -360 }
+				]
+			}
+		}
+	},
+	"puddle_idle": {
+		"slots": {
+			"imposter/hydro_dipped_poop/hydro_dip_puddle": {
+				"attachment": [
+					{ "name": "imposter/hydro_dipped_poop/hydro_dip_puddle" }
+				]
+			}
+		},
+		"bones": {
+			"hydro_dip_puddle": {
+				"scale": [
+					{}
+				]
+			}
+		}
+	},
+	"puddle_intro": {
+		"slots": {
+			"imposter/hydro_dipped_poop/hydro_dip_puddle": {
+				"attachment": [
+					{ "name": "imposter/hydro_dipped_poop/hydro_dip_puddle" }
+				]
+			}
+		},
+		"bones": {
+			"hydro_dip_puddle": {
+				"scale": [
+					{
+						"x": 0.169,
+						"y": 0.169,
+						"curve": [ 0.056, 0.723, 0.278, 1, 0.056, 0.723, 0.278, 1 ]
+					},
+					{ "time": 0.3333 }
+				]
+			}
+		}
+	},
+	"puddle_outro": {
+		"slots": {
+			"imposter/hydro_dipped_poop/hydro_dip_puddle": {
+				"rgba": [
+					{
+						"color": "ffffffff",
+						"curve": [ 0.056, 1, 0.278, 1, 0.056, 1, 0.278, 1, 0.056, 1, 0.278, 1, 0.056, 1, 0.278, 0 ]
+					},
+					{ "time": 0.3333, "color": "ffffff00" }
+				],
+				"attachment": [
+					{ "name": "imposter/hydro_dipped_poop/hydro_dip_puddle" }
+				]
+			}
+		},
+		"bones": {
+			"hydro_dip_puddle": {
+				"scale": [
+					{}
+				]
+			}
+		}
+	}
+}
+}
