@@ -703,6 +703,7 @@ exit_paint_mode :: proc(player: Player) {
     }
     if player.zoom_initialized { player.zoom_t = player.pre_paint_zoom_t; }
     if player.pre_paint_camera_size > 0 { player.camera.size = player.pre_paint_camera_size; }
+    player.camera.follow_player = true;
 }
 
 draw_emote_menu :: proc(player: Player) {

@@ -98,9 +98,12 @@ Player :: class : Player_Base {
     map_vote_hold_index: s64;   // card currently being held; -1 when none
     map_vote_hold_t: float;
     role_reveal_end_time: float;
+    found_banner_end_time: float;
     name_hidden: bool;
     original_player_skins: [..]string;
     original_player_skins_captured: bool;
+    last_countdown_tick_second: s64;
+    last_countdown_tick_phase: Hide_Seek_Phase;
 
     ao_start :: method() {
         brush_color = v4.{0.9, 0.15, 0.15, 1};
@@ -115,6 +118,7 @@ Player :: class : Player_Base {
         picker_s = 1.0;
         picker_v = 1.0;
         brush_radius = 6.0;
+        last_countdown_tick_second = -1;
         weapon_target = entity.add_component(Weapon_Target);
         weapon_target.health = 100.0;
         weapon_target.max_health = 100.0;
@@ -135,10 +139,16 @@ Player :: class : Player_Base {
         // reconciliation. Canvas pixels, worn attachment overrides, and the
         // sampled colors are all ordinary scene/input state.
         capture_original_player_skins(this);
+        camera.follow_player = true;
         if hide_seek_role != .SEEKER {
             ensure_mecha_rig(this);
         }
         update_hide_seek_player(this);
+        update_countdown_tick_sound(this);
+        if hide_seek_voting_focus_active() {
+            if paint_mode || picker_open { exit_paint_mode(this); }
+            emotes_open = false;
+        }
         if hide_seek_role != .SEEKER && locomotion_ready {
             // The engine's built-in `moving` value is derived from position
             // delta. For remote players in a deployed game, their simulation
@@ -156,30 +166,37 @@ Player :: class : Player_Base {
     ao_late_update :: method(dt: float) {
         // UI must be drawn from player late_update, gated on is_local_or_server.
         if is_local_or_server() {
-            // Cancel and Hide UI survive Hide UI, otherwise there is no way back.
-            draw_paint_mode_button(this);
-            draw_emote_menu(this);
-            if !hide_game_ui {
-                draw_emote_button(this);
+            voting_focus := hide_seek_voting_focus_active();
+            if voting_focus {
                 draw_hide_seek_ui(this);
-                draw_hide_seek_leaderboard(this);
-                draw_hide_seek_role_reveal(this);
                 draw_map_vote_ui(this, dt);
-            }
-            if paint_mode && picker_open && !hide_game_ui {
-                draw_color_picker(this);
-                draw_paint_undo_button(this);
-            }
-            if paint_mode {
-                // Zoom survives Hide UI - framing the shot is the point of it.
-                draw_zoom_slider(this);
-                draw_paint_line_preview(this);
-                draw_paint_cursor(this);
-            }
-            if hide_seek_role == .SEEKER && hide_seek_can_shoot() {
-                draw_ability_button(this, Catch_Ability, 0);
-            } else if hide_seek_role == .HIDER && hide_seek_round_active() {
-                draw_ability_button(this, Whistle_Ability, 0);
+            } else {
+                // Cancel and Hide UI survive Hide UI, otherwise there is no way back.
+                draw_paint_mode_button(this);
+                draw_emote_menu(this);
+                if !hide_game_ui {
+                    draw_emote_button(this);
+                    draw_hide_seek_ui(this);
+                    draw_found_feed(this);
+                    draw_hide_seek_leaderboard(this);
+                    draw_hide_seek_role_reveal(this);
+                    draw_map_vote_ui(this, dt);
+                }
+                if paint_mode && picker_open && !hide_game_ui {
+                    draw_color_picker(this);
+                    draw_paint_undo_button(this);
+                }
+                if paint_mode {
+                    // Zoom survives Hide UI - framing the shot is the point of it.
+                    draw_zoom_slider(this);
+                    draw_paint_line_preview(this);
+                    draw_paint_cursor(this);
+                }
+                if hide_seek_role == .SEEKER && hide_seek_can_shoot() {
+                    draw_ability_button(this, Catch_Ability, 0);
+                } else if hide_seek_role == .HIDER && hide_seek_round_active() {
+                    draw_ability_button(this, Whistle_Ability, 0);
+                }
             }
         }
     }
