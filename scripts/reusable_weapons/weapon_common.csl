@@ -109,6 +109,12 @@ weapon_unequip :: proc(player: Player, wt: Weapon_Type) {
 
 weapon_play_fire_sound :: proc(player: Player, wt: Weapon_Type) {
     idx := weapon_type_to_index(wt);
+    // Hide-and-seek seekers use the streamed character's finger-gun pose, so
+    // they intentionally have no equipped weapon. Give that shot the pistol
+    // sound without equipping a weapon skin or consuming ammunition.
+    if idx < 0 || idx >= WEAPON_COUNT {
+        idx = weapon_type_to_index(.AKIMBO_PISTOLS);
+    }
     count := g_weapon_fire_sound_counts[idx];
     if count <= 0 return;
 

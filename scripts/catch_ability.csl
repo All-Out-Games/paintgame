@@ -108,7 +108,11 @@ Catch_Ability :: class : Ability_Base {
 
         if targeted.activate && current_cooldown <= 0 {
             p.set_mouse_ik_enabled(false);
-            weapon_shoot(p, p.equipped_weapon_type);
+            // Seekers use the streamed character's finger gun and deliberately
+            // have no equipped Weapon_Type. Never send .NONE through the
+            // reusable weapon shooting path, where it maps to array index -1.
+            weapon_start_shoot_anim(p, p.equipped_weapon_type);
+            weapon_play_fire_sound(p, .AKIMBO_PISTOLS);
             try_catch_at(p, targeted.point);
             current_cooldown = CATCH_COOLDOWN_SECONDS;
         }

@@ -331,7 +331,7 @@ get_weapon_type_for_item :: proc(item_def: Item_Definition) -> Weapon_Type {
 
 get_weapon_item_def :: proc(wt: Weapon_Type) -> Item_Definition {
     idx := weapon_type_to_index(wt);
-    if idx < 0 return null;
+    if idx < 0 || idx >= WEAPON_COUNT return null;
     return g_weapon_item_defs[idx];
 }
 
