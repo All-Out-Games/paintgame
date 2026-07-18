@@ -14,7 +14,7 @@
     "Y": 1
   },
   "previous_sibling": 2965147309,
-  "next_sibling": 1014795759,
+  "next_sibling": 1018518800,
   "parent": 1017799225,
   "linked_prefab": "chair_plastic_white_back_shallow.png.prefab"
 },
