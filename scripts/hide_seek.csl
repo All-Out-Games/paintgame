@@ -1,14 +1,17 @@
-MIN_PLAYERS_DEFAULT :: 4;
+MIN_PLAYERS_DEFAULT :: 5;
+STARTING_SEEKERS :: 2;
 MAP_SELECT_COUNTDOWN_SECONDS :: 10.0;
 MAP_SELECTION_SECONDS :: 10.0;
 STARTING_GAME_SECONDS :: 5.0;
 HIDE_PHASE_SECONDS :: 60.0;
-HUNT_PHASE_SECONDS :: 100.0;
+HUNT_PHASE_SECONDS :: 180.0;
 REVEAL_SECONDS :: 20.0;
 HIDER_WIN_REVEAL_SECONDS :: 10.0;
 VICTORY_SCREEN_SECONDS :: 5.0;
 // Value kept as-is so a reason added before a hot reload still resolves.
 ROUND_NAME_REASON :: "hide_seek_hider";
+HIDER_NAME_OFFSET_REASON :: "hide_seek_hider_rig";
+HIDER_NAME_OFFSET :: 1.15;
 SEEKER_RIG :: "$AO/streamed_character";
 MAP_COUNT :: 3;
 MAP_VOTE_HOLD_SECONDS :: 0.6;
@@ -203,20 +206,7 @@ Hide_Seek_Game :: class : Component {
             }
             case .HIDING: {
                 if get_time() >= phase_end_time {
-                    phase = .HUNTING;
-                    phase_end_time = get_time() + HUNT_PHASE_SECONDS;
-                    // Seekers waited out the hide phase in the lobby, so they
-                    // need dropping into the map to hunt.
-                    for player: component_iterator(Player) {
-                        bell_desc := SFX.default_sfx_desc();
-                        bell_desc.specific_to_player = player;
-                        bell_desc.volume = 0.8;
-                        bell_desc.speed_perturb = 0;
-                        SFX.play(get_asset(SFX_Asset, "bell-ding_b7781f.wav"), bell_desc);
-                        if player.hide_seek_role == .SEEKER {
-                            teleport_player_to_map(this, player);
-                        }
-                    }
+                    begin_hide_seek_hunt(this);
                 }
             }
             case .HUNTING: {
@@ -533,23 +523,30 @@ update_countdown_tick_sound :: proc(player: Player) {
     SFX.play(get_asset(SFX_Asset, "mouse_click_cee011.wav"), desc);
 }
 
-start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
+start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false) -> bool {
     players: [..]Player;
     for player: component_iterator(Player) {
         if #alive(player) && #alive(player.entity) { players.append(player); }
     }
     required_players := max(game.min_players, MIN_PLAYERS_DEFAULT);
-    if players.count < required_players { return false; }
+    if !bypass_minimum && players.count < required_players { return false; }
+    if players.count == 0 { return false; }
 
     // Clear last round's bodies in case this start skipped the reveal (e.g. /start).
     clear_hide_seek_corpses();
 
     rng := rng_root_seed();
     seeker_index := rng_range_int(ref rng, 0, players.count - 1);
+    seeker_index_two: s64 = -1;
+    seeker_count := min(STARTING_SEEKERS, max(1, players.count - 1));
+    if seeker_count > 1 {
+        seeker_index_two = rng_range_int(ref rng, 0, players.count - 2);
+        if seeker_index_two >= seeker_index { seeker_index_two += 1; }
+    }
     for i: 0..players.count - 1 {
         player := players[i];
         player.hide_seek_role = .HIDER;
-        if i == seeker_index { player.hide_seek_role = .SEEKER; }
+        if i == seeker_index || i == seeker_index_two { player.hide_seek_role = .SEEKER; }
         hide_round_name(player);
         player.role_visual_applied = .NONE;
         player.seeker_rig_ready = false;
@@ -582,10 +579,36 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game) -> bool {
 start :: proc(command_player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
-    if !start_hide_seek_round(game) {
-        required_players := max(game.min_players, MIN_PLAYERS_DEFAULT);
-        Notifier.notify(command_player, `At least {required_players} players are required.`);
+    if !start_hide_seek_round(game, true) {
+        Notifier.notify(command_player, "No players are available to start the round.");
     }
+} @chat_command @owner_or_editor
+
+begin_hide_seek_hunt :: proc(game: Hide_Seek_Game) {
+    if !#alive(game) || game.phase != .HIDING { return; }
+    game.phase = .HUNTING;
+    game.phase_end_time = get_time() + HUNT_PHASE_SECONDS;
+    // Seekers wait in the lobby during hiding and enter the selected map when
+    // search begins, whether the timer expires or an editor skips it.
+    for player: component_iterator(Player) {
+        bell_desc := SFX.default_sfx_desc();
+        bell_desc.specific_to_player = player;
+        bell_desc.volume = 0.8;
+        bell_desc.speed_perturb = 0;
+        SFX.play(get_asset(SFX_Asset, "bell-ding_b7781f.wav"), bell_desc);
+        if player.hide_seek_role == .SEEKER {
+            teleport_player_to_map(game, player);
+        }
+    }
+}
+
+skipwait :: proc(command_player: Player) {
+    game := get_hide_seek_game();
+    if !#alive(game) || game.phase != .HIDING {
+        Notifier.notify(command_player, "The seeker waiting phase is not active.");
+        return;
+    }
+    begin_hide_seek_hunt(game);
 } @chat_command @owner_or_editor
 
 on_hide_seek_player_damaged :: proc(target: Weapon_Target, damage: float, attacker_id: u64, userdata: Object) {
@@ -618,7 +641,7 @@ publish_found_message :: proc(game: Hide_Seek_Game, seeker: Player, hider: Playe
 
 POOP_SPINE :: "rainbow_poop_puddle_174cab/rainbow_poop_puddle.spine";
 POOP_EXPLOSION_ANIM :: "poop_explosion";
-POOP_FREEZE_TIME :: 0.2;           // hold the burst here instead of playing on to the null frame
+POOP_EFFECT_LIFETIME :: 0.8;
 CORPSE_LAYER :: 1;                 // same layer as live hiders
 POOP_LAYER :: 1;                   // same layer as the body
 
@@ -662,20 +685,15 @@ Hide_Seek_Corpse :: class : Component {
     }
 }
 
-// The death splat. Plays the burst, then freezes it partway so a splat stays on
-// the ground rather than playing on to the animation's empty final frame. It
-// lingers as a death marker and is cleared at round boundaries alongside bodies.
+// The catch splash is brief and self-cleaning. Leaving the animation frozen
+// created colorful fragments that looked like active projectiles on the map.
 Poop_Explosion :: class : Component {
     lifetime: float;
-    frozen: bool;
 
     ao_update :: method(dt: float) {
-        if frozen { return; }
         lifetime += dt;
-        if lifetime >= POOP_FREEZE_TIME {
-            anim := entity.get_component(Spine_Animator);
-            if anim != null { anim.speed_multiplier = 0; }
-            frozen = true;
+        if lifetime >= POOP_EFFECT_LIFETIME {
+            entity.destroy();
         }
     }
 }
@@ -743,6 +761,11 @@ capture_original_player_skins :: proc(player: Player) {
 
 apply_seeker_visuals :: proc(player: Player) {
     if player.animator == null { return; }
+    player.remove_name_offset_reason(HIDER_NAME_OFFSET_REASON);
+    if player.equipped_weapon_type != .NONE {
+        weapon_unequip(player, player.equipped_weapon_type);
+        player.equipped_weapon_type = .NONE;
+    }
     if player.override_ids[0] != 0 {
         player.animator.instance.clear_attachment_sprite_override(player.override_ids[0]);
         player.override_ids[0] = 0;
@@ -772,6 +795,8 @@ apply_seeker_visuals :: proc(player: Player) {
 
 apply_hider_visuals :: proc(player: Player) {
     if player.animator == null { return; }
+    player.remove_name_offset_reason(HIDER_NAME_OFFSET_REASON);
+    player.add_name_offset_reason(HIDER_NAME_OFFSET_REASON, HIDER_NAME_OFFSET);
     if player.equipped_weapon_type != .NONE {
         weapon_unequip(player, player.equipped_weapon_type);
         player.equipped_weapon_type = .NONE;
@@ -796,10 +821,14 @@ apply_hider_visuals :: proc(player: Player) {
 }
 
 update_hide_seek_player :: proc(player: Player) {
+    player.remove_name_offset_reason(HIDER_NAME_OFFSET_REASON);
+    if player.hide_seek_role != .SEEKER {
+        player.add_name_offset_reason(HIDER_NAME_OFFSET_REASON, HIDER_NAME_OFFSET);
+    }
     if player.weapon_target != null {
         player.weapon_target.health = player.weapon_target.max_health;
     }
-    if player.hide_seek_role == .SEEKER && (!player.streamed_seeker_rig_ready || player.role_visual_applied != .SEEKER) {
+    if player.hide_seek_role == .SEEKER && (!player.streamed_seeker_rig_ready || player.role_visual_applied != .SEEKER || player.equipped_weapon_type != .NONE) {
         exit_paint_mode(player);
         apply_seeker_visuals(player);
     } else if player.hide_seek_role == .HIDER && player.role_visual_applied != .HIDER {
@@ -978,7 +1007,7 @@ draw_search_start_banner :: proc(game: Hide_Seek_Game) {
     UIK.text(text_desc, "SEARCH START!");
 }
 
-draw_uik_countdown :: proc(game: Hide_Seek_Game, ui_scale: float = 1.0) {
+draw_uik_countdown :: proc(game: Hide_Seek_Game, ui_scale: float = 1.0, show_clock: bool = true) {
     remaining := max(0.0, game.phase_end_time - get_time());
     total_seconds := remaining.(s64);
     fraction := remaining - total_seconds.(float);
@@ -994,14 +1023,18 @@ draw_uik_countdown :: proc(game: Hide_Seek_Game, ui_scale: float = 1.0) {
     timer_row.cross_align = .CENTER;
     timer_row.main_align = .CENTER;
     UIK.panel_begin(timer_row);
-    clock_box := UIK.layout_column();
-    clock_box.width = UIK.pixels(44 * ui_scale);
-    clock_box.height = UIK.pixels(48 * ui_scale);
-    UIK.panel_begin(clock_box);
-    UIK.image_fitted(get_asset(Texture_Asset, "$AO/ui/kit/Icons/clock/clock_icon.png"), UIK.image_desc(.CONTAIN));
-    UIK.panel_end();
+    if show_clock {
+        clock_box := UIK.layout_column();
+        clock_box.width = UIK.pixels(44 * ui_scale);
+        clock_box.height = UIK.pixels(48 * ui_scale);
+        UIK.panel_begin(clock_box);
+        UIK.image_fitted(get_asset(Texture_Asset, "$AO/ui/kit/Icons/clock/clock_icon.png"), UIK.image_desc(.CONTAIN));
+        UIK.panel_end();
+    }
     number_box := UIK.layout_column();
-    number_box.width = UIK.pixels(140 * ui_scale);
+    number_width := 140.0;
+    if !show_clock { number_width = 220.0; }
+    number_box.width = UIK.pixels(number_width * ui_scale);
     number_box.height = UIK.pixels(62 * ui_scale);
     number_box.cross_align = .CENTER;
     number_box.main_align = .CENTER;
@@ -1015,7 +1048,7 @@ draw_uik_countdown :: proc(game: Hide_Seek_Game, ui_scale: float = 1.0) {
     UIK.panel_end();
 }
 
-draw_victory_screen :: proc(player: Player, game: Hide_Seek_Game) {
+draw_victory_screen :: proc(player: Player, game: Hide_Seek_Game, dt: float) {
     remaining := max(0.0, game.phase_end_time - get_time());
     elapsed := VICTORY_SCREEN_SECONDS - remaining;
     winner_title := "HIDERS WIN";
@@ -1028,15 +1061,24 @@ draw_victory_screen :: proc(player: Player, game: Hide_Seek_Game) {
     }
 
     if player_won {
+        if player.victory_confetti == null {
+            player.victory_confetti = Spine_Instance.create();
+            player.victory_confetti.set_skeleton(get_asset(Spine_Asset, "ConfettiSpine/004RAND_confetti.spine"));
+            player.victory_confetti.set_animation("Confetti_Explosion", false, 0);
+        }
+        player.victory_confetti.update(dt * 0.4);
         screen := UI.get_safe_screen_rect();
-        confetti_alpha := min(clamp(elapsed / 0.3, 0, 1), clamp(remaining, 0, 1));
-        fall := min(elapsed * 34.0, 110.0);
+        confetti_scale := max(screen.width() / 5.76, screen.height() / 4.53) * 1.35;
+        rain_t := Ease.in_out_cubic(clamp(elapsed / 3.0, 0, 1));
+        rain_y := lerp(screen.height() * 0.38, screen.height() * -0.18, rain_t);
         UI.push_screen_draw_context();
         UI.push_layer(151);
-        confetti := get_asset(Texture_Asset, "Confetti_ef4697.png");
-        UI.quad(screen.offset(0, -fall), confetti, v4.{1, 1, 1, confetti_alpha});
+        UI.spine(screen.center() + v2.{0, rain_y}, player.victory_confetti, v2.{confetti_scale, confetti_scale}, 0);
         UI.pop_layer();
         UI.pop_draw_context();
+    } else if player.victory_confetti != null {
+        player.victory_confetti.destroy();
+        player.victory_confetti = null;
     }
 
     begin_desc := UIK.modal(UI.get_safe_screen_rect(), 150, v4.{0.02, 0.02, 0.03, 0.86});
@@ -1075,14 +1117,18 @@ draw_victory_screen :: proc(player: Player, game: Hide_Seek_Game) {
     }
 }
 
-draw_hide_seek_ui :: proc(player: Player) {
+draw_hide_seek_ui :: proc(player: Player, dt: float) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
     // The vote screen carries its own title and timer.
     if game.phase == .MAP_SELECTION { return; }
     if game.phase == .REVEAL {
-        draw_victory_screen(player, game);
+        draw_victory_screen(player, game, dt);
         return;
+    }
+    if player.victory_confetti != null {
+        player.victory_confetti.destroy();
+        player.victory_confetti = null;
     }
 
     active_round := game.phase == .HIDING || game.phase == .HUNTING;
@@ -1165,7 +1211,7 @@ draw_hide_seek_ui :: proc(player: Player) {
         timer_group.height = UIK.pixels(124);
         timer_group.cross_align = .CENTER;
         UIK.panel_begin(timer_group);
-        draw_uik_countdown(game);
+        draw_uik_countdown(game, 1.0, false);
         phase_desc := UIK.text_body();
         phase_desc.set_size_mult(0.85);
         phase_desc.set_halign(.CENTER);

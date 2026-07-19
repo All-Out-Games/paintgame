@@ -606,7 +606,7 @@ draw_paint_cursor :: proc(player: Player) {
     UI.wire_circle(mouse, radius, 2.0, v4.{1, 1, 1, 0.95}, 48);
 }
 
-PAINT_MODE_ZOOM_T :: 1.0;
+PAINT_MODE_ZOOM_T :: 0.85;
 
 Paint_Mode_Splash :: class : Component {
     lifetime: float;
@@ -755,7 +755,7 @@ enter_paint_mode :: proc(player: Player) {
     if player.zoom_initialized {
         player.pre_paint_zoom_t = player.zoom_t;
         player.zoom_t = PAINT_MODE_ZOOM_T;
-        player.camera.size = player.zoom_base_size * ZOOM_MIN_MUL;
+        player.camera.size = lerp(player.zoom_base_size * ZOOM_MAX_MUL, player.zoom_base_size * ZOOM_MIN_MUL, PAINT_MODE_ZOOM_T);
     }
     if !player.paint_controls_disabled {
         player.add_freeze_reason(PAINT_FREEZE_REASON);

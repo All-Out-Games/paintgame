@@ -5,7 +5,7 @@
   "name": "Outer Wall Darkness.png",
   "local_enabled": true,
   "local_position": {
-    "X": 29.3937015533447266,
+    "X": 29.7046298980712891,
     "Y": -11.8013057708740234
   },
   "local_rotation": 0,
