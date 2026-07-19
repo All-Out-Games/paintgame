@@ -62,15 +62,27 @@ commit_paint_stroke_undo :: proc(player: Player) {
     // behind it, dropping the oldest delta when the bounded history is full.
     if player.paint_undo_history_starts.count >= PAINT_UNDO_STROKES - 1 {
         drop_count := player.paint_undo_history_starts[1];
-        remaining: [..]Paint_Undo_Pixel;
-        for i: drop_count..player.paint_undo_history_pixels.count - 1 {
-            remaining.append(player.paint_undo_history_pixels[i]);
-        }
-        player.paint_undo_history_pixels.clear();
-        for saved: remaining { player.paint_undo_history_pixels.append(saved); }
-        player.paint_undo_history_starts.ordered_remove_by_index(0);
-        for i: 0..player.paint_undo_history_starts.count - 1 {
-            player.paint_undo_history_starts[i] -= drop_count;
+        history_count := player.paint_undo_history_pixels.count;
+        if drop_count < 0 || drop_count > history_count {
+            // Dynamic arrays reconcile independently. If a client observes a
+            // mismatched frame, discard history instead of walking an invalid
+            // range or allocating an unbounded temporary buffer.
+            player.paint_undo_history_pixels.clear();
+            player.paint_undo_history_starts.clear();
+        } else {
+            remaining_count := history_count - drop_count;
+            if remaining_count > 0 {
+                for i: 0..remaining_count - 1 {
+                    player.paint_undo_history_pixels[i] = player.paint_undo_history_pixels[i + drop_count];
+                }
+            }
+            while player.paint_undo_history_pixels.count > remaining_count {
+                player.paint_undo_history_pixels.pop();
+            }
+            player.paint_undo_history_starts.ordered_remove_by_index(0);
+            for i: 0..player.paint_undo_history_starts.count - 1 {
+                player.paint_undo_history_starts[i] -= drop_count;
+            }
         }
     }
 
@@ -135,6 +147,35 @@ undo_last_paint_stroke :: proc(player: Player) {
         }
         player.paint_undo_history_starts.pop();
     }
+    player.was_painting = false;
+}
+
+reset_paint_to_base :: proc(player: Player) {
+    if player.skin_canvas == null { return; }
+    color := player.avatar_color;
+    if color == .NONE { color = .PURPLE; }
+    player.skin_canvas.fill(color_replace_get_color(color));
+    player.skin_initialized = true;
+    for saved: player.paint_undo_pixels {
+        player.paint_undo_recorded[saved.y * SKIN_TEXELS_X + saved.x] = false;
+    }
+    player.paint_undo_pixels.clear();
+    player.paint_undo_history_pixels.clear();
+    player.paint_undo_history_starts.clear();
+    player.was_painting = false;
+}
+
+fill_character_with_brush_color :: proc(player: Player) {
+    if player.skin_canvas == null { return; }
+    begin_paint_stroke_undo(player);
+    for y: 0..SKIN_TEXELS_Y - 1 {
+        for x: 0..SKIN_TEXELS_X - 1 {
+            index := y * SKIN_TEXELS_X + x;
+            player.paint_undo_recorded[index] = true;
+            player.paint_undo_pixels.append(Paint_Undo_Pixel.{x=x, y=y, color=player.skin_canvas.get_pixel(x, y)});
+        }
+    }
+    player.skin_canvas.fill(player.brush_color);
     player.was_painting = false;
 }
 
@@ -206,10 +247,7 @@ Paint_Demo :: class : Component {
 
         // Press C: reset the character back to the player's skin color.
         if get_input_down(.C, false) {
-            color := player.avatar_color;
-            if color == .NONE { color = .PURPLE; }
-            skin.fill(color_replace_get_color(color));
-            player.skin_initialized = true;
+            reset_paint_to_base(player);
         }
         // Press X: orientation ground truth - flood the left half of the
         // canvas red in texel space, for verifying the canvas-to-character
@@ -254,6 +292,15 @@ Paint_Demo :: class : Component {
                 player.was_painting = false;
                 return;
             }
+        }
+
+        if player.paint_bucket_active {
+            if left_down && !mouse_over_paint_ui(player, get_mouse_screen_position()) {
+                bucket_px, over_character, bucket_scale := try_get_brush_canvas_px(player, skin, mouse);
+                if over_character { fill_character_with_brush_color(player); }
+            }
+            player.was_painting = false;
+            return;
         }
 
         // Line tool: first click anchors, second commits. Returning early keeps
@@ -604,6 +651,17 @@ draw_paint_cursor :: proc(player: Player) {
     // inner ring remains readable over dark paint.
     UI.wire_circle(mouse, radius + 1.5, 4.0, v4.{0.05, 0.05, 0.06, 0.8}, 48);
     UI.wire_circle(mouse, radius, 2.0, v4.{1, 1, 1, 0.95}, 48);
+
+    if !player.eyedropper_active && !player.line_tool_active && !player.paint_bucket_active {
+        // Keep the brush tip near the pointer while leaving the color/size
+        // preview visible underneath it.
+        icon_min := mouse + v2.{-7, -6};
+        icon_rect := Rect.{min=icon_min, max=icon_min + v2.{54, 54}};
+        icon_rotation := Matrix4.rotate_about_point(mouse, -18.0);
+        UI.push_matrix(icon_rotation);
+        UI.quad(icon_rect, get_asset(Texture_Asset, "brush_icon_b.png"));
+        UI.pop_matrix();
+    }
 }
 
 PAINT_MODE_ZOOM_T :: 0.85;
@@ -661,22 +719,36 @@ draw_paint_mode_button :: proc(player: Player) {
     defer UIK.panel_end();
 
     if player.hide_seek_role != .SEEKER {
-        button_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
-        button_desc.panel.min_width = 190;
-        button_desc.panel.min_height = 64;
         if player.paint_mode {
-            button_desc = UIK.widget_desc_button_default(.BUTTON_BASIC_RED);
-            button_desc.panel.min_width = 190;
-            button_desc.panel.min_height = 64;
-        }
-        label := "Paint";
-        if player.paint_mode { label = "Cancel"; }
-
-        result := UIK.button("paint_mode_button", label, button_desc);
-        if UIK.clicked(result) {
-            if player.paint_mode {
+            done_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
+            done_desc.panel.min_width = 190;
+            done_desc.panel.min_height = 64;
+            done_result := UIK.button("paint_mode_button", "Done", done_desc);
+            if UIK.clicked(done_result) {
                 exit_paint_mode(player);
-            } else {
+            }
+        } else {
+            paint_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
+            paint_desc.panel.width = UIK.pixels(190);
+            paint_desc.panel.height = UIK.pixels(128);
+            paint_desc.panel.axis = .VERTICAL;
+            paint_desc.panel.cross_align = .CENTER;
+            paint_desc.panel.main_align = .CENTER;
+            paint_desc.panel.gap = 4;
+            paint_desc.panel.padding = v4.{8, 12, 8, 12};
+            paint_result := UIK.panel_begin_interactive("paint_mode_button", paint_desc.panel);
+            paint_icon_box := UIK.layout_column();
+            paint_icon_box.width = UIK.pixels(62);
+            paint_icon_box.height = UIK.pixels(62);
+            UIK.panel_begin(paint_icon_box);
+            UIK.image_fitted(get_asset(Texture_Asset, "brush_icon.png"), UIK.image_desc(.CONTAIN));
+            UIK.panel_end();
+            paint_label_desc := UIK.text_body();
+            paint_label_desc.set_halign(.CENTER);
+            paint_label_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
+            UIK.text(paint_label_desc, "Paint");
+            UIK.panel_end();
+            if UIK.clicked(paint_result) {
                 enter_paint_mode(player);
             }
         }
@@ -771,6 +843,7 @@ exit_paint_mode :: proc(player: Player) {
     player.paint_mode = false;
     player.picker_open = false;
     player.eyedropper_active = false;
+    player.paint_bucket_active = false;
     player.was_painting = false;
     player.line_tool_active = false;
     player.line_anchor_set = false;
@@ -883,29 +956,39 @@ PICKER_GAP     :: 21.6;
 PICKER_LABEL_H :: 59.4;
 PICKER_BRUSH_H :: 45.9;   // brush-size slider row height
 PICKER_BRUSH_LABEL_H :: 38.0;
-PICKER_PICK_W  :: 148.5;  // eyedropper (PICK) button width
-PICKER_TOOL_H  :: 59.4;   // LINE tool row height
+PICKER_UNDO_W  :: 76.0;
+PICKER_UNDO_H  :: 76.0;
+PICKER_LINE_W  :: 76.0;
+PICKER_BUCKET_W :: 76.0;
+PICKER_STACK_GAP :: 18.0;
+PICKER_BUTTON_GAP :: 11.0;
 SV_CELLS       :: 16;     // SV gradient resolution (cells per axis)
 HUE_CELLS      :: 24;     // hue bar resolution
 
-// Shared so the picker, the undo button that parks against it, and the line
-// tool's input guard all derive from one set of numbers.
+// Shared so the picker, its external tool row, and the input guard all derive
+// from one set of numbers.
 picker_panel_size :: proc() -> float, float {
     width := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_HUE_W;
-    height := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_BRUSH_LABEL_H + PICKER_BRUSH_H + PICKER_GAP + PICKER_LABEL_H + PICKER_GAP + PICKER_TOOL_H;
+    height := PICKER_PAD * 2 + PICKER_SV_SIZE + PICKER_GAP + PICKER_BRUSH_LABEL_H + PICKER_BRUSH_H + PICKER_GAP + PICKER_LABEL_H;
     return width, height;
 }
 
 picker_panel_rect :: proc() -> Rect {
     panel_w, panel_h := picker_panel_size();
-    return UI.get_safe_screen_rect().bottom_left_rect().grow(panel_h, panel_w, 0, 0).offset(PICKER_MARGIN, PICKER_MARGIN);
+    picker_y := PICKER_MARGIN + PICKER_UNDO_H + PICKER_STACK_GAP;
+    return UI.get_safe_screen_rect().bottom_left_rect().grow(panel_h, panel_w, 0, 0).offset(PICKER_MARGIN, picker_y);
+}
+
+picker_controls_rect :: proc() -> Rect {
+    panel_w, panel_h := picker_panel_size();
+    controls_h := PICKER_UNDO_H + PICKER_STACK_GAP + panel_h;
+    return UI.get_safe_screen_rect().bottom_left_rect().grow(controls_h, panel_w, 0, 0).offset(PICKER_MARGIN, PICKER_MARGIN);
 }
 
 // The line tool accepts clicks anywhere on screen, so it has to hand back the
 // regions the paint controls sit in - otherwise dragging the hue bar or hitting
 // Cancel would drop a line anchor. These mirror the rects the draw procs build;
 // they deliberately over-cover rather than track each widget exactly.
-PICKER_UNDO_GUTTER :: 178.0;  // gap + undo button, see draw_paint_undo_button
 ZOOM_RAIL_WIDTH    :: 100.0;  // the zoom bar's 80pt strip plus its 10pt inset
 EMOTE_RAIL_WIDTH   :: 260.0;  // out to the far edge of the emote button
 RIGHT_RAIL_HALF_H  :: 160.0;  // matches the zoom bar's half height
@@ -929,7 +1012,7 @@ mouse_over_paint_ui :: proc(player: Player, mouse_screen: v2) -> bool {
     // clicks aimed at the character behind them.
     if player.hide_game_ui { return false; }
     if player.picker_open {
-        if point_in_rect(picker_panel_rect().grow(0, PICKER_UNDO_GUTTER, 0, 0), mouse_screen) { return true; }
+        if point_in_rect(picker_controls_rect(), mouse_screen) { return true; }
     }
     emote_rail := screen.right_center_rect().grow(RIGHT_RAIL_HALF_H, 0, RIGHT_RAIL_HALF_H, EMOTE_RAIL_WIDTH);
     return point_in_rect(emote_rail, mouse_screen);
@@ -945,32 +1028,137 @@ draw_paint_undo_button :: proc(player: Player) {
     UIK.begin(begin_desc);
     defer UIK.end();
 
-    undo_w := 160.0;
-    undo_h := 76.0;
-    undo_x := PICKER_MARGIN + panel_w + 18.0;
-    undo_y := PICKER_MARGIN + (panel_h - undo_h) * 0.5;
+    trash_w := PICKER_UNDO_H;
+    button_row_w := PICKER_UNDO_W * 2 + trash_w + PICKER_LINE_W + PICKER_BUCKET_W + PICKER_BUTTON_GAP * 4;
+    undo_x := PICKER_MARGIN + (panel_w - button_row_w) * 0.5;
+    undo_y := PICKER_MARGIN;
     UIK.overlay_begin(.BOTTOM_LEFT, v2.{undo_x, undo_y});
     defer UIK.overlay_end();
 
+    button_row := UIK.layout_row(UIK.pixels(button_row_w), UIK.pixels(PICKER_UNDO_H), PICKER_BUTTON_GAP);
+    button_row.cross_align = .CENTER;
+    UIK.panel_begin(button_row);
+
     undo_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_BLUE);
-    undo_desc.panel.width = UIK.pixels(undo_w);
-    undo_desc.panel.height = UIK.pixels(undo_h);
+    undo_desc.panel.width = UIK.pixels(PICKER_UNDO_W);
+    undo_desc.panel.height = UIK.pixels(PICKER_UNDO_H);
     undo_desc.disabled = player.paint_undo_pixels.count == 0 && player.paint_undo_history_starts.count == 0;
-    undo_desc.panel.axis = .HORIZONTAL;
     undo_desc.panel.cross_align = .CENTER;
     undo_desc.panel.main_align = .CENTER;
-    undo_desc.panel.gap = 10;
+    undo_desc.panel.padding = v4.{0, 0, 0, 0};
     undo_result := UIK.panel_begin_interactive("undo_paint_stroke", undo_desc.panel, undo_desc.disabled);
-    UIK.text(undo_desc.label_text, "Undo");
     undo_icon_box := UIK.layout_column();
-    undo_icon_box.width = UIK.pixels(38);
-    undo_icon_box.height = UIK.pixels(38);
+    undo_icon_box.width = UIK.pixels(48);
+    undo_icon_box.height = UIK.pixels(48);
+    undo_icon_box.cross_align = .CENTER;
+    undo_icon_box.main_align = .CENTER;
     UIK.panel_begin(undo_icon_box);
     UIK.image_fitted(get_asset(Texture_Asset, "Undo Outline 256.png"), UIK.image_desc(.CONTAIN));
     UIK.panel_end();
     UIK.panel_end();
+
+    trash_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_RED);
+    trash_desc.panel.width = UIK.pixels(trash_w);
+    trash_desc.panel.height = UIK.pixels(PICKER_UNDO_H);
+    trash_desc.panel.cross_align = .CENTER;
+    trash_desc.panel.main_align = .CENTER;
+    trash_desc.panel.padding = v4.{0, 0, 0, 0};
+    trash_result := UIK.panel_begin_interactive("reset_paint", trash_desc.panel);
+    trash_icon_box := UIK.layout_column();
+    trash_icon_box.width = UIK.pixels(42);
+    trash_icon_box.height = UIK.pixels(48);
+    trash_icon_box.cross_align = .CENTER;
+    trash_icon_box.main_align = .CENTER;
+    UIK.panel_begin(trash_icon_box);
+    UIK.image_fitted(get_asset(Texture_Asset, "trash_can_icon.png"), UIK.image_desc(.CONTAIN));
+    UIK.panel_end();
+    UIK.panel_end();
+
+    pick_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREY);
+    if player.eyedropper_active { pick_desc = UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN); }
+    pick_desc.panel.width = UIK.pixels(PICKER_UNDO_W);
+    pick_desc.panel.height = UIK.pixels(PICKER_UNDO_H);
+    pick_desc.panel.cross_align = .CENTER;
+    pick_desc.panel.main_align = .CENTER;
+    pick_desc.panel.padding = v4.{0, 0, 0, 0};
+    pick_result := UIK.panel_begin_interactive("picker_eyedrop", pick_desc.panel);
+    pick_icon_box := UIK.layout_column();
+    pick_icon_box.width = UIK.pixels(48);
+    pick_icon_box.height = UIK.pixels(48);
+    pick_icon_box.cross_align = .CENTER;
+    pick_icon_box.main_align = .CENTER;
+    UIK.panel_begin(pick_icon_box);
+    UIK.image_fitted(get_asset(Texture_Asset, "pickericon.png"), UIK.image_desc(.CONTAIN));
+    UIK.panel_end();
+    UIK.panel_end();
+
+    line_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREY);
+    if player.line_tool_active { line_desc = UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN); }
+    line_desc.panel.width = UIK.pixels(PICKER_LINE_W);
+    line_desc.panel.height = UIK.pixels(PICKER_UNDO_H);
+    line_desc.panel.cross_align = .CENTER;
+    line_desc.panel.main_align = .CENTER;
+    line_desc.panel.padding = v4.{0, 0, 0, 0};
+    line_result := UIK.panel_begin_interactive("picker_line_tool", line_desc.panel);
+    line_icon_box := UIK.layout_column();
+    line_icon_box.width = UIK.pixels(48);
+    line_icon_box.height = UIK.pixels(48);
+    line_icon_box.cross_align = .CENTER;
+    line_icon_box.main_align = .CENTER;
+    UIK.panel_begin(line_icon_box);
+    UIK.image_fitted(get_asset(Texture_Asset, "linetool.png"), UIK.image_desc(.CONTAIN));
+    UIK.panel_end();
+    UIK.panel_end();
+
+    bucket_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREY);
+    if player.paint_bucket_active { bucket_desc = UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN); }
+    bucket_desc.panel.width = UIK.pixels(PICKER_BUCKET_W);
+    bucket_desc.panel.height = UIK.pixels(PICKER_UNDO_H);
+    bucket_desc.panel.cross_align = .CENTER;
+    bucket_desc.panel.main_align = .CENTER;
+    bucket_desc.panel.padding = v4.{0, 0, 0, 0};
+    bucket_result := UIK.panel_begin_interactive("paint_bucket_tool", bucket_desc.panel);
+    bucket_icon_box := UIK.layout_column();
+    bucket_icon_box.width = UIK.pixels(48);
+    bucket_icon_box.height = UIK.pixels(48);
+    bucket_icon_box.cross_align = .CENTER;
+    bucket_icon_box.main_align = .CENTER;
+    UIK.panel_begin(bucket_icon_box);
+    UIK.image_fitted(get_asset(Texture_Asset, "paintbucket.png"), UIK.image_desc(.CONTAIN));
+    UIK.panel_end();
+    UIK.panel_end();
+
+    UIK.panel_end();
+
     if UIK.clicked(undo_result) {
         undo_last_paint_stroke(player);
+    }
+    if UIK.clicked(trash_result) {
+        reset_paint_to_base(player);
+    }
+    if UIK.clicked(pick_result) {
+        player.eyedropper_active = !player.eyedropper_active;
+        if player.eyedropper_active {
+            player.line_tool_active = false;
+            player.line_anchor_set = false;
+            player.paint_bucket_active = false;
+        }
+    }
+    if UIK.clicked(line_result) {
+        player.line_tool_active = !player.line_tool_active;
+        player.line_anchor_set = false;
+        if player.line_tool_active {
+            player.eyedropper_active = false;
+            player.paint_bucket_active = false;
+        }
+    }
+    if UIK.clicked(bucket_result) {
+        player.paint_bucket_active = !player.paint_bucket_active;
+        if player.paint_bucket_active {
+            player.eyedropper_active = false;
+            player.line_tool_active = false;
+            player.line_anchor_set = false;
+        }
     }
 }
 
@@ -1032,8 +1220,6 @@ draw_color_picker :: proc(player: Player) {
     UI.quad(panel, core_globals.white_sprite, v4.{0.10, 0.10, 0.13, 0.88});
 
     work := panel.inset(PICKER_PAD);
-    tool_row := work.cut_bottom(PICKER_TOOL_H);
-    work.cut_bottom(PICKER_GAP);
     label_row := work.cut_bottom(PICKER_LABEL_H);
     work.cut_bottom(PICKER_GAP);
     brush_row := work.cut_bottom(PICKER_BRUSH_H);
@@ -1109,33 +1295,6 @@ draw_color_picker :: proc(player: Player) {
     UI.quad(swatch, core_globals.white_sprite, v4.{0, 0, 0, 1});
     UI.quad(swatch.inset(3), core_globals.white_sprite, hsv_to_rgb(player.picker_h, player.picker_s, player.picker_v, 1.0));
 
-    pick_rect := label_row.cut_right(PICKER_PICK_W);
-    label_row.cut_right(PICKER_GAP);
-    pick_bs := UI.default_button_settings();
-    pick_bs.color = v4.{0.30, 0.30, 0.36, 1};
-    pick_bs.hovered_color = v4.{0.40, 0.40, 0.46, 1};
-    pick_bs.pressed_color = v4.{0.18, 0.60, 0.28, 1};
-    if player.eyedropper_active {
-        pick_bs.color = v4.{0.20, 0.80, 0.35, 1};
-        pick_bs.hovered_color = v4.{0.28, 0.90, 0.42, 1};
-    }
-    pick_ts := UI.default_text_settings();
-    pick_ts.size = 35;
-    pick_ts.color = v4.{1, 1, 1, 1};
-    UI.push_id("picker_eyedrop");
-    pick := UI.button(pick_rect, pick_bs, pick_ts, "PICK     ");
-    UI.pop_id();
-    pick_icon_rect := pick_rect.subrect(0.66, 0.12, 0.96, 0.88);
-    UI.quad(pick_icon_rect, get_asset(Texture_Asset, "picker-color-icon.png"));
-    if pick.clicked {
-        player.eyedropper_active = !player.eyedropper_active;
-        // The two click modes would fight over the same click.
-        if player.eyedropper_active {
-            player.line_tool_active = false;
-            player.line_anchor_set = false;
-        }
-    }
-
     ts := UI.default_text_settings();
     ts.size = 40;
     ts.color = v4.{1, 1, 1, 1};
@@ -1143,30 +1302,4 @@ draw_color_picker :: proc(player: Player) {
     ts.valign = .CENTER;
     UI.text(label_row, ts, `Brush: {(player.brush_radius + 0.5).(s64)}px`);
 
-    // The label doubles as the tool's only prompt, so it has to say which click
-    // comes next rather than just naming the mode.
-    line_label := "LINE";
-    if player.line_tool_active {
-        line_label = "LINE: CLICK START";
-        if player.line_anchor_set { line_label = "LINE: CLICK END"; }
-    }
-    line_bs := UI.default_button_settings();
-    line_bs.color = v4.{0.30, 0.30, 0.36, 1};
-    line_bs.hovered_color = v4.{0.40, 0.40, 0.46, 1};
-    line_bs.pressed_color = v4.{0.18, 0.60, 0.28, 1};
-    if player.line_tool_active {
-        line_bs.color = v4.{0.20, 0.80, 0.35, 1};
-        line_bs.hovered_color = v4.{0.28, 0.90, 0.42, 1};
-    }
-    line_ts := UI.default_text_settings();
-    line_ts.size = 35;
-    line_ts.color = v4.{1, 1, 1, 1};
-    UI.push_id("picker_line_tool");
-    line := UI.button(tool_row, line_bs, line_ts, line_label);
-    UI.pop_id();
-    if line.clicked {
-        player.line_tool_active = !player.line_tool_active;
-        player.line_anchor_set = false;
-        if player.line_tool_active { player.eyedropper_active = false; }
-    }
 }

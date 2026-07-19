@@ -34,6 +34,8 @@ DEFAULT_POINTS_PER_SECOND :: 1;
 LEADERBOARD_PUBLISH_SECONDS :: 20.0;
 LEADERBOARD_MAX_ROWS :: 8;
 HUD_YELLOW :: v4.{1.0, 0.85, 0.2, 1.0};
+SEEKER_WINS_LEADERBOARD :: "top_seeker_wins";
+HIDER_WINS_LEADERBOARD :: "top_hider_wins";
 
 // Every hider is whistled automatically on this cadence, so camping a corner
 // in silence is not viable.
@@ -389,6 +391,13 @@ finish_hide_seek_round :: proc(game: Hide_Seek_Game, winner: Hide_Seek_Winner) {
     game.winner = winner;
     game.phase = .REVEAL;
     game.phase_end_time = get_time() + VICTORY_SCREEN_SECONDS;
+    for player: component_iterator(Player) {
+        if winner == .SEEKERS && player.hide_seek_role == .SEEKER {
+            Global_Leaderboard.increment_score(player, SEEKER_WINS_LEADERBOARD, 1);
+        } else if winner == .HIDERS && player.hide_seek_role == .HIDER {
+            Global_Leaderboard.increment_score(player, HIDER_WINS_LEADERBOARD, 1);
+        }
+    }
     // Show the true final tally during the reveal instead of a stale snapshot.
     publish_leaderboard(game);
 }
