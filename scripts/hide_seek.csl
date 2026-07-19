@@ -6,6 +6,7 @@ STARTING_GAME_SECONDS :: 5.0;
 HIDE_PHASE_SECONDS :: 60.0;
 HUNT_PHASE_SECONDS :: 180.0;
 FOUND_FLICKER_SECONDS :: 3.0;
+FOUND_FREEZE_REASON :: "hide_seek_found_flicker";
 REVEAL_SECONDS :: 20.0;
 HIDER_WIN_REVEAL_SECONDS :: 10.0;
 VICTORY_SCREEN_SECONDS :: 5.0;
@@ -126,10 +127,12 @@ Hide_Seek_Game :: class : Component {
     found_feed_hider_name: string;
     found_feed_seeker_color: v4;
     found_feed_hider_color: v4;
+    role_rng: u64;
 
     ao_start :: method() {
         g_hide_seek = this;
         phase = .WAITING_FOR_PLAYERS;
+        role_rng = rng_root_seed();
         // The round needs a seeker plus at least one hider, so 2 is the floor
         // regardless of what the scene asks for.
         // The round needs a seeker plus at least one hider, so 2 is the floor
@@ -154,7 +157,7 @@ Hide_Seek_Game :: class : Component {
             }
             refresh_hide_seek_counts(this);
             award_proximity_points(this, dt);
-            if get_time() >= next_forced_whistle_time {
+            if phase == .HUNTING && get_time() >= next_forced_whistle_time {
                 next_forced_whistle_time = get_time() + FORCED_WHISTLE_SECONDS;
                 force_all_hiders_whistle(this);
             }
@@ -320,6 +323,7 @@ show_round_name :: proc(player: Player) {
 add_mid_round_seeker :: proc(game: Hide_Seek_Game, player: Player, hide_phase: bool) {
     player.hide_seek_role = .SEEKER;
     player.pending_found_end_time = 0;
+    clear_found_freeze(player);
     hide_round_name(player);
     exit_paint_mode(player);
     player.emotes_open = false;
@@ -417,6 +421,7 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
         player.role_visual_applied = .NONE;
         player.found_banner_end_time = 0;
         player.pending_found_end_time = 0;
+        clear_found_freeze(player);
         player.seeker_rig_ready = false;
         player.streamed_seeker_rig_ready = false;
         player.active_pose = 0;
@@ -509,6 +514,11 @@ hide_seek_round_active :: proc() -> bool {
     return #alive(game) && (game.phase == .HIDING || game.phase == .HUNTING);
 }
 
+hide_seek_whistles_active :: proc() -> bool {
+    game := get_hide_seek_game();
+    return #alive(game) && game.phase == .HUNTING;
+}
+
 hide_seek_voting_focus_active :: proc() -> bool {
     game := get_hide_seek_game();
     return #alive(game) && game.phase == .MAP_SELECTION;
@@ -557,12 +567,11 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
     // Clear last round's bodies in case this start skipped the reveal (e.g. /start).
     clear_hide_seek_corpses();
 
-    rng := rng_root_seed();
-    seeker_index := rng_range_int(ref rng, 0, players.count - 1);
+    seeker_index := rng_range_int(ref game.role_rng, 0, players.count - 1);
     seeker_index_two: s64 = -1;
     seeker_count := min(STARTING_SEEKERS, max(1, players.count - 1));
     if seeker_count > 1 {
-        seeker_index_two = rng_range_int(ref rng, 0, players.count - 2);
+        seeker_index_two = rng_range_int(ref game.role_rng, 0, players.count - 2);
         if seeker_index_two >= seeker_index { seeker_index_two += 1; }
     }
     for i: 0..players.count - 1 {
@@ -572,6 +581,7 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
         hide_round_name(player);
         player.role_visual_applied = .NONE;
         player.pending_found_end_time = 0;
+        clear_found_freeze(player);
         player.seeker_rig_ready = false;
         player.streamed_seeker_rig_ready = false;
         player.role_reveal_end_time = get_time() + ROLE_REVEAL_SECONDS;
@@ -593,7 +603,7 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
 
     game.phase = .HIDING;
     game.phase_end_time = get_time() + HIDE_PHASE_SECONDS;
-    game.next_forced_whistle_time = get_time() + FORCED_WHISTLE_SECONDS;
+    game.next_forced_whistle_time = 0;
     reset_hide_seek_scores(game);
     refresh_hide_seek_counts(game);
     return true;
@@ -611,6 +621,7 @@ begin_hide_seek_hunt :: proc(game: Hide_Seek_Game) {
     if !#alive(game) || game.phase != .HIDING { return; }
     game.phase = .HUNTING;
     game.phase_end_time = get_time() + HUNT_PHASE_SECONDS;
+    game.next_forced_whistle_time = get_time() + FORCED_WHISTLE_SECONDS;
     // Seekers wait in the lobby during hiding and enter the selected map when
     // search begins, whether the timer expires or an editor skips it.
     for player: component_iterator(Player) {
@@ -666,7 +677,17 @@ begin_hider_found :: proc(game: Hide_Seek_Game, victim: Player, finder: Player) 
     if victim.hide_seek_role != .HIDER || victim.pending_found_end_time > get_time() { return; }
     victim.pending_found_end_time = get_time() + FOUND_FLICKER_SECONDS;
     victim.found_banner_end_time = victim.pending_found_end_time;
+    if !victim.found_movement_frozen {
+        victim.add_freeze_reason(FOUND_FREEZE_REASON);
+        victim.found_movement_frozen = true;
+    }
     publish_found_message(game, finder, victim);
+}
+
+clear_found_freeze :: proc(player: Player) {
+    if !player.found_movement_frozen { return; }
+    player.remove_freeze_reason(FOUND_FREEZE_REASON);
+    player.found_movement_frozen = false;
 }
 
 POOP_SPINE :: "rainbow_poop_puddle_174cab/rainbow_poop_puddle.spine";
@@ -766,6 +787,7 @@ convert_hider_to_seeker :: proc(game: Hide_Seek_Game, victim: Player, finder: Pl
     // Mark the spot before the teleport moves the victim off it.
     spawn_hider_death(victim);
     victim.pending_found_end_time = 0;
+    clear_found_freeze(victim);
     victim.hide_seek_role = .SEEKER;
     hide_round_name(victim);
     exit_paint_mode(victim);
@@ -1178,10 +1200,18 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
     defer UIK.end();
     panel_width := 680.0;
     if game.phase == .STARTING_MAP_SELECTION { panel_width = 364; }
-    if active_round { panel_width = 640; }
-    panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(panel_width), UIK.fit(), 8, v4.{14, 22, 14, 22});
+    panel_radius := 8.0;
+    panel_padding := v4.{14, 22, 14, 22};
+    panel_y := -20.0;
+    if active_round {
+        panel_width = 576;
+        panel_radius = 7.2;
+        panel_padding = v4.{12.6, 19.8, 12.6, 19.8};
+        panel_y = -18;
+    }
+    panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(panel_width), UIK.fit(), panel_radius, panel_padding);
     panel.cross_align = .CENTER;
-    UIK.overlay_begin(.TOP_CENTER, panel, v2.{0, -20});
+    UIK.overlay_begin(.TOP_CENTER, panel, v2.{0, panel_y});
     defer UIK.overlay_end();
 
     title := hide_seek_phase_title(game, player);
@@ -1214,87 +1244,90 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
         draw_uik_countdown(game);
         UIK.text(UIK.text_body(), `{map_display_name(game.selected_map)}`);
     } else if active_round {
-        scoreboard := UIK.layout_row(UIK.flex(1), UIK.pixels(132), 18);
+        scoreboard := UIK.layout_row(UIK.flex(1), UIK.pixels(118.8), 16.2);
         scoreboard.cross_align = .CENTER;
         scoreboard.main_align = .SPACE_BETWEEN;
         UIK.panel_begin(scoreboard);
 
         seeker_group := UIK.layout_column();
-        seeker_group.width = UIK.pixels(150);
-        seeker_group.height = UIK.pixels(84);
-        seeker_group.gap = 2;
+        seeker_group.width = UIK.pixels(135);
+        seeker_group.height = UIK.pixels(75.6);
+        seeker_group.gap = 1.8;
         seeker_group.cross_align = .CENTER;
         UIK.panel_begin(seeker_group);
-        seeker_row := UIK.layout_row(UIK.fit(), UIK.pixels(56), 8);
+        seeker_row := UIK.layout_row(UIK.fit(), UIK.pixels(50.4), 7.2);
         seeker_row.cross_align = .CENTER;
         UIK.panel_begin(seeker_row);
         seeker_icon_box := UIK.layout_column();
-        seeker_icon_box.width = UIK.pixels(48);
-        seeker_icon_box.height = UIK.pixels(52);
+        seeker_icon_box.width = UIK.pixels(43.2);
+        seeker_icon_box.height = UIK.pixels(46.8);
         UIK.panel_begin(seeker_icon_box);
         UIK.image_fitted(get_asset(Texture_Asset, "$AO/ui/kit/Icons/misc_icons_2/player_level_1_small.png"), UIK.image_desc(.CONTAIN), v4.{1, 0.18, 0.18, 1});
         UIK.panel_end();
         seeker_count_desc := UIK.text_title();
-        seeker_count_desc.set_size_mult(1.35);
+        seeker_count_desc.set_size_mult(1.215);
         seeker_count_desc.set_color(v4.{1, 0.18, 0.18, 1});
         UIK.text(seeker_count_desc, `{game.seekers}`);
         UIK.panel_end();
         seeker_label_desc := UIK.text_body();
+        seeker_label_desc.set_size_mult(0.9);
         seeker_label_desc.set_halign(.CENTER);
         UIK.text(seeker_label_desc, "SEEKERS");
         UIK.panel_end();
 
         timer_group := UIK.layout_column();
-        timer_group.width = UIK.pixels(250);
-        timer_group.height = UIK.pixels(124);
+        timer_group.width = UIK.pixels(225);
+        timer_group.height = UIK.pixels(111.6);
         timer_group.cross_align = .CENTER;
         UIK.panel_begin(timer_group);
-        draw_uik_countdown(game, 1.0, false);
+        draw_uik_countdown(game, 0.9, false);
         phase_desc := UIK.text_body();
-        phase_desc.set_size_mult(0.85);
+        phase_desc.set_size_mult(0.765);
         phase_desc.set_halign(.CENTER);
         timer_caption := title;
         if game.phase == .HIDING { timer_caption = "Until Search Starts"; }
         UIK.text(phase_desc, timer_caption);
 
-        // Fixed box so the row does not resize as the count drops to a single
-        // digit.
-        whistle_box := UIK.layout_column();
-        whistle_box.width = UIK.pixels(250);
-        whistle_box.height = UIK.pixels(32);
-        whistle_box.cross_align = .CENTER;
-        whistle_box.main_align = .CENTER;
-        whistle_box.clip_children = true;
-        UIK.panel_begin(whistle_box);
-        whistle_remaining := max(0.0, game.next_forced_whistle_time - get_time());
-        whistle_desc := UIK.text_body();
-        whistle_desc.set_halign(.CENTER);
-        whistle_desc.set_color(HUD_YELLOW);
-        UIK.text(whistle_desc, `Whistle {whistle_remaining.(s64)}`);
-        UIK.panel_end();
+        if game.phase == .HUNTING {
+            whistle_box := UIK.layout_column();
+            whistle_box.width = UIK.pixels(225);
+            whistle_box.height = UIK.pixels(28.8);
+            whistle_box.cross_align = .CENTER;
+            whistle_box.main_align = .CENTER;
+            whistle_box.clip_children = true;
+            UIK.panel_begin(whistle_box);
+            whistle_remaining := max(0.0, game.next_forced_whistle_time - get_time());
+            whistle_desc := UIK.text_body();
+            whistle_desc.set_size_mult(0.9);
+            whistle_desc.set_halign(.CENTER);
+            whistle_desc.set_color(HUD_YELLOW);
+            UIK.text(whistle_desc, `Whistle {whistle_remaining.(s64)}`);
+            UIK.panel_end();
+        }
         UIK.panel_end();
 
         hider_group := UIK.layout_column();
-        hider_group.width = UIK.pixels(150);
-        hider_group.height = UIK.pixels(84);
-        hider_group.gap = 2;
+        hider_group.width = UIK.pixels(135);
+        hider_group.height = UIK.pixels(75.6);
+        hider_group.gap = 1.8;
         hider_group.cross_align = .CENTER;
         UIK.panel_begin(hider_group);
-        hider_row := UIK.layout_row(UIK.fit(), UIK.pixels(56), 8);
+        hider_row := UIK.layout_row(UIK.fit(), UIK.pixels(50.4), 7.2);
         hider_row.cross_align = .CENTER;
         UIK.panel_begin(hider_row);
         hider_icon_box := UIK.layout_column();
-        hider_icon_box.width = UIK.pixels(48);
-        hider_icon_box.height = UIK.pixels(52);
+        hider_icon_box.width = UIK.pixels(43.2);
+        hider_icon_box.height = UIK.pixels(46.8);
         UIK.panel_begin(hider_icon_box);
         UIK.image_fitted(get_asset(Texture_Asset, "$AO/ui/kit/Icons/misc_icons_2/player_level_1_small.png"), UIK.image_desc(.CONTAIN), v4.{0.25, 1, 0.45, 1});
         UIK.panel_end();
         hider_count_desc := UIK.text_title();
-        hider_count_desc.set_size_mult(1.35);
+        hider_count_desc.set_size_mult(1.215);
         hider_count_desc.set_color(v4.{0.25, 1, 0.45, 1});
         UIK.text(hider_count_desc, `{game.hiders_left}`);
         UIK.panel_end();
         hider_label_desc := UIK.text_body();
+        hider_label_desc.set_size_mult(0.9);
         hider_label_desc.set_halign(.CENTER);
         UIK.text(hider_label_desc, "HIDERS");
         UIK.panel_end();
@@ -1332,34 +1365,36 @@ draw_hide_seek_leaderboard :: proc(player: Player) {
     UIK.begin(begin_desc);
     defer UIK.end();
 
-    panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(560), UIK.fit(), 4, v4.{14, 18, 14, 18});
-    UIK.overlay_begin(.TOP_LEFT, panel, v2.{20, -20});
+    panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(350), UIK.fit(), 2.5, v4.{8.75, 11.25, 8.75, 11.25});
+    UIK.overlay_begin(.TOP_LEFT, panel, v2.{12.5, -12.5});
     defer UIK.overlay_end();
 
-    header := UIK.layout_row(UIK.flex(1), UIK.pixels(96), 10);
+    header := UIK.layout_row(UIK.flex(1), UIK.pixels(60), 6.25);
     header.cross_align = .CENTER;
     header.main_align = .SPACE_BETWEEN;
     UIK.panel_begin(header);
     title_desc := UIK.text_title();
-    title_desc.set_size_mult(1.2);
+    title_desc.set_size_mult(0.75);
     UIK.text(title_desc, "Ranking");
 
     // Label and count are separate fixed lines. As one string the countdown
     // wraps once it hits two digits, which resizes the panel every tick.
     remaining := max(0.0, game.next_publish_time - get_time());
     next_box := UIK.layout_column();
-    next_box.width = UIK.pixels(210);
-    next_box.height = UIK.pixels(96);
+    next_box.width = UIK.pixels(131.25);
+    next_box.height = UIK.pixels(60);
     next_box.gap = 0;
     next_box.cross_align = .CENTER;
     next_box.main_align = .CENTER;
     next_box.clip_children = true;
     UIK.panel_begin(next_box);
     next_label := UIK.text_body();
+    next_label.set_size_mult(0.625);
     next_label.set_halign(.CENTER);
     next_label.set_color(HUD_YELLOW);
     UIK.text(next_label, "Next update");
     next_value := UIK.text_body();
+    next_value.set_size_mult(0.625);
     next_value.set_halign(.CENTER);
     next_value.set_color(HUD_YELLOW);
     UIK.text(next_value, `{remaining.(s64)}`);
@@ -1370,16 +1405,17 @@ draw_hide_seek_leaderboard :: proc(player: Player) {
     if shown > LEADERBOARD_MAX_ROWS { shown = LEADERBOARD_MAX_ROWS; }
     for i: 0..shown - 1 {
         entry := players[i];
-        row := UIK.layout_row(UIK.flex(1), UIK.pixels(52), 10);
+        row := UIK.layout_row(UIK.flex(1), UIK.pixels(32.5), 6.25);
         row.cross_align = .CENTER;
         UIK.panel_begin(row);
 
         rank_box := UIK.layout_column();
-        rank_box.width = UIK.pixels(90);
+        rank_box.width = UIK.pixels(56.25);
         rank_box.cross_align = .CENTER;
         rank_box.main_align = .CENTER;
         UIK.panel_begin(rank_box);
         rank_desc := UIK.text_body();
+        rank_desc.set_size_mult(0.625);
         rank_desc.set_halign(.CENTER);
         UIK.text(rank_desc, `#{i + 1}`);
         UIK.panel_end();
@@ -1391,6 +1427,7 @@ draw_hide_seek_leaderboard :: proc(player: Player) {
         name_box.clip_children = true;
         UIK.panel_begin(name_box);
         name_desc := UIK.text_body();
+        name_desc.set_size_mult(0.625);
         name_desc.set_halign(.CENTER);
         color := entry.avatar_color;
         if color != .NONE { name_desc.set_color(color_replace_get_color(color)); }
@@ -1398,11 +1435,12 @@ draw_hide_seek_leaderboard :: proc(player: Player) {
         UIK.panel_end();
 
         score_box := UIK.layout_column();
-        score_box.width = UIK.pixels(110);
+        score_box.width = UIK.pixels(68.75);
         score_box.cross_align = .CENTER;
         score_box.main_align = .CENTER;
         UIK.panel_begin(score_box);
         score_desc := UIK.text_body();
+        score_desc.set_size_mult(0.625);
         score_desc.set_halign(.RIGHT);
         UIK.text(score_desc, `{entry.published_score}`);
         UIK.panel_end();

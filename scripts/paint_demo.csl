@@ -47,134 +47,17 @@ PAINT_RECT_MIN_Y :: -0.0754;
 PAINT_RECT_MAX_X ::  1.0488;
 PAINT_RECT_MAX_Y ::  2.2620;
 
-Paint_Undo_Pixel :: struct {
-    x: s64;
-    y: s64;
-    color: v4;
-}
-
-PAINT_UNDO_STROKES :: 5;
-
-commit_paint_stroke_undo :: proc(player: Player) {
-    if player.paint_undo_pixels.count == 0 { return; }
-
-    // The live stroke is a fifth undo level. Keep four completed strokes
-    // behind it, dropping the oldest delta when the bounded history is full.
-    if player.paint_undo_history_starts.count >= PAINT_UNDO_STROKES - 1 {
-        drop_count := player.paint_undo_history_starts[1];
-        history_count := player.paint_undo_history_pixels.count;
-        if drop_count < 0 || drop_count > history_count {
-            // Dynamic arrays reconcile independently. If a client observes a
-            // mismatched frame, discard history instead of walking an invalid
-            // range or allocating an unbounded temporary buffer.
-            player.paint_undo_history_pixels.clear();
-            player.paint_undo_history_starts.clear();
-        } else {
-            remaining_count := history_count - drop_count;
-            if remaining_count > 0 {
-                for i: 0..remaining_count - 1 {
-                    player.paint_undo_history_pixels[i] = player.paint_undo_history_pixels[i + drop_count];
-                }
-            }
-            while player.paint_undo_history_pixels.count > remaining_count {
-                player.paint_undo_history_pixels.pop();
-            }
-            player.paint_undo_history_starts.ordered_remove_by_index(0);
-            for i: 0..player.paint_undo_history_starts.count - 1 {
-                player.paint_undo_history_starts[i] -= drop_count;
-            }
-        }
-    }
-
-    player.paint_undo_history_starts.append(player.paint_undo_history_pixels.count);
-    for saved: player.paint_undo_pixels {
-        player.paint_undo_history_pixels.append(saved);
-    }
-}
-
-begin_paint_stroke_undo :: proc(player: Player) {
-    commit_paint_stroke_undo(player);
-    for saved: player.paint_undo_pixels {
-        player.paint_undo_recorded[saved.y * SKIN_TEXELS_X + saved.x] = false;
-    }
-    player.paint_undo_pixels.clear();
-}
-
-record_paint_segment_undo :: proc(player: Player, skin: Dynamic_Canvas, from: v2, to: v2) {
-    radius := player.brush_radius + 1.0;
-    min_x := max(0, (min(from.x, to.x) - radius).(s64));
-    max_x := min(SKIN_TEXELS_X - 1, (max(from.x, to.x) + radius).(s64));
-    min_y := max(0, (min(from.y, to.y) - radius).(s64));
-    max_y := min(SKIN_TEXELS_Y - 1, (max(from.y, to.y) + radius).(s64));
-    segment := to - from;
-    segment_len_sq := length_squared(segment);
-
-    for y: min_y..max_y {
-        for x: min_x..max_x {
-            point := v2.{x.(float) + 0.5, y.(float) + 0.5};
-            t := 0.0;
-            if segment_len_sq > 0.0001 {
-                t = clamp(((point.x - from.x) * segment.x + (point.y - from.y) * segment.y) / segment_len_sq, 0, 1);
-            }
-            closest := from + segment * t;
-            if length_squared(point - closest) > radius * radius { continue; }
-
-            index := y * SKIN_TEXELS_X + x;
-            if player.paint_undo_recorded[index] { continue; }
-            player.paint_undo_recorded[index] = true;
-            player.paint_undo_pixels.append(Paint_Undo_Pixel.{x=x, y=y, color=skin.get_pixel(x, y)});
-        }
-    }
-}
-
-undo_last_paint_stroke :: proc(player: Player) {
-    if player.skin_canvas == null { return; }
-    if player.paint_undo_pixels.count > 0 {
-        for saved: player.paint_undo_pixels {
-            player.skin_canvas.set_pixel(saved.x, saved.y, saved.color);
-            player.paint_undo_recorded[saved.y * SKIN_TEXELS_X + saved.x] = false;
-        }
-        player.paint_undo_pixels.clear();
-    } else if player.paint_undo_history_starts.count > 0 {
-        history_index := player.paint_undo_history_starts.count - 1;
-        stroke_start := player.paint_undo_history_starts[history_index];
-        for i: stroke_start..player.paint_undo_history_pixels.count - 1 {
-            saved := player.paint_undo_history_pixels[i];
-            player.skin_canvas.set_pixel(saved.x, saved.y, saved.color);
-        }
-        while player.paint_undo_history_pixels.count > stroke_start {
-            player.paint_undo_history_pixels.pop();
-        }
-        player.paint_undo_history_starts.pop();
-    }
-    player.was_painting = false;
-}
-
 reset_paint_to_base :: proc(player: Player) {
     if player.skin_canvas == null { return; }
     color := player.avatar_color;
     if color == .NONE { color = .PURPLE; }
     player.skin_canvas.fill(color_replace_get_color(color));
     player.skin_initialized = true;
-    for saved: player.paint_undo_pixels {
-        player.paint_undo_recorded[saved.y * SKIN_TEXELS_X + saved.x] = false;
-    }
-    player.paint_undo_pixels.clear();
-    player.paint_undo_history_pixels.clear();
-    player.paint_undo_history_starts.clear();
     player.was_painting = false;
 }
 
 fill_character_with_brush_color :: proc(player: Player) {
     if player.skin_canvas == null { return; }
-    begin_paint_stroke_undo(player);
-    for y: 0..SKIN_TEXELS_Y - 1 {
-        for x: 0..SKIN_TEXELS_X - 1 {
-            index := y * SKIN_TEXELS_X + x;
-            player.paint_undo_recorded[index] = true;
-            player.paint_undo_pixels.append(Paint_Undo_Pixel.{x=x, y=y, color=player.skin_canvas.get_pixel(x, y)});
-        }
-    }
     player.skin_canvas.fill(player.brush_color);
     player.was_painting = false;
 }
@@ -333,10 +216,7 @@ Paint_Demo :: class : Component {
                 from := character_px;
                 if player.was_painting {
                     from = player.last_paint_px;
-                } else {
-                    begin_paint_stroke_undo(player);
                 }
-                record_paint_segment_undo(player, skin, from, character_px);
                 skin.stamp(from, character_px, player.brush_radius * brush_scale, player.brush_color, 0.4, 1.0);
                 player.last_paint_px = character_px;
                 player.was_painting = true;
@@ -392,8 +272,6 @@ paint_world_line :: proc(player: Player, skin: Dynamic_Canvas, from_world: v2, t
     steps := (line_length / LINE_PROBE_STEP).(s64) + 1;
     if steps > LINE_PROBE_MAX { steps = LINE_PROBE_MAX; }
 
-    begin_paint_stroke_undo(player);
-
     have_previous := false;
     previous_px: v2;
     for i: 0..steps {
@@ -408,7 +286,6 @@ paint_world_line :: proc(player: Player, skin: Dynamic_Canvas, from_world: v2, t
         // one, which is what keeps a run continuous without bridging a gap.
         from_px := px;
         if have_previous { from_px = previous_px; }
-        record_paint_segment_undo(player, skin, from_px, px);
         skin.stamp(from_px, px, player.brush_radius, player.brush_color, 0.4, 1.0);
         previous_px = px;
         have_previous = true;
@@ -1018,7 +895,7 @@ mouse_over_paint_ui :: proc(player: Player, mouse_screen: v2) -> bool {
     return point_in_rect(emote_rail, mouse_screen);
 }
 
-draw_paint_undo_button :: proc(player: Player) {
+draw_paint_tool_buttons :: proc(player: Player) {
     if !player.paint_mode || !player.picker_open { return; }
 
     panel_w, panel_h := picker_panel_size();
@@ -1029,33 +906,15 @@ draw_paint_undo_button :: proc(player: Player) {
     defer UIK.end();
 
     trash_w := PICKER_UNDO_H;
-    button_row_w := PICKER_UNDO_W * 2 + trash_w + PICKER_LINE_W + PICKER_BUCKET_W + PICKER_BUTTON_GAP * 4;
-    undo_x := PICKER_MARGIN + (panel_w - button_row_w) * 0.5;
-    undo_y := PICKER_MARGIN;
-    UIK.overlay_begin(.BOTTOM_LEFT, v2.{undo_x, undo_y});
+    button_row_w := PICKER_UNDO_W + trash_w + PICKER_LINE_W + PICKER_BUCKET_W + PICKER_BUTTON_GAP * 3;
+    toolbar_x := PICKER_MARGIN + (panel_w - button_row_w) * 0.5;
+    toolbar_y := PICKER_MARGIN;
+    UIK.overlay_begin(.BOTTOM_LEFT, v2.{toolbar_x, toolbar_y});
     defer UIK.overlay_end();
 
     button_row := UIK.layout_row(UIK.pixels(button_row_w), UIK.pixels(PICKER_UNDO_H), PICKER_BUTTON_GAP);
     button_row.cross_align = .CENTER;
     UIK.panel_begin(button_row);
-
-    undo_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_BLUE);
-    undo_desc.panel.width = UIK.pixels(PICKER_UNDO_W);
-    undo_desc.panel.height = UIK.pixels(PICKER_UNDO_H);
-    undo_desc.disabled = player.paint_undo_pixels.count == 0 && player.paint_undo_history_starts.count == 0;
-    undo_desc.panel.cross_align = .CENTER;
-    undo_desc.panel.main_align = .CENTER;
-    undo_desc.panel.padding = v4.{0, 0, 0, 0};
-    undo_result := UIK.panel_begin_interactive("undo_paint_stroke", undo_desc.panel, undo_desc.disabled);
-    undo_icon_box := UIK.layout_column();
-    undo_icon_box.width = UIK.pixels(48);
-    undo_icon_box.height = UIK.pixels(48);
-    undo_icon_box.cross_align = .CENTER;
-    undo_icon_box.main_align = .CENTER;
-    UIK.panel_begin(undo_icon_box);
-    UIK.image_fitted(get_asset(Texture_Asset, "Undo Outline 256.png"), UIK.image_desc(.CONTAIN));
-    UIK.panel_end();
-    UIK.panel_end();
 
     trash_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_RED);
     trash_desc.panel.width = UIK.pixels(trash_w);
@@ -1130,9 +989,6 @@ draw_paint_undo_button :: proc(player: Player) {
 
     UIK.panel_end();
 
-    if UIK.clicked(undo_result) {
-        undo_last_paint_stroke(player);
-    }
     if UIK.clicked(trash_result) {
         reset_paint_to_base(player);
     }

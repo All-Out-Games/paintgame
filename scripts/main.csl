@@ -68,10 +68,6 @@ Player :: class : Player_Base {
     line_anchor_set: bool;
     line_anchor_world: v2;
     paint_cursor_interp: Position_Interpolation_Helper;
-    paint_undo_pixels: [..]Paint_Undo_Pixel;
-    paint_undo_recorded: [SKIN_TEXELS_X * SKIN_TEXELS_Y]bool;
-    paint_undo_history_pixels: [..]Paint_Undo_Pixel;
-    paint_undo_history_starts: [..]s64;
 
     // Right-side camera zoom slider (see zoom_slider.csl).
     zoom_initialized: bool;
@@ -105,6 +101,7 @@ Player :: class : Player_Base {
     role_reveal_end_time: float;
     found_banner_end_time: float;
     pending_found_end_time: float;
+    found_movement_frozen: bool;
     name_hidden: bool;
     original_player_skins: [..]string;
     original_player_skins_captured: bool;
@@ -203,7 +200,7 @@ Player :: class : Player_Base {
                 }
                 if paint_mode && picker_open && !hide_game_ui {
                     draw_color_picker(this);
-                    draw_paint_undo_button(this);
+                    draw_paint_tool_buttons(this);
                 }
                 if paint_mode {
                     // Zoom survives Hide UI - framing the shot is the point of it.
@@ -213,7 +210,7 @@ Player :: class : Player_Base {
                 }
                 if hide_seek_role == .SEEKER && hide_seek_can_shoot() {
                     draw_ability_button(this, Catch_Ability, 0);
-                } else if hide_seek_role == .HIDER && hide_seek_round_active() {
+                } else if hide_seek_role == .HIDER && hide_seek_whistles_active() {
                     draw_ability_button(this, Whistle_Ability, 0);
                 }
             }
@@ -227,7 +224,7 @@ Player :: class : Player_Base {
 
     ao_can_use_ability :: method(ability: Ability_Base) -> bool {
         if ability.#type == Whistle_Ability {
-            return hide_seek_role == .HIDER && hide_seek_round_active();
+            return hide_seek_role == .HIDER && hide_seek_whistles_active();
         }
         return hide_seek_role == .SEEKER && hide_seek_can_shoot();
     }
