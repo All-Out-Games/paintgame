@@ -97,12 +97,14 @@ Player :: class : Player_Base {
     weapon_state_ready: bool;
     seeker_rig_ready: bool;
     streamed_seeker_rig_ready: bool;
+    seeker_shotgun_override_id: u64;
     lobby_start_position: v2;
     map_vote: s64;              // index into Map_Kind; -1 means no vote cast
     map_vote_hold_index: s64;   // card currently being held; -1 when none
     map_vote_hold_t: float;
     role_reveal_end_time: float;
     found_banner_end_time: float;
+    pending_found_end_time: float;
     name_hidden: bool;
     original_player_skins: [..]string;
     original_player_skins_captured: bool;
@@ -162,6 +164,8 @@ Player :: class : Player_Base {
             // on every simulated frame, including remote-player resimulation.
             animator.state_machine.set_bool("mecha_moving", length_squared(input_this_frame) > 0.0001);
             animator.state_machine.set_int("mecha_pose", active_pose);
+        } else if hide_seek_role == .SEEKER && seeker_rig_ready {
+            animator.state_machine.set_bool("seeker_moving", length_squared(input_this_frame) > 0.0001);
         }
         it := component_iterator(Paint_Demo);
         if !it.next() { return; }

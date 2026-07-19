@@ -108,7 +108,7 @@ Catch_Ability :: class : Ability_Base {
 
         if targeted.activate && current_cooldown <= 0 {
             p.set_mouse_ik_enabled(false);
-            weapon_start_shoot_anim(p, .NONE);
+            p.animator.state_machine.set_trigger("seeker_shoot");
             weapon_play_fire_sound(p, .AKIMBO_PISTOLS);
             try_catch_at(p, targeted.point);
             current_cooldown = CATCH_COOLDOWN_SECONDS;
@@ -131,10 +131,11 @@ try_catch_at :: proc(seeker: Player, target: v2) {
     if !#alive(game) || game.phase != .HUNTING { return; }
     for hider: component_iterator(Player) {
         if hider.hide_seek_role != .HIDER { continue; }
+        if hider.pending_found_end_time > get_time() { continue; }
         if hider.animator == null || hider.skin_canvas == null { continue; }
         uv, on_hider := hider.animator.try_get_paint_canvas_uv(target, hider.skin_canvas);
         if on_hider {
-            convert_hider_to_seeker(game, hider, seeker);
+            begin_hider_found(game, hider, seeker);
             return;
         }
     }

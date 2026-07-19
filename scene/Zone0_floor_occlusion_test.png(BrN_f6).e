@@ -14,7 +14,6 @@
     "Y": 12.0042705535888672
   },
   "locked": true,
-  "previous_sibling": 1807976542,
   "next_sibling": 1795912405,
   "parent": 1805001186
 },

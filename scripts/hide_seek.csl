@@ -5,6 +5,7 @@ MAP_SELECTION_SECONDS :: 10.0;
 STARTING_GAME_SECONDS :: 5.0;
 HIDE_PHASE_SECONDS :: 60.0;
 HUNT_PHASE_SECONDS :: 180.0;
+FOUND_FLICKER_SECONDS :: 3.0;
 REVEAL_SECONDS :: 20.0;
 HIDER_WIN_REVEAL_SECONDS :: 10.0;
 VICTORY_SCREEN_SECONDS :: 5.0;
@@ -13,6 +14,8 @@ ROUND_NAME_REASON :: "hide_seek_hider";
 HIDER_NAME_OFFSET_REASON :: "hide_seek_hider_rig";
 HIDER_NAME_OFFSET :: 1.15;
 SEEKER_RIG :: "$AO/streamed_character";
+SEEKER_SHOTGUN_TEXTURE :: "shotgun-color.png";
+SEEKER_WEAPON_SLOT :: "weapon_held";
 MAP_COUNT :: 3;
 MAP_VOTE_HOLD_SECONDS :: 0.6;
 MAP_CARD_WIDTH :: 480.0;
@@ -143,6 +146,10 @@ Hide_Seek_Game :: class : Component {
             for player: component_iterator(Player) {
                 if player.hide_seek_role == .NONE {
                     add_mid_round_seeker(this, player, phase == .HIDING);
+                }
+                if phase == .HUNTING && player.hide_seek_role == .HIDER && player.pending_found_end_time > 0 && get_time() >= player.pending_found_end_time {
+                    player.pending_found_end_time = 0;
+                    convert_hider_to_seeker(this, player);
                 }
             }
             refresh_hide_seek_counts(this);
@@ -312,6 +319,7 @@ show_round_name :: proc(player: Player) {
 
 add_mid_round_seeker :: proc(game: Hide_Seek_Game, player: Player, hide_phase: bool) {
     player.hide_seek_role = .SEEKER;
+    player.pending_found_end_time = 0;
     hide_round_name(player);
     exit_paint_mode(player);
     player.emotes_open = false;
@@ -408,6 +416,7 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
         show_round_name(player);
         player.role_visual_applied = .NONE;
         player.found_banner_end_time = 0;
+        player.pending_found_end_time = 0;
         player.seeker_rig_ready = false;
         player.streamed_seeker_rig_ready = false;
         player.active_pose = 0;
@@ -456,7 +465,10 @@ REVEAL_PULSE_RED :: v4.{1.0, 0.12, 0.12, 1.0};
 update_reveal_pulse :: proc(player: Player) {
     if player.animator == null { return; }
     game := get_hide_seek_game();
-    if #alive(game) && game.phase == .REVEAL && player.hide_seek_role == .HIDER {
+    if player.pending_found_end_time > get_time() && player.hide_seek_role == .HIDER {
+        t := (sin(get_time() * 18.0) + 1.0) * 0.5;
+        player.animator.color_multiplier = v4.{1.0, lerp(1.0, 0.18, t), lerp(1.0, 0.18, t), 1.0};
+    } else if #alive(game) && game.phase == .REVEAL && player.hide_seek_role == .HIDER {
         t := (sin(get_time() * REVEAL_PULSE_SPEED) + 1.0) * 0.5;
         r := lerp(1.0, REVEAL_PULSE_RED.x, t);
         g := lerp(1.0, REVEAL_PULSE_RED.y, t);
@@ -477,7 +489,8 @@ apply_hider_stealth :: proc(local: Player) {
         if other.entity.id == local.entity.id { continue; }
         if other.animator == null { continue; }
         c := other.animator.color_multiplier;
-        if blind && other.hide_seek_role == .HIDER {
+        caught_flickering := other.pending_found_end_time > get_time();
+        if blind && other.hide_seek_role == .HIDER && !caught_flickering {
             c.w = 0;
         } else {
             c.w = 1;
@@ -558,6 +571,7 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
         if i == seeker_index || i == seeker_index_two { player.hide_seek_role = .SEEKER; }
         hide_round_name(player);
         player.role_visual_applied = .NONE;
+        player.pending_found_end_time = 0;
         player.seeker_rig_ready = false;
         player.streamed_seeker_rig_ready = false;
         player.role_reveal_end_time = get_time() + ROLE_REVEAL_SECONDS;
@@ -632,7 +646,7 @@ on_hide_seek_player_damaged :: proc(target: Weapon_Target, damage: float, attack
     }
     if !#alive(attacker) || attacker.hide_seek_role != .SEEKER { return; }
 
-    convert_hider_to_seeker(game, victim, attacker);
+    begin_hider_found(game, victim, attacker);
 }
 
 publish_found_message :: proc(game: Hide_Seek_Game, seeker: Player, hider: Player) {
@@ -646,6 +660,13 @@ publish_found_message :: proc(game: Hide_Seek_Game, seeker: Player, hider: Playe
     if hider_color != .NONE { game.found_feed_hider_color = color_replace_get_color(hider_color); }
     game.found_feed_start_time = get_time();
     game.found_feed_end_time = get_time() + 4.0;
+}
+
+begin_hider_found :: proc(game: Hide_Seek_Game, victim: Player, finder: Player) {
+    if victim.hide_seek_role != .HIDER || victim.pending_found_end_time > get_time() { return; }
+    victim.pending_found_end_time = get_time() + FOUND_FLICKER_SECONDS;
+    victim.found_banner_end_time = victim.pending_found_end_time;
+    publish_found_message(game, finder, victim);
 }
 
 POOP_SPINE :: "rainbow_poop_puddle_174cab/rainbow_poop_puddle.spine";
@@ -744,8 +765,8 @@ convert_hider_to_seeker :: proc(game: Hide_Seek_Game, victim: Player, finder: Pl
     if #alive(finder) { publish_found_message(game, finder, victim); }
     // Mark the spot before the teleport moves the victim off it.
     spawn_hider_death(victim);
+    victim.pending_found_end_time = 0;
     victim.hide_seek_role = .SEEKER;
-    victim.found_banner_end_time = get_time() + 3.0;
     hide_round_name(victim);
     exit_paint_mode(victim);
     victim.emotes_open = false;
@@ -768,6 +789,22 @@ capture_original_player_skins :: proc(player: Player) {
     player.original_player_skins_captured = true;
 }
 
+setup_seeker_animation_layer :: proc(player: Player) {
+    sm := player.animator.state_machine;
+    moving := sm.create_variable("seeker_moving", .BOOL);
+    shoot := sm.create_variable("seeker_shoot", .TRIGGER);
+    layer := sm.create_layer("seeker_shotgun", 5);
+    idle_state := layer.create_state("Idle_mIK", true, 0);
+    run_state := layer.create_state("Run_mIK", true, 0);
+    shoot_state := layer.create_state("Shoot_Gun_mIK", false, 0.37);
+    layer.set_initial_state(idle_state);
+    layer.create_transition(idle_state, run_state, false).create_bool_condition(moving, true);
+    layer.create_transition(run_state, idle_state, false).create_bool_condition(moving, false);
+    layer.create_global_transition(shoot_state, false).create_trigger_condition(shoot);
+    layer.create_transition(shoot_state, run_state, true).create_bool_condition(moving, true);
+    layer.create_transition(shoot_state, idle_state, true).create_bool_condition(moving, false);
+}
+
 apply_seeker_visuals :: proc(player: Player) {
     if player.animator == null { return; }
     player.remove_name_offset_reason(HIDER_NAME_OFFSET_REASON);
@@ -778,6 +815,10 @@ apply_seeker_visuals :: proc(player: Player) {
     if player.override_ids[0] != 0 {
         player.animator.instance.clear_attachment_sprite_override(player.override_ids[0]);
         player.override_ids[0] = 0;
+    }
+    if player.seeker_shotgun_override_id != 0 {
+        player.animator.instance.clear_attachment_sprite(player.seeker_shotgun_override_id);
+        player.seeker_shotgun_override_id = 0;
     }
     // Drop any emote before the swap. An emote parks the locomotion tracks on
     // __CLEAR_TRACK__ and only releases them when mecha_pose returns to 0 - but
@@ -790,9 +831,21 @@ apply_seeker_visuals :: proc(player: Player) {
     player.animator.disable_all_skins();
     player.animator.enable_skin("base/crewchsia");
     for skin: player.original_player_skins {
-        if skin != "base/crewchsia" { player.animator.enable_skin(skin); }
+        if skin != "base/crewchsia" && skin != "weapons/balloon_sword" && skin != "weapons/gun" && skin != "weapons/hand_gun" && skin != "weapons/water_pistol" {
+            player.animator.enable_skin(skin);
+        }
     }
     player.animator.refresh_skins();
+    setup_seeker_animation_layer(player);
+    shotgun_desc := Attachment_Desc.default();
+    shotgun_desc.draw_mode = .BEHIND;
+    shotgun_desc.scale = v2.{1.2, 1.2};
+    shotgun_desc.offset = v2.{0.18, 0};
+    player.seeker_shotgun_override_id = player.animator.instance.add_attachment_sprite(
+        SEEKER_WEAPON_SLOT,
+        get_asset(Texture_Asset, SEEKER_SHOTGUN_TEXTURE),
+        shotgun_desc
+    );
     player.emotes_open = false;
     // The mecha state machine died with the old skeleton; ensure_mecha_rig has
     // to rebuild its layers from scratch if this player is ever a hider again.
@@ -809,6 +862,10 @@ apply_hider_visuals :: proc(player: Player) {
     if player.equipped_weapon_type != .NONE {
         weapon_unequip(player, player.equipped_weapon_type);
         player.equipped_weapon_type = .NONE;
+    }
+    if player.seeker_shotgun_override_id != 0 {
+        player.animator.instance.clear_attachment_sprite(player.seeker_shotgun_override_id);
+        player.seeker_shotgun_override_id = 0;
     }
     player.animator.set_skeleton(get_asset(Spine_Asset, MECHA_RIG_PATH));
     player.animator.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
@@ -885,52 +942,24 @@ draw_found_feed :: proc(player: Player) {
     UIK.begin(begin_desc);
     defer UIK.end();
 
-    message := UIK.layout_row(UIK.fit(), UIK.pixels(58), 16);
+    message_text := `{game.found_feed_seeker_name} found {game.found_feed_hider_name}`;
+    message_scale := clamp(24.0 / max(24.0, message_text.count.(float)), 0.45, 0.85);
+    message := UIK.layout_column();
+    message.width = UIK.pixels(680);
+    message.height = UIK.pixels(64);
     message.cross_align = .CENTER;
     message.main_align = .CENTER;
+    message.clip_children = true;
     message.padding = v4.{8, 14, 8, 14};
     UIK.overlay_begin(.BOTTOM_CENTER, message, v2.{0, y_offset});
     defer UIK.overlay_end();
 
-    seeker_desc := UIK.text_title();
-    seeker_scale := clamp(10.0 / max(10.0, game.found_feed_seeker_name.count.(float)), 0.58, 1.0);
-    seeker_desc.set_size_mult(0.85 * seeker_scale);
-    seeker_desc.set_halign(.CENTER);
-    seeker_desc.set_color(v4.{game.found_feed_seeker_color.x, game.found_feed_seeker_color.y, game.found_feed_seeker_color.z, alpha});
-    seeker_box := UIK.layout_column();
-    seeker_box.width = UIK.pixels(clamp(game.found_feed_seeker_name.count.(float) * 22.0 * seeker_scale, 90.0, 240.0));
-    seeker_box.height = UIK.pixels(52);
-    seeker_box.main_align = .CENTER;
-    seeker_box.clip_children = true;
-    UIK.panel_begin(seeker_box);
-    UIK.text(seeker_desc, game.found_feed_seeker_name);
-    UIK.panel_end();
-
-    found_desc := UIK.text_title();
-    found_desc.set_size_mult(0.85);
-    found_desc.set_halign(.CENTER);
-    found_desc.set_color(v4.{1, 1, 1, alpha});
-    found_box := UIK.layout_column();
-    found_box.width = UIK.pixels(116);
-    found_box.height = UIK.pixels(52);
-    found_box.main_align = .CENTER;
-    UIK.panel_begin(found_box);
-    UIK.text(found_desc, "found");
-    UIK.panel_end();
-
-    hider_desc := UIK.text_title();
-    hider_scale := clamp(10.0 / max(10.0, game.found_feed_hider_name.count.(float)), 0.58, 1.0);
-    hider_desc.set_size_mult(0.85 * hider_scale);
-    hider_desc.set_halign(.CENTER);
-    hider_desc.set_color(v4.{game.found_feed_hider_color.x, game.found_feed_hider_color.y, game.found_feed_hider_color.z, alpha});
-    hider_box := UIK.layout_column();
-    hider_box.width = UIK.pixels(clamp(game.found_feed_hider_name.count.(float) * 22.0 * hider_scale, 90.0, 240.0));
-    hider_box.height = UIK.pixels(52);
-    hider_box.main_align = .CENTER;
-    hider_box.clip_children = true;
-    UIK.panel_begin(hider_box);
-    UIK.text(hider_desc, game.found_feed_hider_name);
-    UIK.panel_end();
+    message_desc := UIK.text_title();
+    message_desc.set_size_mult(message_scale);
+    message_desc.set_halign(.CENTER);
+    message_desc.set_color(v4.{1, 1, 1, alpha});
+    message_desc.set_outline(true, 4.0, v4.{0, 0, 0, alpha});
+    UIK.text(message_desc, message_text);
 }
 
 draw_hide_time_banner :: proc(player: Player, game: Hide_Seek_Game) {
