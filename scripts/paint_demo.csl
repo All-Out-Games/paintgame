@@ -350,6 +350,7 @@ ensure_mecha_rig :: proc(player: Player) {
     player.animator.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
 
     if !player.rig_swapped {
+        deactivate_seeker_animation_layer(player);
         player.animator.set_skeleton(get_asset(Spine_Asset, MECHA_RIG_PATH));
         player.rig_swapped = true;
     }

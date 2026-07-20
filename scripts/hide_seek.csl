@@ -811,20 +811,75 @@ capture_original_player_skins :: proc(player: Player) {
     player.original_player_skins_captured = true;
 }
 
+SEEKER_ANIMATION_LAYER :: "seeker_shotgun";
+SEEKER_ANIMATION_ACTIVE_VAR :: "seeker_animation_active";
+
 setup_seeker_animation_layer :: proc(player: Player) {
     sm := player.animator.state_machine;
+    layer := sm.try_get_layer(SEEKER_ANIMATION_LAYER);
+    active := sm.try_get_variable(SEEKER_ANIMATION_ACTIVE_VAR);
+
+    // Skeleton swaps keep the live state machine, so reuse this layer when a
+    // former seeker becomes a seeker again. This also migrates layers created
+    // before seeker_animation_active existed during editor hot reloads.
+    if layer != null {
+        if active == null {
+            active = sm.create_variable(SEEKER_ANIMATION_ACTIVE_VAR, .BOOL);
+            clear_state := layer.try_get_state("__CLEAR_TRACK__");
+            if clear_state == null {
+                clear_state = layer.create_state("__CLEAR_TRACK__", true);
+            }
+            idle_state := layer.try_get_state("Idle_mIK");
+            layer.set_initial_state(clear_state);
+            if idle_state != null {
+                layer.create_transition(clear_state, idle_state, false).create_bool_condition(active, true);
+            }
+            layer.create_global_transition(clear_state, false).create_bool_condition(active, false);
+        }
+        sm.set_bool(SEEKER_ANIMATION_ACTIVE_VAR, true);
+        return;
+    }
+
     moving := sm.create_variable("seeker_moving", .BOOL);
     shoot := sm.create_variable("seeker_shoot", .TRIGGER);
-    layer := sm.create_layer("seeker_shotgun", 5);
+    active = sm.create_variable(SEEKER_ANIMATION_ACTIVE_VAR, .BOOL);
+    layer = sm.create_layer(SEEKER_ANIMATION_LAYER, 5);
+    clear_state := layer.create_state("__CLEAR_TRACK__", true);
     idle_state := layer.create_state("Idle_mIK", true, 0);
     run_state := layer.create_state("Run_mIK", true, 0);
     shoot_state := layer.create_state("Shoot_Gun_mIK", false, 0.37);
-    layer.set_initial_state(idle_state);
+    layer.set_initial_state(clear_state);
+    layer.create_transition(clear_state, idle_state, false).create_bool_condition(active, true);
+    layer.create_global_transition(clear_state, false).create_bool_condition(active, false);
     layer.create_transition(idle_state, run_state, false).create_bool_condition(moving, true);
     layer.create_transition(run_state, idle_state, false).create_bool_condition(moving, false);
-    layer.create_global_transition(shoot_state, false).create_trigger_condition(shoot);
+    shoot_transition := layer.create_global_transition(shoot_state, false);
+    shoot_transition.create_trigger_condition(shoot);
+    shoot_transition.create_bool_condition(active, true);
     layer.create_transition(shoot_state, run_state, true).create_bool_condition(moving, true);
     layer.create_transition(shoot_state, idle_state, true).create_bool_condition(moving, false);
+    sm.set_bool(SEEKER_ANIMATION_ACTIVE_VAR, true);
+}
+
+deactivate_seeker_animation_layer :: proc(player: Player) {
+    if player.animator == null { return; }
+    sm := player.animator.state_machine;
+    if sm == null { return; }
+    layer := sm.try_get_layer(SEEKER_ANIMATION_LAYER);
+    if layer == null { return; }
+
+    // Park track 5 synchronously while the seeker rig is still installed. The
+    // following skeleton swap can then never ask the Mecha rig for *_mIK clips.
+    active := sm.try_get_variable(SEEKER_ANIMATION_ACTIVE_VAR);
+    if active != null {
+        sm.set_bool(SEEKER_ANIMATION_ACTIVE_VAR, false);
+    }
+    clear_state := layer.try_get_state("__CLEAR_TRACK__");
+    if clear_state == null {
+        clear_state = layer.create_state("__CLEAR_TRACK__", true);
+    }
+    layer.set_initial_state(clear_state);
+    layer.reset_to_initial_state();
 }
 
 apply_seeker_visuals :: proc(player: Player) {
@@ -869,8 +924,8 @@ apply_seeker_visuals :: proc(player: Player) {
         shotgun_desc
     );
     player.emotes_open = false;
-    // The mecha state machine died with the old skeleton; ensure_mecha_rig has
-    // to rebuild its layers from scratch if this player is ever a hider again.
+    // Force the hider path to validate its locomotion layer after the next rig
+    // swap. setup_mecha_locomotion is idempotent when that layer survives.
     player.locomotion_ready = false;
     player.seeker_rig_ready = true;
     player.streamed_seeker_rig_ready = true;
@@ -879,6 +934,7 @@ apply_seeker_visuals :: proc(player: Player) {
 
 apply_hider_visuals :: proc(player: Player) {
     if player.animator == null { return; }
+    deactivate_seeker_animation_layer(player);
     player.remove_name_offset_reason(HIDER_NAME_OFFSET_REASON);
     player.add_name_offset_reason(HIDER_NAME_OFFSET_REASON, HIDER_NAME_OFFSET);
     if player.equipped_weapon_type != .NONE {
@@ -896,11 +952,8 @@ apply_hider_visuals :: proc(player: Player) {
     player.animator.enable_skin(MECHA_SKIN);
     player.animator.refresh_skins();
     player.mecha_skin_applied = true;
-    // A new skeleton means a new state machine, so the mecha locomotion and
-    // emote layers built on the old one are gone. Without clearing this latch
-    // ensure_mecha_rig believes they are still installed and never rebuilds
-    // them, leaving ao_update setting mecha_moving on a machine that has no
-    // such variable.
+    // The state machine can survive a skeleton swap. Clear the latch so
+    // ensure_mecha_rig validates or rebuilds the Mecha layers either way.
     player.locomotion_ready = false;
     if player.wear_paint_enabled { wear_paint(player, player.skin_canvas); }
     player.seeker_rig_ready = false;
