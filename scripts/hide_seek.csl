@@ -17,7 +17,7 @@ HIDER_NAME_OFFSET :: 1.15;
 SEEKER_RIG :: "$AO/streamed_character";
 SEEKER_SHOTGUN_TEXTURE :: "shotgun-color.png";
 SEEKER_WEAPON_SLOT :: "weapon_held";
-MAP_COUNT :: 3;
+MAP_COUNT :: 4;
 MAP_VOTE_HOLD_SECONDS :: 0.6;
 MAP_CARD_WIDTH :: 480.0;
 MAP_PREVIEW_WIDTH :: 440.0;
@@ -56,6 +56,7 @@ Map_Kind :: enum {
     BACKROOMS;
     BACKROOMS_DARK;
     BACKROOMS_WATER;
+    ART_HEIST;
 }
 
 Hide_Seek_Phase :: enum {
@@ -77,8 +78,9 @@ Hide_Seek_Winner :: enum {
 map_display_name :: proc(map: Map_Kind) -> string {
     switch map {
         case .BACKROOMS:       return "Backrooms";
-        case .BACKROOMS_DARK:  return "Sand Maze";
+        case .BACKROOMS_DARK:  return "Maze";
         case .BACKROOMS_WATER: return "Pool Room";
+        case .ART_HEIST:       return "Museum";
         default:               return "Unknown";
     }
 }
@@ -89,8 +91,9 @@ map_display_name :: proc(map: Map_Kind) -> string {
 map_name_lines :: proc(map: Map_Kind) -> string, string {
     switch map {
         case .BACKROOMS:       return "Backrooms", " ";
-        case .BACKROOMS_DARK:  return "Backrooms", "Dark";
-        case .BACKROOMS_WATER: return "Backrooms", "Water";
+        case .BACKROOMS_DARK:  return "Maze", " ";
+        case .BACKROOMS_WATER: return "Pool Room", " ";
+        case .ART_HEIST:       return "Museum", " ";
         default:               return "Unknown", " ";
     }
 }
@@ -102,6 +105,7 @@ map_preview_tint :: proc(map: Map_Kind) -> v4 {
         case .BACKROOMS:       return v4.{0.86, 0.78, 0.36, 1};
         case .BACKROOMS_DARK:  return v4.{0.24, 0.26, 0.34, 1};
         case .BACKROOMS_WATER: return v4.{0.26, 0.56, 0.86, 1};
+        case .ART_HEIST:       return v4.{0.78, 0.28, 0.24, 1};
         default:               return v4.{1, 1, 1, 1};
     }
 }
@@ -128,6 +132,7 @@ Hide_Seek_Game :: class : Component {
     found_feed_seeker_color: v4;
     found_feed_hider_color: v4;
     role_rng: u64;
+    debug_vote_active: bool;
 
     ao_start :: method() {
         g_hide_seek = this;
@@ -196,13 +201,14 @@ Hide_Seek_Game :: class : Component {
                 }
             }
             case .MAP_SELECTION: {
-                if player_count < min_players {
+                if player_count < min_players && !debug_vote_active {
                     phase = .WAITING_FOR_PLAYERS;
                 } else {
                     // Retallied every frame so the vote counts on the cards
                     // update live as players click.
                     tally_map_votes(this);
                     if get_time() >= phase_end_time {
+                        debug_vote_active = false;
                         selected_map = resolve_map_vote(this);
                         phase = .STARTING_GAME;
                         phase_end_time = get_time() + STARTING_GAME_SECONDS;
@@ -279,6 +285,7 @@ tally_map_votes :: proc(game: Hide_Seek_Game) {
 }
 
 begin_map_selection :: proc(game: Hide_Seek_Game) {
+    game.debug_vote_active = false;
     for player: component_iterator(Player) {
         player.map_vote = -1;
         player.map_vote_hold_index = -1;
@@ -288,6 +295,13 @@ begin_map_selection :: proc(game: Hide_Seek_Game) {
     game.phase = .MAP_SELECTION;
     game.phase_end_time = get_time() + MAP_SELECTION_SECONDS;
 }
+
+vote :: proc(command_player: Player) {
+    game := get_hide_seek_game();
+    if !#alive(game) { return; }
+    begin_map_selection(game);
+    game.debug_vote_active = true;
+} @chat_command @owner_or_editor
 
 // Ties (including nobody voting) break randomly among the leaders.
 resolve_map_vote :: proc(game: Hide_Seek_Game) -> Map_Kind {
@@ -612,6 +626,7 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
 start :: proc(command_player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
+    game.selected_map = .ART_HEIST;
     if !start_hide_seek_round(game, true) {
         Notifier.notify(command_player, "No players are available to start the round.");
     }
@@ -1568,6 +1583,8 @@ draw_map_vote_card :: proc(player: Player, game: Hide_Seek_Game, index: s64, dt:
         UIK.image_fitted(get_asset(Texture_Asset, "sandmaze.png"), UIK.image_desc(.COVER));
     } else if map == .BACKROOMS_WATER {
         UIK.image_fitted(get_asset(Texture_Asset, "poolroom.png"), UIK.image_desc(.COVER));
+    } else if map == .ART_HEIST {
+        UIK.image_fitted(get_asset(Texture_Asset, "artihiest.png"), UIK.image_desc(.COVER));
     }
     UIK.panel_end();
 
