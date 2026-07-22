@@ -1278,6 +1278,7 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
         panel_y = -18;
     }
     panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(panel_width), UIK.fit(), panel_radius, panel_padding);
+    if active_round { panel.show_background = false; }
     panel.cross_align = .CENTER;
     UIK.overlay_begin(.TOP_CENTER, panel, v2.{0, panel_y});
     defer UIK.overlay_end();
@@ -1337,9 +1338,10 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
         seeker_count_desc.set_color(v4.{1, 0.18, 0.18, 1});
         UIK.text(seeker_count_desc, `{game.seekers}`);
         UIK.panel_end();
-        seeker_label_desc := UIK.text_body();
-        seeker_label_desc.set_size_mult(0.9);
+        seeker_label_desc := UIK.text_title();
+        seeker_label_desc.set_size_mult(0.6);
         seeker_label_desc.set_halign(.CENTER);
+        seeker_label_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
         UIK.text(seeker_label_desc, "SEEKERS");
         UIK.panel_end();
 
@@ -1349,9 +1351,10 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
         timer_group.cross_align = .CENTER;
         UIK.panel_begin(timer_group);
         draw_uik_countdown(game, 0.9, false);
-        phase_desc := UIK.text_body();
-        phase_desc.set_size_mult(0.765);
+        phase_desc := UIK.text_title();
+        phase_desc.set_size_mult(0.52);
         phase_desc.set_halign(.CENTER);
+        phase_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
         timer_caption := title;
         if game.phase == .HIDING { timer_caption = "Until Search Starts"; }
         UIK.text(phase_desc, timer_caption);
@@ -1394,9 +1397,10 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
         hider_count_desc.set_color(v4.{0.25, 1, 0.45, 1});
         UIK.text(hider_count_desc, `{game.hiders_left}`);
         UIK.panel_end();
-        hider_label_desc := UIK.text_body();
-        hider_label_desc.set_size_mult(0.9);
+        hider_label_desc := UIK.text_title();
+        hider_label_desc.set_size_mult(0.6);
         hider_label_desc.set_halign(.CENTER);
+        hider_label_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
         UIK.text(hider_label_desc, "HIDERS");
         UIK.panel_end();
 
