@@ -2,8 +2,11 @@ import "core:ao"
 import "core:global_leaderboard"
 import "reusable_weapons"
 
+keybind_sprint: Keybind;
+
 // Game wide systems
 ao_before_scene_load :: proc() {
+    keybind_sprint = Keybinds.register("Sprint", .LEFT_SHIFT);
 }
 
 ao_start :: proc() {
@@ -102,6 +105,15 @@ Player :: class : Player_Base {
     found_banner_end_time: float;
     pending_found_end_time: float;
     found_movement_frozen: bool;
+    fat_stage: s64;
+    next_fat_time: float;
+    last_whistle_time: float;
+    sprint_stamina: float;
+    sprint_requested: bool;
+    sprint_active: bool;
+    sprint_exhausted: bool;
+    sprint_regen_ready_time: float;
+    sprint_base_speed: float;
     name_hidden: bool;
     original_player_skins: [..]string;
     original_player_skins_captured: bool;
@@ -122,6 +134,9 @@ Player :: class : Player_Base {
         picker_s = 1.0;
         picker_v = 1.0;
         brush_radius = 6.0;
+        sprint_stamina = SPRINT_STAMINA_MAX;
+        sprint_base_speed = agent.movement_speed;
+        if sprint_base_speed <= 0 { sprint_base_speed = 300.0; }
         last_countdown_tick_second = -1;
         weapon_target = entity.add_component(Weapon_Target);
         weapon_target.health = 100.0;
@@ -148,6 +163,7 @@ Player :: class : Player_Base {
             ensure_mecha_rig(this);
         }
         update_hide_seek_player(this);
+        update_player_sprint(this, dt);
         update_countdown_tick_sound(this);
         if hide_seek_voting_focus_active() {
             if paint_mode || picker_open { exit_paint_mode(this); }
@@ -160,6 +176,7 @@ Player :: class : Player_Base {
             // pulse on and off and restarts locomotion. Input intent is present
             // on every simulated frame, including remote-player resimulation.
             animator.state_machine.set_bool("mecha_moving", length_squared(input_this_frame) > 0.0001);
+            animator.state_machine.set_bool("mecha_running", sprint_active);
             animator.state_machine.set_int("mecha_pose", active_pose);
         } else if hide_seek_role == .SEEKER && seeker_rig_ready {
             animator.state_machine.set_bool("seeker_moving", length_squared(input_this_frame) > 0.0001);
@@ -193,6 +210,7 @@ Player :: class : Player_Base {
                 if !hide_game_ui {
                     draw_emote_button(this);
                     draw_hide_seek_ui(this, dt);
+                    draw_whistle_indicators(this);
                     draw_found_feed(this);
                     draw_hide_seek_leaderboard(this);
                     draw_hide_seek_role_reveal(this);
@@ -208,11 +226,13 @@ Player :: class : Player_Base {
                     draw_paint_line_preview(this);
                     draw_paint_cursor(this);
                 }
+                draw_sprint_stamina(this);
                 if hide_seek_role == .SEEKER && hide_seek_can_shoot() {
                     draw_ability_button(this, Catch_Ability, 0);
                 } else if hide_seek_role == .HIDER && hide_seek_whistles_active() {
                     draw_ability_button(this, Whistle_Ability, 0);
                 }
+                if !paint_mode { draw_ability_button(this, Sprint_Ability, 1); }
             }
         }
     }
@@ -223,6 +243,9 @@ Player :: class : Player_Base {
     }
 
     ao_can_use_ability :: method(ability: Ability_Base) -> bool {
+        if ability.#type == Sprint_Ability {
+            return !paint_mode && !found_movement_frozen;
+        }
         if ability.#type == Whistle_Ability {
             return hide_seek_role == .HIDER && hide_seek_whistles_active();
         }

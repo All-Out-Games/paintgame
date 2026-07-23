@@ -1,0 +1,96 @@
+SPRINT_STAMINA_MAX :: 100.0;
+SPRINT_STAMINA_DRAIN_PER_SECOND :: 28.0;
+SPRINT_STAMINA_REGEN_PER_SECOND :: 22.0;
+SPRINT_REGEN_DELAY :: 1.5;
+SPRINT_RECOVERY_THRESHOLD :: 30.0;
+SPRINT_SPEED_MULTIPLIER :: 1.5;
+
+Sprint_Ability :: class : Ability_Base {
+    on_init :: method() {
+        name = "";
+        icon = null;
+        keybind_override = keybind_sprint;
+        draw_but_dont_use_keybind = true;
+    }
+
+    can_use :: method() -> bool {
+        p := player.(Player);
+        return !p.sprint_exhausted && p.sprint_stamina > 0;
+    }
+
+    on_update :: method(params: ref Ability_Update_Params) {
+        p := player.(Player);
+        holding := Ability_Utilities.update_holding_ability(p, ref params, keybind_sprint);
+        p.sprint_requested = holding.active;
+    }
+
+    on_draw_button :: method(rect: Rect) {
+        sprint_icon := get_asset(Texture_Asset, "AbilityIcons/SprintIcon.png");
+        UI.quad(rect.fit_aspect(sprint_icon.get_aspect()).scale(0.92, 0.92), sprint_icon);
+    }
+}
+
+draw_sprint_stamina :: proc(player: Player) {
+    if player.sprint_stamina >= SPRINT_STAMINA_MAX && !player.sprint_active { return; }
+
+    UI.begin_world_space_ui(player.entity);
+    defer UI.end_world_space_ui();
+    UI.push_layer(12);
+    defer UI.pop_layer();
+
+    y_offset := 2.0 + player.fat_stage.(float) * 0.12;
+    center := player.entity.world_position + v2.{0, y_offset};
+    outer := Rect.{min = center - v2.{0.68, 0.075}, max = center + v2.{0.68, 0.075}};
+    UI.quad(outer, core_globals.white_sprite, v4.{0.015, 0.02, 0.03, 0.94});
+    inner := outer.inset(0.025);
+    stamina_t := clamp(player.sprint_stamina / SPRINT_STAMINA_MAX, 0, 1);
+    tint := v4.{0.1, 0.9, 0.72, 1};
+    if stamina_t <= 0.3 { tint = v4.{1, 0.68, 0.12, 1}; }
+    if player.sprint_exhausted { tint = v4.{1, 0.2, 0.14, 1}; }
+
+    segment_gap := 0.018;
+    segment_width := (inner.width() - segment_gap * 4.0) / 5.0;
+    for i: 0..4 {
+        segment_min_x := inner.min.x + i.(float) * (segment_width + segment_gap);
+        segment_max_x := segment_min_x + segment_width;
+        segment_start_t := i.(float) / 5.0;
+        segment_fill := clamp((stamina_t - segment_start_t) * 5.0, 0, 1);
+        segment_bg := Rect.{min = v2.{segment_min_x, inner.min.y}, max = v2.{segment_max_x, inner.max.y}};
+        UI.quad(segment_bg, core_globals.white_sprite, v4.{0.12, 0.15, 0.18, 0.85});
+        if segment_fill > 0 {
+            segment := segment_bg;
+            segment.max.x = lerp(segment.min.x, segment.max.x, segment_fill);
+            UI.quad(segment, core_globals.white_sprite, tint);
+            highlight := segment;
+            highlight.min.y = lerp(segment.min.y, segment.max.y, 0.66);
+            UI.quad(highlight, core_globals.white_sprite, v4.{1, 1, 1, 0.32});
+        }
+    }
+}
+
+update_player_sprint :: proc(player: Player, dt: float) {
+    moving := length_squared(player.input_this_frame) > 0.0001;
+    blocked := player.paint_mode || player.found_movement_frozen || hide_seek_voting_focus_active();
+    if blocked { player.sprint_requested = false; }
+
+    player.sprint_active = player.sprint_requested && moving && !player.sprint_exhausted && player.sprint_stamina > 0;
+    if player.sprint_active {
+        player.sprint_stamina = max(0.0, player.sprint_stamina - SPRINT_STAMINA_DRAIN_PER_SECOND * dt);
+        player.sprint_regen_ready_time = get_time() + SPRINT_REGEN_DELAY;
+        if player.sprint_stamina <= 0 {
+            player.sprint_stamina = 0;
+            player.sprint_active = false;
+            player.sprint_exhausted = true;
+        }
+    } else if get_time() >= player.sprint_regen_ready_time {
+        player.sprint_stamina = min(SPRINT_STAMINA_MAX, player.sprint_stamina + SPRINT_STAMINA_REGEN_PER_SECOND * dt);
+        if player.sprint_exhausted && player.sprint_stamina >= SPRINT_RECOVERY_THRESHOLD {
+            player.sprint_exhausted = false;
+        }
+    }
+
+    player.agent.movement_speed = player.sprint_base_speed;
+    if player.sprint_active {
+        player.agent.movement_speed = player.sprint_base_speed * SPRINT_SPEED_MULTIPLIER;
+    }
+}

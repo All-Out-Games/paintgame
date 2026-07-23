@@ -1,20 +1,34 @@
 mc_player_silhouette.png
-	size: 1936, 584
+	size: 3740, 732
 	filter: Linear, Linear
 meccha_MC_circular
-	bounds: 1432, 19, 499, 561
+	bounds: 3236, 143, 499, 561
 	offsets: 44, 33, 586, 622
 meccha_MC_circular2
-	bounds: 374, 3, 518, 577
+	bounds: 2213, 85, 518, 577
 	offsets: 33, 17, 586, 622
 	rotate: 180
 meccha_MC_circular3
-	bounds: 3, 3, 518, 577
+	bounds: 1856, 128, 518, 577
 	offsets: 33, 17, 586, 622
 meccha_MC_circular4
-	bounds: 1087, 19, 499, 561
+	bounds: 2902, 105, 499, 561
 	offsets: 44, 33, 586, 622
 	rotate: 180
 meccha_MC_circular5
-	bounds: 744, 19, 499, 561
+	bounds: 2571, 137, 499, 561
 	offsets: 44, 33, 586, 622
+scaling_up/meccha_PC_fat1
+	bounds: 1479, 85, 540, 588
+	offsets: 147, 124, 841, 841
+	rotate: 180
+scaling_up/meccha_PC_fat2
+	bounds: 1050, 67, 580, 617
+	offsets: 131, 100, 841, 841
+scaling_up/meccha_PC_fat3
+	bounds: 559, 13, 629, 661
+	offsets: 106, 87, 841, 841
+	rotate: 180
+scaling_up/meccha_PC_fat4
+	bounds: 3, 3, 695, 723
+	offsets: 71, 55, 841, 841

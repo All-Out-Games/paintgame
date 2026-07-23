@@ -1,5 +1,9 @@
 WHISTLE_COOLDOWN_SECONDS :: 6.0;
 WHISTLE_SFX :: "SFX/whistle.wav";
+WHISTLE_INDICATOR_TEXTURE :: "whistleindicator.png";
+WHISTLE_INDICATOR_SECONDS :: 2.0;
+WHISTLE_INDICATOR_RADIUS :: 140.0;
+WHISTLE_INDICATOR_SIZE :: 82.0;
 
 // Hiders score by having a seeker close to them, so the whistle is their tool
 // for giving away position on purpose.
@@ -18,9 +22,43 @@ Whistle_Ability :: class : Ability_Base {
 }
 
 blow_whistle :: proc(player: Player) {
+    player.last_whistle_time = get_time();
     desc := SFX.default_sfx_desc();
     desc.entity_to_follow = player.entity.id;
     desc.volume = 0.9;
     desc.speed_perturb = 0.06;
     SFX.play(get_asset(SFX_Asset, WHISTLE_SFX), desc);
+}
+
+draw_whistle_indicators :: proc(player: Player) {
+    if player.hide_seek_role != .SEEKER || !hide_seek_whistles_active() { return; }
+
+    UI.push_screen_draw_context();
+    defer UI.pop_draw_context();
+    UI.push_layer(145);
+    defer UI.pop_layer();
+
+    center := UI.get_safe_screen_rect().center();
+    seeker_pos := player.entity.world_position + player.entity.calculate_interpolation_offset();
+    for source: component_iterator(Player) {
+        if source.hide_seek_role != .HIDER { continue; }
+        age := get_time() - source.last_whistle_time;
+        if age < 0 || age >= WHISTLE_INDICATOR_SECONDS { continue; }
+
+        source_pos := source.entity.world_position + source.entity.calculate_interpolation_offset();
+        direction := source_pos - seeker_pos;
+        if length_squared(direction) <= 0.0001 { continue; }
+        direction = normalize(direction);
+
+        fade := 1.0 - age / WHISTLE_INDICATOR_SECONDS;
+        pop := clamp(age / 0.12, 0.0, 1.0);
+        size := WHISTLE_INDICATOR_SIZE * lerp(1.2, 1.0, pop);
+        position := center + direction * WHISTLE_INDICATOR_RADIUS;
+        rect := Rect.{min = position - v2.{size * 0.5, size * 0.5}, max = position + v2.{size * 0.5, size * 0.5}};
+        rotation := to_degrees(atan2(direction.y, direction.x)) + 155.0;
+
+        UI.push_matrix(Matrix4.rotate_about_point(position, rotation));
+        UI.quad(rect, get_asset(Texture_Asset, WHISTLE_INDICATOR_TEXTURE), v4.{1, 1, 1, fade});
+        UI.pop_matrix();
+    }
 }

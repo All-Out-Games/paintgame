@@ -7,6 +7,8 @@ HIDE_PHASE_SECONDS :: 60.0;
 HUNT_PHASE_SECONDS :: 180.0;
 FOUND_FLICKER_SECONDS :: 3.0;
 FOUND_FREEZE_REASON :: "hide_seek_found_flicker";
+FAT_GROWTH_SECONDS :: 20.0;
+FAT_MAX_STAGE :: 4;
 REVEAL_SECONDS :: 20.0;
 HIDER_WIN_REVEAL_SECONDS :: 10.0;
 VICTORY_SCREEN_SECONDS :: 5.0;
@@ -133,11 +135,13 @@ Hide_Seek_Game :: class : Component {
     found_feed_hider_color: v4;
     role_rng: u64;
     debug_vote_active: bool;
+    game_mode: Hide_Seek_Game_Mode;
 
     ao_start :: method() {
         g_hide_seek = this;
         phase = .WAITING_FOR_PLAYERS;
         role_rng = rng_root_seed();
+        game_mode = .INFECTED;
         // The round needs a seeker plus at least one hider, so 2 is the floor
         // regardless of what the scene asks for.
         // The round needs a seeker plus at least one hider, so 2 is the floor
@@ -158,6 +162,10 @@ Hide_Seek_Game :: class : Component {
                 if phase == .HUNTING && player.hide_seek_role == .HIDER && player.pending_found_end_time > 0 && get_time() >= player.pending_found_end_time {
                     player.pending_found_end_time = 0;
                     convert_hider_to_seeker(this, player);
+                }
+                if phase == .HUNTING && game_mode == .FAT && player.hide_seek_role == .HIDER && player.fat_stage < FAT_MAX_STAGE && get_time() >= player.next_fat_time {
+                    grow_fat_hider(player);
+                    player.next_fat_time = get_time() + FAT_GROWTH_SECONDS;
                 }
             }
             refresh_hide_seek_counts(this);
@@ -296,6 +304,11 @@ begin_map_selection :: proc(game: Hide_Seek_Game) {
     game.phase_end_time = get_time() + MAP_SELECTION_SECONDS;
 }
 
+Hide_Seek_Game_Mode :: enum {
+    INFECTED;
+    FAT;
+}
+
 vote :: proc(command_player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
@@ -337,6 +350,8 @@ show_round_name :: proc(player: Player) {
 add_mid_round_seeker :: proc(game: Hide_Seek_Game, player: Player, hide_phase: bool) {
     player.hide_seek_role = .SEEKER;
     player.pending_found_end_time = 0;
+    player.fat_stage = 0;
+    player.next_fat_time = 0;
     clear_found_freeze(player);
     hide_round_name(player);
     exit_paint_mode(player);
@@ -569,7 +584,7 @@ update_countdown_tick_sound :: proc(player: Player) {
     SFX.play(get_asset(SFX_Asset, "mouse_click_cee011.wav"), desc);
 }
 
-start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false) -> bool {
+start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false, mode: Hide_Seek_Game_Mode = .INFECTED) -> bool {
     players: [..]Player;
     for player: component_iterator(Player) {
         if #alive(player) && #alive(player.entity) { players.append(player); }
@@ -577,6 +592,7 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
     required_players := max(game.min_players, MIN_PLAYERS_DEFAULT);
     if !bypass_minimum && players.count < required_players { return false; }
     if players.count == 0 { return false; }
+    game.game_mode = mode;
 
     // Clear last round's bodies in case this start skipped the reveal (e.g. /start).
     clear_hide_seek_corpses();
@@ -595,7 +611,11 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
         hide_round_name(player);
         player.role_visual_applied = .NONE;
         player.pending_found_end_time = 0;
+        player.fat_stage = 0;
+        player.next_fat_time = 0;
         clear_found_freeze(player);
+        player.fat_stage = 0;
+        player.next_fat_time = 0;
         player.seeker_rig_ready = false;
         player.streamed_seeker_rig_ready = false;
         player.role_reveal_end_time = get_time() + ROLE_REVEAL_SECONDS;
@@ -632,6 +652,15 @@ start :: proc(command_player: Player) {
     }
 } @chat_command @owner_or_editor
 
+startfat :: proc(command_player: Player) {
+    game := get_hide_seek_game();
+    if !#alive(game) { return; }
+    game.selected_map = .ART_HEIST;
+    if !start_hide_seek_round(game, true, .FAT) {
+        Notifier.notify(command_player, "No players are available to start the round.");
+    }
+} @chat_command @owner_or_editor
+
 begin_hide_seek_hunt :: proc(game: Hide_Seek_Game) {
     if !#alive(game) || game.phase != .HIDING { return; }
     game.phase = .HUNTING;
@@ -640,6 +669,9 @@ begin_hide_seek_hunt :: proc(game: Hide_Seek_Game) {
     // Seekers wait in the lobby during hiding and enter the selected map when
     // search begins, whether the timer expires or an editor skips it.
     for player: component_iterator(Player) {
+        if game.game_mode == .FAT && player.hide_seek_role == .HIDER {
+            player.next_fat_time = get_time() + FAT_GROWTH_SECONDS;
+        }
         bell_desc := SFX.default_sfx_desc();
         bell_desc.specific_to_player = player;
         bell_desc.volume = 0.8;
@@ -716,8 +748,8 @@ POOP_LAYER :: 1;                   // same layer as the body
 // player becomes a seeker and could repaint next round, and could disconnect
 // (which destroys their canvas), either of which would corrupt or dangle a
 // shared reference. Cleared at round boundaries by clear_hide_seek_corpses.
-CORPSE_IDLE_CLIP :: "Idle";      // caught standing still, not emoting
-CORPSE_RUN_CLIP  :: "Run_Fast";  // caught mid-run, not emoting
+CORPSE_IDLE_CLIP :: "pose/idle";     // caught standing still, not emoting
+CORPSE_RUN_CLIP  :: "pose/mid_run";  // caught mid-run, not emoting
 
 Hide_Seek_Corpse :: class : Component {
     canvas: Dynamic_Canvas;
@@ -802,6 +834,8 @@ convert_hider_to_seeker :: proc(game: Hide_Seek_Game, victim: Player, finder: Pl
     // Mark the spot before the teleport moves the victim off it.
     spawn_hider_death(victim);
     victim.pending_found_end_time = 0;
+    victim.fat_stage = 0;
+    victim.next_fat_time = 0;
     clear_found_freeze(victim);
     victim.hide_seek_role = .SEEKER;
     hide_round_name(victim);
@@ -824,6 +858,33 @@ capture_original_player_skins :: proc(player: Player) {
         player.original_player_skins.append(skin);
     }
     player.original_player_skins_captured = true;
+}
+
+hider_skin_for_stage :: proc(stage: s64) -> string {
+    if stage == 1 { return "fat1"; }
+    if stage == 2 { return "fat2"; }
+    if stage == 3 { return "fat3"; }
+    if stage >= 4 { return "fat4"; }
+    return MECHA_SKIN;
+}
+
+apply_hider_body_skin :: proc(player: Player) {
+    if player.animator == null { return; }
+    if player.override_ids[0] != 0 {
+        player.animator.instance.clear_attachment_sprite_override(player.override_ids[0]);
+        player.override_ids[0] = 0;
+    }
+    player.animator.disable_all_skins();
+    player.animator.enable_skin(hider_skin_for_stage(player.fat_stage));
+    player.animator.refresh_skins();
+    player.mecha_skin_applied = true;
+    if player.wear_paint_enabled { wear_paint(player, player.skin_canvas); }
+}
+
+grow_fat_hider :: proc(player: Player) {
+    if player.hide_seek_role != .HIDER || player.fat_stage >= FAT_MAX_STAGE { return; }
+    player.fat_stage += 1;
+    apply_hider_body_skin(player);
 }
 
 SEEKER_ANIMATION_LAYER :: "seeker_shotgun";
@@ -963,14 +1024,10 @@ apply_hider_visuals :: proc(player: Player) {
     player.animator.set_skeleton(get_asset(Spine_Asset, MECHA_RIG_PATH));
     player.animator.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
     player.animator.layer = HIDER_ANIMATOR_LAYER;
-    player.animator.disable_all_skins();
-    player.animator.enable_skin(MECHA_SKIN);
-    player.animator.refresh_skins();
-    player.mecha_skin_applied = true;
+    apply_hider_body_skin(player);
     // The state machine can survive a skeleton swap. Clear the latch so
     // ensure_mecha_rig validates or rebuilds the Mecha layers either way.
     player.locomotion_ready = false;
-    if player.wear_paint_enabled { wear_paint(player, player.skin_canvas); }
     player.seeker_rig_ready = false;
     player.streamed_seeker_rig_ready = false;
     player.role_visual_applied = .HIDER;
