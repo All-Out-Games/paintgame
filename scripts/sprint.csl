@@ -4,14 +4,20 @@ SPRINT_STAMINA_REGEN_PER_SECOND :: 16.0;
 SPRINT_REGEN_DELAY :: 2.0;
 SPRINT_RECOVERY_THRESHOLD :: 30.0;
 WALK_SPEED_MULTIPLIER :: 0.85;
+// Hiders walk slower than seekers - they win by being found late, not by outrunning.
+HIDER_WALK_SPEED_MULTIPLIER :: 0.8;
 SPRINT_SPEED_MULTIPLIER :: 1.5;
+SHIFT_KEYCAP_TEXTURE :: "shift.png";
 
 Sprint_Ability :: class : Ability_Base {
     on_init :: method() {
         name = "";
         icon = null;
-        keybind_override = keybind_sprint;
-        draw_but_dont_use_keybind = true;
+        // The engine has no key sprite for shift, so it would fall back to the
+        // "LEFT SHIFT" string. Suppressing its badge lets on_draw_button put the
+        // keycap art there instead. Sprint reads the keybind itself in on_update
+        // (Keybinds.get_keybind_held), so nothing is lost by unbinding the button.
+        disable_keybind = true;
     }
 
     can_use :: method() -> bool {
@@ -28,6 +34,13 @@ Sprint_Ability :: class : Ability_Base {
     on_draw_button :: method(rect: Rect) {
         sprint_icon := get_asset(Texture_Asset, "AbilityIcons/SprintIcon.png");
         UI.quad(rect.fit_aspect(sprint_icon.get_aspect()).scale(0.92, 0.92), sprint_icon);
+
+        if player.device_kind == .PC {
+            // Same corner the engine draws its own keybind badges in.
+            keycap := get_asset(Texture_Asset, SHIFT_KEYCAP_TEXTURE);
+            badge := rect.top_left_rect().grow(35).offset(10, -10);
+            UI.quad(badge.fit_aspect(keycap.get_aspect()), keycap);
+        }
     }
 }
 
@@ -90,7 +103,10 @@ update_player_sprint :: proc(player: Player, dt: float) {
         }
     }
 
-    player.agent.movement_speed = player.sprint_base_speed * WALK_SPEED_MULTIPLIER;
+    walk_multiplier := WALK_SPEED_MULTIPLIER;
+    if player.hide_seek_role == .HIDER { walk_multiplier *= HIDER_WALK_SPEED_MULTIPLIER; }
+
+    player.agent.movement_speed = player.sprint_base_speed * walk_multiplier;
     if player.sprint_active {
         player.agent.movement_speed = player.sprint_base_speed * SPRINT_SPEED_MULTIPLIER;
     }

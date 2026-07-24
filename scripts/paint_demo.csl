@@ -555,6 +555,15 @@ draw_paint_cursor :: proc(player: Player) {
 
 PAINT_MODE_ZOOM_T :: 0.85;
 
+EMOTE_BUTTON_ICON :: "typing_dots.png";
+
+// Whistle and Emotes sit either side of Paint at 75% of its size, so Paint stays
+// the obvious primary action in the row.
+SIDE_BUTTON_WIDTH :: 142.0;
+SIDE_BUTTON_HEIGHT :: 96.0;
+SIDE_BUTTON_ICON :: 46.0;
+SIDE_BUTTON_LABEL_SCALE :: 0.8;
+
 Paint_Mode_Splash :: class : Component {
     lifetime: float;
 
@@ -608,6 +617,9 @@ draw_paint_mode_button :: proc(player: Player) {
     defer UIK.panel_end();
 
     if player.hide_seek_role != .SEEKER {
+        if !player.hide_game_ui {
+            draw_whistle_button(player);
+        }
         if player.paint_mode {
             done_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
             done_desc.panel.min_width = 190;
@@ -642,6 +654,12 @@ draw_paint_mode_button :: proc(player: Player) {
             }
         }
 
+        // Hide UI hides the emote button but keeps Paint's own controls, same as
+        // when it lived in its own overlay.
+        if !player.hide_game_ui {
+            draw_emote_button(player);
+        }
+
         // The round HUD runs across the top of the screen, right where the head
         // sits at paint-mode zoom. This clears it out of the way. The paint
         // controls stay up - including this button, or there would be no way back.
@@ -660,39 +678,28 @@ draw_paint_mode_button :: proc(player: Player) {
 
 }
 
-EMOTE_BUTTON_RIGHT_INSET :: 104.0;
-
+// Sits in the bottom-center row next to Paint, so it shares that button's
+// footprint, icon box and label treatment (see draw_paint_mode_button).
 draw_emote_button :: proc(player: Player) {
-    if player.hide_seek_role == .SEEKER { return; }
-
-    begin_desc := UIK.window(UI.get_safe_screen_rect());
-    begin_desc.layer = 110;
-    UIK.begin(begin_desc);
-    defer UIK.end();
-
-    // Clears the zoom bar, which occupies the 80pt strip inset 10 from the right
-    // edge (see draw_zoom_slider). Fixed rather than paint-mode only, so the
-    // button does not jump sideways when the bar appears.
-    UIK.overlay_begin(.CENTER_RIGHT, v2.{-EMOTE_BUTTON_RIGHT_INSET, 0});
-    defer UIK.overlay_end();
-
     emote_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_PURPLE);
-    emote_desc.panel.width = UIK.pixels(150);
-    emote_desc.panel.height = UIK.pixels(166);
+    emote_desc.panel.width = UIK.pixels(SIDE_BUTTON_WIDTH);
+    emote_desc.panel.height = UIK.pixels(SIDE_BUTTON_HEIGHT);
     emote_desc.panel.axis = .VERTICAL;
     emote_desc.panel.cross_align = .CENTER;
     emote_desc.panel.main_align = .CENTER;
-    emote_desc.panel.gap = 6;
-    emote_desc.panel.padding = v4.{10, 12, 10, 12};
+    emote_desc.panel.gap = 3;
+    emote_desc.panel.padding = v4.{6, 9, 6, 9};
     emote_result := UIK.panel_begin_interactive("emotes_button", emote_desc.panel, false);
     icon_box := UIK.layout_column();
-    icon_box.width = UIK.pixels(81);
-    icon_box.height = UIK.pixels(81);
+    icon_box.width = UIK.pixels(SIDE_BUTTON_ICON);
+    icon_box.height = UIK.pixels(SIDE_BUTTON_ICON);
     UIK.panel_begin(icon_box);
-    UIK.image_fitted(get_asset(Texture_Asset, "emotebubble.png"), UIK.image_desc(.CONTAIN));
+    UIK.image_fitted(get_asset(Texture_Asset, EMOTE_BUTTON_ICON), UIK.image_desc(.CONTAIN));
     UIK.panel_end();
     label_desc := UIK.text_body();
+    label_desc.set_size_mult(SIDE_BUTTON_LABEL_SCALE);
     label_desc.set_halign(.CENTER);
+    label_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
     UIK.text(label_desc, "Emotes");
     UIK.panel_end();
 

@@ -1,4 +1,3 @@
-WHISTLE_COOLDOWN_SECONDS :: 6.0;
 WHISTLE_SFX :: "SFX/whistle.wav";
 WHISTLE_INDICATOR_TEXTURE :: "whistleindicator.png";
 WHISTLE_INDICATOR_SECONDS :: 2.0;
@@ -6,18 +5,71 @@ WHISTLE_INDICATOR_RADIUS :: 140.0;
 WHISTLE_INDICATOR_SIZE :: 82.0;
 
 // Hiders score by having a seeker close to them, so the whistle is their tool
-// for giving away position on purpose.
-Whistle_Ability :: class : Ability_Base {
-    on_init :: method() {
-        name = "Whistle";
-        icon = get_asset(Texture_Asset, "AbilityIcons/Whistle.png");
+// for giving away position on purpose. It lives on its own HUD button next to
+// Paint rather than in the ability bar, which frees the primary slot for Sprint.
+WHISTLE_BUTTON_COOLDOWN_SECONDS :: 5.0;
+WHISTLE_BUTTON_ICON :: "whistle-icon.png";
+
+// Sits in the bottom-center row beside Paint and Emotes and shares their
+// footprint, icon box and label treatment (see draw_paint_mode_button).
+draw_whistle_button :: proc(player: Player) {
+    if player.hide_seek_role != .HIDER || !hide_seek_whistles_active() { return; }
+
+    cooldown := max(0.0, player.whistle_button_ready_time - get_time());
+    on_cooldown := cooldown > 0;
+
+    whistle_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_YELLOW);
+    whistle_desc.panel.width = UIK.pixels(SIDE_BUTTON_WIDTH);
+    whistle_desc.panel.height = UIK.pixels(SIDE_BUTTON_HEIGHT);
+    whistle_desc.panel.axis = .VERTICAL;
+    whistle_desc.panel.cross_align = .CENTER;
+    whistle_desc.panel.main_align = .CENTER;
+    whistle_desc.panel.gap = 3;
+    whistle_desc.panel.padding = v4.{6, 9, 6, 9};
+
+    icon_tint := v4.{1, 1, 1, 1};
+    if on_cooldown {
+        // Greys the whole button - background, icon and label - so the disabled
+        // state reads at a glance rather than only from the countdown.
+        whistle_desc.panel.tint = v4.{0.42, 0.42, 0.45, 1};
+        icon_tint = v4.{0.55, 0.55, 0.58, 1};
     }
 
-    on_update :: method(params: ref Ability_Update_Params) {
-        if params.clicked && params.can_use {
-            blow_whistle(player);
-            current_cooldown = WHISTLE_COOLDOWN_SECONDS;
-        }
+    whistle_result := UIK.panel_begin_interactive("whistle_button", whistle_desc.panel, on_cooldown);
+    icon_box := UIK.layout_column();
+    icon_box.width = UIK.pixels(SIDE_BUTTON_ICON);
+    icon_box.height = UIK.pixels(SIDE_BUTTON_ICON);
+    UIK.panel_begin(icon_box);
+    UIK.image_fitted(get_asset(Texture_Asset, WHISTLE_BUTTON_ICON), UIK.image_desc(.CONTAIN), icon_tint);
+    UIK.panel_end();
+    label_desc := UIK.text_body();
+    label_desc.set_size_mult(SIDE_BUTTON_LABEL_SCALE);
+    label_desc.set_halign(.CENTER);
+    label_desc.set_color(v4.{1, 1, 1, 1});
+    label_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
+    label := "Whistle";
+    if on_cooldown {
+        // Ceil, so the label never sits on 0 while the button is still locked.
+        label = `{(cooldown + 0.999).(s64)}`;
+    }
+    UIK.text(label_desc, label);
+
+    if on_cooldown {
+        // A shade over the whole button whose bottom edge rises as the cooldown
+        // burns off, so the wait reads as a shrinking bar and not just a number.
+        shade := UIK.layout_column();
+        shade.width = UIK.pixels(SIDE_BUTTON_WIDTH);
+        shade.height = UIK.pixels(SIDE_BUTTON_HEIGHT * cooldown / WHISTLE_BUTTON_COOLDOWN_SECONDS);
+        shade.background_sprite_override = core_globals.white_sprite;
+        shade.tint = v4.{0, 0, 0, 0.55};
+        UIK.overlay_begin(.TOP_CENTER, shade, v2.{0, 0});
+        UIK.overlay_end();
+    }
+    UIK.panel_end();
+
+    if !on_cooldown && UIK.clicked(whistle_result) {
+        blow_whistle(player);
+        player.whistle_button_ready_time = get_time() + WHISTLE_BUTTON_COOLDOWN_SECONDS;
     }
 }
 
@@ -28,6 +80,75 @@ blow_whistle :: proc(player: Player) {
     desc.volume = 0.9;
     desc.speed_perturb = 0.06;
     SFX.play(get_asset(SFX_Asset, WHISTLE_SFX), desc);
+}
+
+WHISTLE_WARNING_SECONDS :: 5.0;
+
+// Replaces the old "Whistle 23" line in the round HUD: silent until the forced
+// whistle is close, then a countdown right under the timer.
+draw_whistle_warning_banner :: proc(game: Hide_Seek_Game) {
+    if game.phase != .HUNTING { return; }
+    remaining := game.next_forced_whistle_time - get_time();
+    if remaining <= 0 || remaining > WHISTLE_WARNING_SECONDS { return; }
+
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 104;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    banner := UIK.panel_modal(.TRANSP_BLACK, UIK.fit(), UIK.pixels(56), 12, v4.{4, 20, 4, 20});
+    banner.axis = .HORIZONTAL;
+    banner.cross_align = .CENTER;
+    banner.main_align = .CENTER;
+    UIK.overlay_begin(.TOP_CENTER, banner, v2.{0, -250});
+    defer UIK.overlay_end();
+
+    draw_whistle_warning_icon();
+    text_desc := UIK.text_title();
+    text_desc.set_size_mult(0.85);
+    text_desc.set_halign(.CENTER);
+    text_desc.set_color(v4.{1, 1, 1, 1});
+    text_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
+    // Ceil, so it reads 5s..1s and never sits on 0 before the whistle fires.
+    UIK.text(text_desc, `Whistle in {(remaining + 0.999).(s64)}s`);
+    draw_whistle_warning_icon();
+}
+
+draw_whistle_warning_icon :: proc() {
+    icon_box := UIK.layout_column();
+    icon_box.width = UIK.pixels(40);
+    icon_box.height = UIK.pixels(40);
+    UIK.panel_begin(icon_box);
+    UIK.image_fitted(get_asset(Texture_Asset, WHISTLE_BUTTON_ICON), UIK.image_desc(.CONTAIN));
+    UIK.panel_end();
+}
+
+WHISTLE_PUFF_SECONDS :: 1.1;
+WHISTLE_PUFF_SIZE :: 37.0;
+
+// Confirmation that your own whistle went out. Drawn from the local player's UI
+// path off their own last_whistle_time, so it is never drawn for anyone else -
+// a puff visible to others would hand seekers a free position read.
+draw_own_whistle_puff :: proc(player: Player) {
+    age := get_time() - player.last_whistle_time;
+    if age < 0 || age >= WHISTLE_PUFF_SECONDS { return; }
+
+    t := age / WHISTLE_PUFF_SECONDS;
+    rise := Ease.out_cubic(t);
+    fade := 1.0 - clamp((t - 0.55) / 0.45, 0, 1);
+    pop := clamp(age / 0.14, 0, 1);
+    size := WHISTLE_PUFF_SIZE * lerp(0.55, 1.0, Ease.out_back(pop));
+
+    world := player.entity.world_position + player.entity.calculate_interpolation_offset();
+    world.y += 1.05 + rise * 1.15;
+    position := world_to_screen(world);
+    rect := Rect.{min = position - v2.{size * 0.5, size * 0.5}, max = position + v2.{size * 0.5, size * 0.5}};
+
+    UI.push_screen_draw_context();
+    defer UI.pop_draw_context();
+    UI.push_layer(144);
+    defer UI.pop_layer();
+    UI.quad(rect, get_asset(Texture_Asset, WHISTLE_BUTTON_ICON), v4.{1, 1, 1, fade});
 }
 
 draw_whistle_indicators :: proc(player: Player) {

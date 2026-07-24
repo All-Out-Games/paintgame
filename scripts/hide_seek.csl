@@ -751,6 +751,19 @@ begin_hide_seek_hunt :: proc(game: Hide_Seek_Game) {
     }
 }
 
+// Testing shortcut: /start followed by /skipwait in one step, so the hunt is
+// live immediately instead of after the full hiding phase.
+force_start :: proc(command_player: Player) {
+    game := get_hide_seek_game();
+    if !#alive(game) { return; }
+    game.selected_map = .CITY;
+    if !start_hide_seek_round(game, true) {
+        Notifier.notify(command_player, "No players are available to start the round.");
+        return;
+    }
+    begin_hide_seek_hunt(game);
+} @chat_command @owner_or_editor
+
 skipwait :: proc(command_player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) || game.phase != .HIDING {
@@ -1205,6 +1218,48 @@ draw_hide_time_banner :: proc(player: Player, game: Hide_Seek_Game) {
     UIK.text(text_desc, "HIDE TIME");
 }
 
+// Seekers spend the whole hiding phase with nothing to do, so this stays up for
+// the duration rather than flashing like the hider banner. The countdown in the
+// HUD already says how long, so the banner only has to say what is happening.
+draw_seeker_wait_banner :: proc(player: Player, game: Hide_Seek_Game) {
+    if game.phase != .HIDING || player.hide_seek_role != .SEEKER { return; }
+
+    remaining := max(0.0, game.phase_end_time - get_time());
+    elapsed := HIDE_PHASE_SECONDS - remaining;
+    alpha := min(clamp(elapsed / 0.4, 0, 1), clamp(remaining / 0.5, 0, 1));
+    if alpha <= 0 { return; }
+
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 105;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    banner := UIK.panel_modal(.TRANSP_BLACK, UIK.fit(), UIK.pixels(84), 16, v4.{6, 26, 6, 26});
+    banner.axis = .HORIZONTAL;
+    banner.cross_align = .CENTER;
+    banner.main_align = .CENTER;
+    banner.opacity = alpha;
+    UIK.overlay_begin(.BOTTOM_CENTER, banner, v2.{0, 44});
+    defer UIK.overlay_end();
+
+    draw_seeker_wait_icon(alpha);
+    text_desc := UIK.text_title();
+    text_desc.set_size_mult(1.4);
+    text_desc.set_halign(.CENTER);
+    text_desc.set_color(v4.{1, 1, 1, alpha});
+    UIK.text(text_desc, "HIDERS ARE HIDING");
+    draw_seeker_wait_icon(alpha);
+}
+
+draw_seeker_wait_icon :: proc(alpha: float) {
+    icon_box := UIK.layout_column();
+    icon_box.width = UIK.pixels(60);
+    icon_box.height = UIK.pixels(60);
+    UIK.panel_begin(icon_box);
+    UIK.image_fitted(get_asset(Texture_Asset, "stripe_triangle.png"), UIK.image_desc(.CONTAIN), v4.{1, 1, 1, alpha});
+    UIK.panel_end();
+}
+
 draw_found_banner :: proc(player: Player) {
     remaining := player.found_banner_end_time - get_time();
     if remaining <= 0 { return; }
@@ -1260,6 +1315,51 @@ draw_search_start_banner :: proc(game: Hide_Seek_Game) {
     UIK.text(text_desc, "SEARCH START!");
 }
 
+HOURGLASS_SIZE :: 80.0;
+// Space reserved under the hourglass so it never crowds the countdown number.
+HOURGLASS_GAP :: 18.0;
+// panel_y (0) + panel top padding (2) + row cross centering (3.6) + half the
+// icon. Keep in step with the scoreboard row / timer_group heights below.
+HOURGLASS_TOP_OFFSET :: 5.6 + HOURGLASS_SIZE * 0.5;
+HOURGLASS_FLIP_DURATION :: 0.5;
+
+hourglass_flip_angle :: proc(game: Hide_Seek_Game, time: float) -> float {
+    remaining := max(0.0, game.phase_end_time - time);
+    whole := remaining.(s64);
+    tick_age := 1.0 - (remaining - whole.(float));
+    t := Ease.in_out_cubic(clamp(tick_age / HOURGLASS_FLIP_DURATION, 0, 1));
+    return (whole % 2).(float) * 180.0 + t * 180.0;
+}
+
+draw_hourglass_flip :: proc(game: Hide_Seek_Game) {
+    hourglass := get_asset(Texture_Asset, "hourglass-image.png");
+    if hourglass == null { return; }
+
+    screen := UI.get_safe_screen_rect();
+    center := v2.{screen.center().x, screen.max.y - HOURGLASS_TOP_OFFSET};
+    rect := Rect{center, center}.grow(HOURGLASS_SIZE * 0.5).fit_aspect(hourglass.get_aspect());
+
+    matrix := Matrix4.rotate_about_point(rect.center(), hourglass_flip_angle(game, get_time()));
+    previous_matrix := Matrix4.rotate_about_point(rect.center(), hourglass_flip_angle(game, get_time() - get_fixed_delta_time()));
+
+    UI.push_screen_draw_context();
+    UI.push_layer(100);
+    UI.push_matrix(matrix);
+    UI.quad_interpolated(rect, rect, previous_matrix, hourglass);
+    UI.pop_matrix();
+    UI.pop_layer();
+    UI.pop_draw_context();
+}
+
+// m:ss. Seconds are always two digits so the number does not change width as it
+// counts down, which would make it jitter under the punch scale.
+format_countdown :: proc(total_seconds: s64) -> string {
+    minutes := total_seconds / 60;
+    seconds := total_seconds % 60;
+    if seconds < 10 { return `{minutes}:0{seconds}`; }
+    return `{minutes}:{seconds}`;
+}
+
 draw_uik_countdown :: proc(game: Hide_Seek_Game, ui_scale: float = 1.0, show_clock: bool = true) {
     remaining := max(0.0, game.phase_end_time - get_time());
     total_seconds := remaining.(s64);
@@ -1296,7 +1396,7 @@ draw_uik_countdown :: proc(game: Hide_Seek_Game, ui_scale: float = 1.0, show_clo
     timer_desc.set_size_mult(1.25 * scale * ui_scale);
     timer_desc.set_halign(.CENTER);
     timer_desc.set_color(timer_color);
-    UIK.text(timer_desc, `{total_seconds}`);
+    UIK.text(timer_desc, format_countdown(total_seconds));
     UIK.panel_end();
     UIK.panel_end();
 }
@@ -1386,8 +1486,11 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
 
     active_round := game.phase == .HIDING || game.phase == .HUNTING;
     draw_hide_time_banner(player, game);
+    draw_seeker_wait_banner(player, game);
+    draw_whistle_warning_banner(game);
     draw_search_start_banner(game);
     draw_found_banner(player);
+    if active_round { draw_hourglass_flip(game); }
 
     UIK.begin(UIK.window(UI.get_safe_screen_rect()));
     defer UIK.end();
@@ -1399,8 +1502,8 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
     if active_round {
         panel_width = 576;
         panel_radius = 7.2;
-        panel_padding = v4.{12.6, 19.8, 12.6, 19.8};
-        panel_y = -18;
+        panel_padding = v4.{2, 19.8, 12.6, 19.8};
+        panel_y = 0;
     }
     panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(panel_width), UIK.fit(), panel_radius, panel_padding);
     if active_round { panel.show_background = false; }
@@ -1438,7 +1541,7 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
         draw_uik_countdown(game);
         UIK.text(UIK.text_body(), `{map_display_name(game.selected_map)}`);
     } else if active_round {
-        scoreboard := UIK.layout_row(UIK.flex(1), UIK.pixels(118.8), 16.2);
+        scoreboard := UIK.layout_row(UIK.flex(1), UIK.pixels(90 + HOURGLASS_SIZE + HOURGLASS_GAP), 16.2);
         scoreboard.cross_align = .CENTER;
         scoreboard.main_align = .SPACE_BETWEEN;
         UIK.panel_begin(scoreboard);
@@ -1472,9 +1575,10 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
 
         timer_group := UIK.layout_column();
         timer_group.width = UIK.pixels(225);
-        timer_group.height = UIK.pixels(111.6);
+        timer_group.height = UIK.pixels(82.8 + HOURGLASS_SIZE + HOURGLASS_GAP);
         timer_group.cross_align = .CENTER;
         UIK.panel_begin(timer_group);
+        UIK.spacer(UIK.pixels(1), UIK.pixels(HOURGLASS_SIZE + HOURGLASS_GAP));
         draw_uik_countdown(game, 0.9, false);
         phase_desc := UIK.text_title();
         phase_desc.set_size_mult(0.52);
@@ -1484,22 +1588,6 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
         if game.phase == .HIDING { timer_caption = "Until Search Starts"; }
         UIK.text(phase_desc, timer_caption);
 
-        if game.phase == .HUNTING {
-            whistle_box := UIK.layout_column();
-            whistle_box.width = UIK.pixels(225);
-            whistle_box.height = UIK.pixels(28.8);
-            whistle_box.cross_align = .CENTER;
-            whistle_box.main_align = .CENTER;
-            whistle_box.clip_children = true;
-            UIK.panel_begin(whistle_box);
-            whistle_remaining := max(0.0, game.next_forced_whistle_time - get_time());
-            whistle_desc := UIK.text_body();
-            whistle_desc.set_size_mult(0.9);
-            whistle_desc.set_halign(.CENTER);
-            whistle_desc.set_color(HUD_YELLOW);
-            UIK.text(whistle_desc, `Whistle {whistle_remaining.(s64)}`);
-            UIK.panel_end();
-        }
         UIK.panel_end();
 
         hider_group := UIK.layout_column();
@@ -1539,6 +1627,9 @@ draw_hide_seek_leaderboard :: proc(player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
     if game.phase != .HIDING && game.phase != .HUNTING && game.phase != .REVEAL { return; }
+    // Seekers are parked in the lobby for the whole hiding phase with no way to
+    // act on standings, so the board only clutters their wait screen.
+    if game.phase == .HIDING && player.hide_seek_role == .SEEKER { return; }
 
     players: [..]Player;
     for p: component_iterator(Player) { players.append(p); }
