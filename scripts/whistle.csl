@@ -30,9 +30,13 @@ draw_whistle_button :: proc(player: Player) {
     icon_tint := v4.{1, 1, 1, 1};
     if on_cooldown {
         // Greys the whole button - background, icon and label - so the disabled
-        // state reads at a glance rather than only from the countdown.
+        // state reads at a glance rather than only from the countdown, and drains
+        // the panel's own progress bar as the cooldown burns off.
         whistle_desc.panel.tint = v4.{0.42, 0.42, 0.45, 1};
         icon_tint = v4.{0.55, 0.55, 0.58, 1};
+        whistle_desc.panel.progress_t = cooldown / WHISTLE_BUTTON_COOLDOWN_SECONDS;
+        whistle_desc.panel.progress_bar_style = .PROGRESS_BAR_STYLE_1;
+        whistle_desc.panel.progress_bar_fill_tint = v4.{0.1, 0.1, 0.12, 0.75};
     }
 
     whistle_result := UIK.panel_begin_interactive("whistle_button", whistle_desc.panel, on_cooldown);
@@ -53,18 +57,6 @@ draw_whistle_button :: proc(player: Player) {
         label = `{(cooldown + 0.999).(s64)}`;
     }
     UIK.text(label_desc, label);
-
-    if on_cooldown {
-        // A shade over the whole button whose bottom edge rises as the cooldown
-        // burns off, so the wait reads as a shrinking bar and not just a number.
-        shade := UIK.layout_column();
-        shade.width = UIK.pixels(SIDE_BUTTON_WIDTH);
-        shade.height = UIK.pixels(SIDE_BUTTON_HEIGHT * cooldown / WHISTLE_BUTTON_COOLDOWN_SECONDS);
-        shade.background_sprite_override = core_globals.white_sprite;
-        shade.tint = v4.{0, 0, 0, 0.55};
-        UIK.overlay_begin(.TOP_CENTER, shade, v2.{0, 0});
-        UIK.overlay_end();
-    }
     UIK.panel_end();
 
     if !on_cooldown && UIK.clicked(whistle_result) {

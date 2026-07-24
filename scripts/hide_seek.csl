@@ -1559,7 +1559,7 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
         seeker_icon_box.width = UIK.pixels(43.2);
         seeker_icon_box.height = UIK.pixels(46.8);
         UIK.panel_begin(seeker_icon_box);
-        UIK.image_fitted(get_asset(Texture_Asset, "$AO/ui/kit/Icons/misc_icons_2/player_level_1_small.png"), UIK.image_desc(.CONTAIN), v4.{1, 0.18, 0.18, 1});
+        UIK.image_fitted(get_asset(Texture_Asset, "magnifying_glass_icon.png"), UIK.image_desc(.CONTAIN));
         UIK.panel_end();
         seeker_count_desc := UIK.text_title();
         seeker_count_desc.set_size_mult(1.215);
@@ -1603,7 +1603,7 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
         hider_icon_box.width = UIK.pixels(43.2);
         hider_icon_box.height = UIK.pixels(46.8);
         UIK.panel_begin(hider_icon_box);
-        UIK.image_fitted(get_asset(Texture_Asset, "$AO/ui/kit/Icons/misc_icons_2/player_level_1_small.png"), UIK.image_desc(.CONTAIN), v4.{0.25, 1, 0.45, 1});
+        UIK.image_fitted(get_asset(Texture_Asset, "hider-icon.png"), UIK.image_desc(.CONTAIN));
         UIK.panel_end();
         hider_count_desc := UIK.text_title();
         hider_count_desc.set_size_mult(1.215);
