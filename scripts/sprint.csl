@@ -1,8 +1,9 @@
 SPRINT_STAMINA_MAX :: 100.0;
-SPRINT_STAMINA_DRAIN_PER_SECOND :: 28.0;
-SPRINT_STAMINA_REGEN_PER_SECOND :: 22.0;
-SPRINT_REGEN_DELAY :: 1.5;
+SPRINT_STAMINA_DRAIN_PER_SECOND :: 40.0;
+SPRINT_STAMINA_REGEN_PER_SECOND :: 16.0;
+SPRINT_REGEN_DELAY :: 2.0;
 SPRINT_RECOVERY_THRESHOLD :: 30.0;
+WALK_SPEED_MULTIPLIER :: 0.85;
 SPRINT_SPEED_MULTIPLIER :: 1.5;
 
 Sprint_Ability :: class : Ability_Base {
@@ -89,7 +90,7 @@ update_player_sprint :: proc(player: Player, dt: float) {
         }
     }
 
-    player.agent.movement_speed = player.sprint_base_speed;
+    player.agent.movement_speed = player.sprint_base_speed * WALK_SPEED_MULTIPLIER;
     if player.sprint_active {
         player.agent.movement_speed = player.sprint_base_speed * SPRINT_SPEED_MULTIPLIER;
     }

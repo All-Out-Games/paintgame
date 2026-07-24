@@ -3,7 +3,7 @@ STARTING_SEEKERS :: 2;
 MAP_SELECT_COUNTDOWN_SECONDS :: 10.0;
 MAP_SELECTION_SECONDS :: 10.0;
 STARTING_GAME_SECONDS :: 5.0;
-HIDE_PHASE_SECONDS :: 60.0;
+HIDE_PHASE_SECONDS :: 90.0;
 HUNT_PHASE_SECONDS :: 180.0;
 FOUND_FLICKER_SECONDS :: 3.0;
 FOUND_FREEZE_REASON :: "hide_seek_found_flicker";
@@ -19,15 +19,16 @@ HIDER_NAME_OFFSET :: 1.15;
 SEEKER_RIG :: "$AO/streamed_character";
 SEEKER_SHOTGUN_TEXTURE :: "shotgun-color.png";
 SEEKER_WEAPON_SLOT :: "weapon_held";
-MAP_COUNT :: 4;
+TOTAL_MAP_COUNT :: 5;
+VOTE_CARD_COUNT :: 3;
 MAP_VOTE_HOLD_SECONDS :: 0.6;
-MAP_CARD_WIDTH :: 480.0;
-MAP_PREVIEW_WIDTH :: 440.0;
-MAP_PREVIEW_HEIGHT :: 260.0;
+MAP_CARD_WIDTH :: 420.0;
+MAP_PREVIEW_WIDTH :: 396.0;
+MAP_PREVIEW_HEIGHT :: 234.0;
 MAP_VOTE_GREEN :: v4.{0.25, 1.0, 0.45, 1.0};
 MAP_VOTE_TRACK_COLOR :: v4.{0.06, 0.06, 0.08, 1.0};
-MAP_VOTE_BAR_HEIGHT :: 46.0;
-MAP_VOTE_BAR_INSET :: 7.0;
+MAP_VOTE_BAR_HEIGHT :: 34.0;
+MAP_VOTE_BAR_INSET :: 5.0;
 // Seekers draw over hiders.
 HIDER_ANIMATOR_LAYER :: 1;
 SEEKER_ANIMATOR_LAYER :: 2;
@@ -59,6 +60,7 @@ Map_Kind :: enum {
     BACKROOMS_DARK;
     BACKROOMS_WATER;
     ART_HEIST;
+    CITY;
 }
 
 Hide_Seek_Phase :: enum {
@@ -83,6 +85,7 @@ map_display_name :: proc(map: Map_Kind) -> string {
         case .BACKROOMS_DARK:  return "Maze";
         case .BACKROOMS_WATER: return "Pool Room";
         case .ART_HEIST:       return "Museum";
+        case .CITY:            return "City";
         default:               return "Unknown";
     }
 }
@@ -96,6 +99,7 @@ map_name_lines :: proc(map: Map_Kind) -> string, string {
         case .BACKROOMS_DARK:  return "Maze", " ";
         case .BACKROOMS_WATER: return "Pool Room", " ";
         case .ART_HEIST:       return "Museum", " ";
+        case .CITY:            return "City", " ";
         default:               return "Unknown", " ";
     }
 }
@@ -108,6 +112,7 @@ map_preview_tint :: proc(map: Map_Kind) -> v4 {
         case .BACKROOMS_DARK:  return v4.{0.24, 0.26, 0.34, 1};
         case .BACKROOMS_WATER: return v4.{0.26, 0.56, 0.86, 1};
         case .ART_HEIST:       return v4.{0.78, 0.28, 0.24, 1};
+        case .CITY:            return v4.{0.32, 0.48, 0.62, 1};
         default:               return v4.{1, 1, 1, 1};
     }
 }
@@ -115,6 +120,7 @@ map_preview_tint :: proc(map: Map_Kind) -> v4 {
 Hide_Seek_Game :: class : Component {
     lobby_spawn: Entity   @ao_serialize;
     map_spawns:  [..]Entity @ao_serialize;
+    city_map_spawns: [..]Entity @ao_serialize;
     min_players: s64      @ao_serialize;
     points_per_second: s64 @ao_serialize;
 
@@ -124,7 +130,9 @@ Hide_Seek_Game :: class : Component {
     seekers: s64;
     winner: Hide_Seek_Winner;
     selected_map: Map_Kind;
-    map_votes: [MAP_COUNT]s64;
+    map_votes: [TOTAL_MAP_COUNT]s64;
+    vote_map_indices: [VOTE_CARD_COUNT]s64;
+    previous_vote_map_indices: [VOTE_CARD_COUNT]s64;
     next_publish_time: float;
     next_forced_whistle_time: float;
     found_feed_start_time: float;
@@ -142,6 +150,10 @@ Hide_Seek_Game :: class : Component {
         phase = .WAITING_FOR_PLAYERS;
         role_rng = rng_root_seed();
         game_mode = .INFECTED;
+        for i: 0..VOTE_CARD_COUNT - 1 {
+            vote_map_indices[i] = -1;
+            previous_vote_map_indices[i] = -1;
+        }
         // The round needs a seeker plus at least one hider, so 2 is the floor
         // regardless of what the scene asks for.
         // The round needs a seeker plus at least one hider, so 2 is the floor
@@ -275,6 +287,15 @@ teleport_player_to_lobby :: proc(game: Hide_Seek_Game, player: Player) {
 }
 
 teleport_player_to_map :: proc(game: Hide_Seek_Game, player: Player) {
+    if game.selected_map == .CITY {
+        if game.city_map_spawns.count == 0 { return; }
+        city_spawn_index := rng_range_int(ref game.role_rng, 0, game.city_map_spawns.count - 1);
+        city_spawn := game.city_map_spawns[city_spawn_index];
+        if !#alive(city_spawn) { return; }
+        player.entity.set_world_position(city_spawn.world_position);
+        player.entity.mark_teleported();
+        return;
+    }
     index := game.selected_map.(s64);
     if index < 0 || index >= game.map_spawns.count { return; }
     spawn := game.map_spawns[index];
@@ -284,16 +305,60 @@ teleport_player_to_map :: proc(game: Hide_Seek_Game, player: Player) {
 }
 
 tally_map_votes :: proc(game: Hide_Seek_Game) {
-    for i: 0..MAP_COUNT - 1 { game.map_votes[i] = 0; }
+    for i: 0..TOTAL_MAP_COUNT - 1 { game.map_votes[i] = 0; }
     for player: component_iterator(Player) {
-        if player.map_vote >= 0 && player.map_vote < MAP_COUNT {
+        if map_is_in_current_vote(game, player.map_vote) {
             game.map_votes[player.map_vote] += 1;
         }
     }
 }
 
+map_is_in_current_vote :: proc(game: Hide_Seek_Game, map_index: s64) -> bool {
+    for i: 0..VOTE_CARD_COUNT - 1 {
+        if game.vote_map_indices[i] == map_index { return true; }
+    }
+    return false;
+}
+
+choose_vote_maps :: proc(game: Hide_Seek_Game) {
+    attempts := 0;
+    while attempts < 8 {
+        chosen := 0;
+        while chosen < VOTE_CARD_COUNT {
+            candidate := rng_range_int(ref game.role_rng, 0, TOTAL_MAP_COUNT - 1);
+            duplicate := false;
+            if chosen > 0 {
+                for i: 0..chosen - 1 {
+                    if game.vote_map_indices[i] == candidate { duplicate = true; }
+                }
+            }
+            if duplicate { continue; }
+            game.vote_map_indices[chosen] = candidate;
+            chosen += 1;
+        }
+
+        same_as_previous := true;
+        for i: 0..VOTE_CARD_COUNT - 1 {
+            found_previous := false;
+            for j: 0..VOTE_CARD_COUNT - 1 {
+                if game.vote_map_indices[i] == game.previous_vote_map_indices[j] {
+                    found_previous = true;
+                }
+            }
+            if !found_previous { same_as_previous = false; }
+        }
+        if !same_as_previous { break; }
+        attempts += 1;
+    }
+
+    for i: 0..VOTE_CARD_COUNT - 1 {
+        game.previous_vote_map_indices[i] = game.vote_map_indices[i];
+    }
+}
+
 begin_map_selection :: proc(game: Hide_Seek_Game) {
     game.debug_vote_active = false;
+    choose_vote_maps(game);
     for player: component_iterator(Player) {
         player.map_vote = -1;
         player.map_vote_hold_index = -1;
@@ -319,13 +384,16 @@ vote :: proc(command_player: Player) {
 // Ties (including nobody voting) break randomly among the leaders.
 resolve_map_vote :: proc(game: Hide_Seek_Game) -> Map_Kind {
     tally_map_votes(game);
-    best_votes := game.map_votes[0];
-    for i: 1..MAP_COUNT - 1 {
-        if game.map_votes[i] > best_votes { best_votes = game.map_votes[i]; }
+    first_map := game.vote_map_indices[0];
+    best_votes := game.map_votes[first_map];
+    for slot: 1..VOTE_CARD_COUNT - 1 {
+        map_index := game.vote_map_indices[slot];
+        if game.map_votes[map_index] > best_votes { best_votes = game.map_votes[map_index]; }
     }
     tied: [..]s64;
-    for i: 0..MAP_COUNT - 1 {
-        if game.map_votes[i] == best_votes { tied.append(i); }
+    for slot: 0..VOTE_CARD_COUNT - 1 {
+        map_index := game.vote_map_indices[slot];
+        if game.map_votes[map_index] == best_votes { tied.append(map_index); }
     }
     if tied.count == 1 { return tied[0].(Map_Kind); }
     rng := rng_root_seed();
@@ -646,7 +714,7 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
 start :: proc(command_player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
-    game.selected_map = .ART_HEIST;
+    game.selected_map = .CITY;
     if !start_hide_seek_round(game, true) {
         Notifier.notify(command_player, "No players are available to start the round.");
     }
@@ -1237,13 +1305,13 @@ draw_victory_screen :: proc(player: Player, game: Hide_Seek_Game, dt: float) {
     remaining := max(0.0, game.phase_end_time - get_time());
     elapsed := VICTORY_SCREEN_SECONDS - remaining;
     winner_title := "HIDERS WIN";
-    winner_color := v4.{0.25, 1.0, 0.45, 1};
     player_won := player.hide_seek_role == .HIDER;
     if game.winner == .SEEKERS {
         winner_title = "SEEKERS WIN";
-        winner_color = v4.{1.0, 0.18, 0.18, 1};
         player_won = player.hide_seek_role == .SEEKER;
     }
+    result_color := v4.{1.0, 0.18, 0.18, 1};
+    if player_won { result_color = v4.{0.25, 1.0, 0.45, 1}; }
 
     if player_won {
         if player.victory_confetti == null {
@@ -1281,7 +1349,7 @@ draw_victory_screen :: proc(player: Player, game: Hide_Seek_Game, dt: float) {
     title_desc := UIK.text_title();
     title_desc.set_size_mult(2.5);
     title_desc.set_halign(.CENTER);
-    title_desc.set_color(winner_color);
+    title_desc.set_color(result_color);
     UIK.text(title_desc, winner_title);
 
     draw_uik_countdown(game);
@@ -1294,11 +1362,11 @@ draw_victory_screen :: proc(player: Player, game: Hide_Seek_Game, dt: float) {
     result_desc := UIK.text_body();
     result_desc.set_size_mult(1.1);
     result_desc.set_halign(.CENTER);
+    result_desc.set_color(result_color);
     if player_won {
-        result_desc.set_color(winner_color);
         UIK.text(result_desc, "YOUR TEAM WON");
     } else {
-        UIK.text(result_desc, "ROUND OVER");
+        UIK.text(result_desc, "YOUR TEAM LOST");
     }
 }
 
@@ -1584,8 +1652,8 @@ draw_map_vote_card :: proc(player: Player, game: Hide_Seek_Game, index: s64, dt:
     card := UIK.layout_column();
     card.width = UIK.pixels(MAP_CARD_WIDTH);
     card.height = UIK.fit();
-    card.gap = 12;
-    card.padding = v4.{18, 18, 18, 18};
+    card.gap = 8;
+    card.padding = v4.{12, 12, 12, 12};
     card.background = .MODAL_TRANSP_BLACK;
     card.cross_align = .CENTER;
     result := UIK.panel_begin_interactive(`map_vote_{index}`, card);
@@ -1612,29 +1680,30 @@ draw_map_vote_card :: proc(player: Player, game: Hide_Seek_Game, index: s64, dt:
         fill = clamp(player.map_vote_hold_t / MAP_VOTE_HOLD_SECONDS, 0.0, 1.0);
     }
 
-    // Two explicit lines instead of one wrapping label: every card is the same
-    // two-line height so the previews line up, and no line can clip or bleed
-    // into a neighbour. The box is content-sized (fit), so no pixel height has
-    // to be guessed against the font.
+    // Current map names fit on one line. A fixed compact title row keeps every
+    // preview aligned without reserving an empty second line.
     line1, line2 := map_name_lines(map);
     title_box := UIK.layout_column();
     title_box.width = UIK.pixels(MAP_PREVIEW_WIDTH);
-    title_box.height = UIK.fit();
+    title_box.height = UIK.pixels(58);
     title_box.gap = 0;
     title_box.cross_align = .CENTER;
+    title_box.main_align = .CENTER;
     UIK.panel_begin(title_box);
     title_desc := UIK.text_title();
-    title_desc.set_size_mult(1.2);
+    title_desc.set_size_mult(1.0);
     title_desc.set_halign(.CENTER);
     UIK.text(title_desc, line1);
-    UIK.text(title_desc, line2);
     UIK.panel_end();
 
     preview := UIK.layout_column();
     preview.width = UIK.pixels(MAP_PREVIEW_WIDTH);
     preview.height = UIK.pixels(MAP_PREVIEW_HEIGHT);
     preview.background = .MODAL_WHITE;
-    preview.tint = map_preview_tint(map);
+    preview.tint = v4.{0.04, 0.045, 0.055, 1};
+    // Counter the modal nine-slice's built-in content inset so the artwork
+    // reaches the rounded mask, leaving only a narrow dark outline.
+    preview.padding = v4.{-7, -7, -7, -7};
     preview.clip_children = true;
     preview.mask_scope = true;
     UIK.panel_begin(preview);
@@ -1646,12 +1715,15 @@ draw_map_vote_card :: proc(player: Player, game: Hide_Seek_Game, index: s64, dt:
         UIK.image_fitted(get_asset(Texture_Asset, "poolroom.png"), UIK.image_desc(.COVER));
     } else if map == .ART_HEIST {
         UIK.image_fitted(get_asset(Texture_Asset, "artihiest.png"), UIK.image_desc(.COVER));
+    } else if map == .CITY {
+        UIK.image_fitted(get_asset(Texture_Asset, "citymap_image.png"), UIK.image_desc(.COVER));
     }
     UIK.panel_end();
 
     hint := "Click and hold to vote";
     if player.map_vote == index { hint = "Voted"; }
     hint_desc := UIK.text_body();
+    hint_desc.set_size_mult(0.85);
     hint_desc.set_halign(.CENTER);
     UIK.text(hint_desc, hint);
 
@@ -1681,7 +1753,7 @@ draw_map_vote_card :: proc(player: Player, game: Hide_Seek_Game, index: s64, dt:
     }
 
     votes_desc := UIK.text_title();
-    votes_desc.set_size_mult(1.5);
+    votes_desc.set_size_mult(1.15);
     votes_desc.set_halign(.CENTER);
     votes_desc.set_color(MAP_VOTE_GREEN);
     UIK.text(votes_desc, `Votes: {game.map_votes[index]}`);
@@ -1699,22 +1771,22 @@ draw_map_vote_ui :: proc(player: Player, dt: float) {
     column := UIK.layout_column();
     column.width = UIK.fit();
     column.height = UIK.fit();
-    column.gap = 18;
+    column.gap = 10;
     column.cross_align = .CENTER;
     UIK.overlay_begin(.CENTER, column, v2.{0, 0});
     defer UIK.overlay_end();
 
-    row := UIK.layout_row(UIK.fit(), UIK.fit(), 24);
+    row := UIK.layout_row(UIK.fit(), UIK.fit(), 16);
     row.cross_align = .START;
     UIK.panel_begin(row);
-    for i: 0..MAP_COUNT - 1 {
-        draw_map_vote_card(player, game, i, dt);
+    for slot: 0..VOTE_CARD_COUNT - 1 {
+        draw_map_vote_card(player, game, game.vote_map_indices[slot], dt);
     }
     UIK.panel_end();
 
     draw_uik_countdown(game);
     timer_desc := UIK.text_title();
-    timer_desc.set_size_mult(1.7);
+    timer_desc.set_size_mult(1.35);
     timer_desc.set_halign(.CENTER);
     UIK.text(timer_desc, "Time left to vote");
 }
