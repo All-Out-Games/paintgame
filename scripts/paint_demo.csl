@@ -633,15 +633,9 @@ draw_paint_mode_button :: proc(player: Player) {
         if !player.hide_game_ui {
             draw_whistle_button(player);
         }
-        if player.paint_mode {
-            done_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
-            done_desc.panel.min_width = 190;
-            done_desc.panel.min_height = 64;
-            done_result := UIK.button("paint_mode_button", "Done", done_desc);
-            if UIK.clicked(done_result) {
-                exit_paint_mode(player);
-            }
-        } else {
+        // In paint mode Done and Hide UI move out to their own column beside the
+        // picker - see draw_paint_mode_side_buttons - so this row is empty.
+        if !player.paint_mode {
             paint_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
             paint_desc.panel.width = UIK.pixels(190);
             paint_desc.panel.height = UIK.pixels(128);
@@ -673,22 +667,59 @@ draw_paint_mode_button :: proc(player: Player) {
             draw_emote_button(player);
         }
 
-        // The round HUD runs across the top of the screen, right where the head
-        // sits at paint-mode zoom. This clears it out of the way. The paint
-        // controls stay up - including this button, or there would be no way back.
-        if player.paint_mode {
-            hide_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_BLUE);
-            hide_desc.panel.min_width = 190;
-            hide_desc.panel.min_height = 64;
-            hide_label := "Hide UI";
-            if player.hide_game_ui { hide_label = "Show UI"; }
-            hide_result := UIK.button("hide_game_ui_button", hide_label, hide_desc);
-            if UIK.clicked(hide_result) {
-                player.hide_game_ui = !player.hide_game_ui;
-            }
-        }
     }
 
+}
+
+PAINT_SIDE_BUTTON_W :: 190.0;
+PAINT_SIDE_BUTTON_H :: 64.0;
+PAINT_SIDE_BUTTON_GAP :: 14.0;
+
+// Done and Hide UI, stacked to the right of the colour picker rather than in the
+// bottom-center row. Its own window and overlay - opening an overlay inside the
+// bottom-center one would corrupt the UIK scope stack.
+draw_paint_mode_side_buttons :: proc(player: Player) {
+    if !player.paint_mode || player.hide_seek_role == .SEEKER { return; }
+
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 110;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    // Clears the picker when it is open, otherwise sits in the same left margin
+    // the picker would occupy.
+    panel_w, _ := picker_panel_size();
+    column_x := PICKER_MARGIN;
+    if player.picker_open { column_x += panel_w + PAINT_SIDE_BUTTON_GAP; }
+
+    stack := UIK.layout_column();
+    stack.width = UIK.pixels(PAINT_SIDE_BUTTON_W);
+    stack.height = UIK.fit();
+    stack.gap = PAINT_SIDE_BUTTON_GAP;
+    stack.cross_align = .CENTER;
+    UIK.overlay_begin(.BOTTOM_LEFT, stack, v2.{column_x, PICKER_MARGIN});
+    defer UIK.overlay_end();
+
+    // The round HUD runs across the top of the screen, right where the head sits
+    // at paint-mode zoom. Hide UI clears it out of the way; both buttons survive
+    // Hide UI, or there would be no way back.
+    hide_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_BLUE);
+    hide_desc.panel.min_width = PAINT_SIDE_BUTTON_W;
+    hide_desc.panel.min_height = PAINT_SIDE_BUTTON_H;
+    hide_label := "Hide UI";
+    if player.hide_game_ui { hide_label = "Show UI"; }
+    hide_result := UIK.button("hide_game_ui_button", hide_label, hide_desc);
+    if UIK.clicked(hide_result) {
+        player.hide_game_ui = !player.hide_game_ui;
+    }
+
+    done_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
+    done_desc.panel.min_width = PAINT_SIDE_BUTTON_W;
+    done_desc.panel.min_height = PAINT_SIDE_BUTTON_H;
+    done_result := UIK.button("paint_mode_button", "Done", done_desc);
+    if UIK.clicked(done_result) {
+        exit_paint_mode(player);
+    }
 }
 
 // Sits in the bottom-center row next to Paint, so it shares that button's
@@ -915,6 +946,16 @@ mouse_over_paint_ui :: proc(player: Player, mouse_screen: v2) -> bool {
     // whatever else is on screen.
     paint_button := screen.bottom_center_rect().grow(PAINT_BUTTON_H, PAINT_BUTTON_HALF_W, 0, PAINT_BUTTON_HALF_W);
     if point_in_rect(paint_button, mouse_screen) { return true; }
+    // Done and Hide UI live beside the picker in paint mode, and both survive
+    // Hide UI, so their column always blocks.
+    if player.paint_mode {
+        panel_w, _ := picker_panel_size();
+        side_x := PICKER_MARGIN;
+        if player.picker_open { side_x += panel_w + PAINT_SIDE_BUTTON_GAP; }
+        side_h := PAINT_SIDE_BUTTON_H * 2 + PAINT_SIDE_BUTTON_GAP + PICKER_MARGIN;
+        side_column := screen.bottom_left_rect().grow(side_h, PAINT_SIDE_BUTTON_W, 0, 0).offset(side_x, 0);
+        if point_in_rect(side_column, mouse_screen) { return true; }
+    }
     // Play as Seeker stacks above that row, so it needs its own block region or
     // clicking it would also drop paint on the character behind it.
     if hide_seek_can_join_as_seeker(player) {

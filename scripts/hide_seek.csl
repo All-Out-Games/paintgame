@@ -1,6 +1,7 @@
 MIN_PLAYERS_DEFAULT :: 5;
 STARTING_SEEKERS :: 2;
-MAP_SELECT_COUNTDOWN_SECONDS :: 10.0;
+// Long enough that players joining an empty server can gather before the vote.
+MAP_SELECT_COUNTDOWN_SECONDS :: 20.0;
 MAP_SELECTION_SECONDS :: 10.0;
 STARTING_GAME_SECONDS :: 5.0;
 HIDE_PHASE_SECONDS :: 90.0;
@@ -1269,7 +1270,7 @@ update_hide_seek_player :: proc(player: Player) {
 hide_seek_phase_title :: proc(game: Hide_Seek_Game, player: Player) -> string {
     switch game.phase {
         case .WAITING_FOR_PLAYERS:    return "WAITING FOR PLAYERS";
-        case .STARTING_MAP_SELECTION: return "MAP VOTE STARTING";
+        case .STARTING_MAP_SELECTION: return "GAME STARTING";
         case .MAP_SELECTION:          return "VOTE FOR A MAP";
         case .STARTING_GAME:          return "STARTING IN";
         case .HIDING: {
@@ -1499,6 +1500,8 @@ HOURGLASS_GAP :: 18.0;
 // icon. Keep in step with the scoreboard row / timer_group heights below.
 HOURGLASS_TOP_OFFSET :: 5.6 + HOURGLASS_SIZE * 0.5;
 HOURGLASS_FLIP_DURATION :: 0.5;
+VOTE_HOURGLASS_SIZE :: 64.0;
+VOTE_HOURGLASS_GAP :: 8.0;
 
 hourglass_flip_angle :: proc(game: Hide_Seek_Game, time: float) -> float {
     remaining := max(0.0, game.phase_end_time - time);
@@ -1508,13 +1511,15 @@ hourglass_flip_angle :: proc(game: Hide_Seek_Game, time: float) -> float {
     return (whole % 2).(float) * 180.0 + t * 180.0;
 }
 
-draw_hourglass_flip :: proc(game: Hide_Seek_Game) {
+// top_offset is measured down from the top of the safe area, so a caller places
+// it by adding up the panel offset, padding and half the icon.
+draw_hourglass_flip :: proc(game: Hide_Seek_Game, top_offset: float = HOURGLASS_TOP_OFFSET, size: float = HOURGLASS_SIZE) {
     hourglass := get_asset(Texture_Asset, "hourglass-image.png");
     if hourglass == null { return; }
 
     screen := UI.get_safe_screen_rect();
-    center := v2.{screen.center().x, screen.max.y - HOURGLASS_TOP_OFFSET};
-    rect := Rect{center, center}.grow(HOURGLASS_SIZE * 0.5).fit_aspect(hourglass.get_aspect());
+    center := v2.{screen.center().x, screen.max.y - top_offset};
+    rect := Rect{center, center}.grow(size * 0.5).fit_aspect(hourglass.get_aspect());
 
     matrix := Matrix4.rotate_about_point(rect.center(), hourglass_flip_angle(game, get_time()));
     previous_matrix := Matrix4.rotate_about_point(rect.center(), hourglass_flip_angle(game, get_time() - get_fixed_delta_time()));
@@ -1669,6 +1674,10 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
     draw_search_start_banner(game);
     draw_found_banner(player);
     if active_round { draw_hourglass_flip(game); }
+    // panel_y (20) + panel top padding (14) + half the icon.
+    if game.phase == .STARTING_MAP_SELECTION {
+        draw_hourglass_flip(game, 34 + VOTE_HOURGLASS_SIZE * 0.5, VOTE_HOURGLASS_SIZE);
+    }
 
     UIK.begin(UIK.window(UI.get_safe_screen_rect()));
     defer UIK.end();
@@ -1684,7 +1693,9 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
         panel_y = 0;
     }
     panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(panel_width), UIK.fit(), panel_radius, panel_padding);
-    if active_round { panel.show_background = false; }
+    // Backgroundless during the round and the vote countdown; the text carries
+    // its own outline instead.
+    if active_round || game.phase == .STARTING_MAP_SELECTION { panel.show_background = false; }
     panel.cross_align = .CENTER;
     UIK.overlay_begin(.TOP_CENTER, panel, v2.{0, panel_y});
     defer UIK.overlay_end();
@@ -1704,11 +1715,16 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
         waiting_count_desc.set_halign(.CENTER);
         UIK.text(waiting_count_desc, `{connected_players}/{game.min_players} Players`);
     } else if game.phase == .STARTING_MAP_SELECTION {
+        // Space for the flipping hourglass, which is drawn immediate-mode above
+        // (UIK cannot rotate an image). Sits at the top of the panel where its
+        // position is a plain sum of the panel offset and padding.
+        UIK.spacer(UIK.pixels(1), UIK.pixels(VOTE_HOURGLASS_SIZE + VOTE_HOURGLASS_GAP));
         vote_start_desc := UIK.text_title();
         vote_start_desc.set_size_mult(0.8);
         vote_start_desc.set_halign(.CENTER);
-        UIK.text(vote_start_desc, "MAP VOTE STARTING IN");
-        draw_uik_countdown(game, 0.7);
+        vote_start_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
+        UIK.text(vote_start_desc, "GAME STARTING IN");
+        draw_uik_countdown(game, 0.7, false);
     } else if game.phase == .STARTING_GAME {
         starting_desc := UIK.text_title();
         starting_desc.set_halign(.CENTER);

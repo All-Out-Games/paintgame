@@ -1,6 +1,10 @@
 WHISTLE_SFX :: "SFX/whistle.wav";
 WHISTLE_INDICATOR_TEXTURE :: "whistleindicator.png";
 WHISTLE_INDICATOR_SECONDS :: 2.0;
+// Matches the whistle being a positional sound: the arrow only appears for
+// seekers close enough that they could plausibly have heard it. Roughly three
+// times the seeker's catch range, so hearing one still means a real hunt.
+WHISTLE_INDICATOR_MAX_DISTANCE :: 18.0;
 WHISTLE_INDICATOR_RADIUS :: 140.0;
 WHISTLE_INDICATOR_SIZE :: 82.0;
 
@@ -162,10 +166,17 @@ draw_whistle_indicators :: proc(player: Player) {
 
         source_pos := source.entity.world_position + source.entity.calculate_interpolation_offset();
         direction := source_pos - seeker_pos;
-        if length_squared(direction) <= 0.0001 { continue; }
+        distance_sq := length_squared(direction);
+        if distance_sq <= 0.0001 { continue; }
+        if distance_sq > WHISTLE_INDICATOR_MAX_DISTANCE * WHISTLE_INDICATOR_MAX_DISTANCE { continue; }
         direction = normalize(direction);
 
         fade := 1.0 - age / WHISTLE_INDICATOR_SECONDS;
+        // Fades out over the last quarter of the range so the arrow does not
+        // pop in at full strength as a seeker crosses the threshold.
+        distance := sqrt(distance_sq);
+        range_fade := clamp((WHISTLE_INDICATOR_MAX_DISTANCE - distance) / (WHISTLE_INDICATOR_MAX_DISTANCE * 0.25), 0, 1);
+        fade *= range_fade;
         pop := clamp(age / 0.12, 0.0, 1.0);
         size := WHISTLE_INDICATOR_SIZE * lerp(1.2, 1.0, pop);
         position := center + direction * WHISTLE_INDICATOR_RADIUS;

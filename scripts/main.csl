@@ -212,6 +212,7 @@ Player :: class : Player_Base {
             } else {
                 // Cancel and Hide UI survive Hide UI, otherwise there is no way back.
                 draw_paint_mode_button(this);
+                draw_paint_mode_side_buttons(this);
                 draw_emote_menu(this);
                 if !hide_game_ui {
                     draw_hide_seek_ui(this, dt);
