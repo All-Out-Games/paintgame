@@ -102,6 +102,10 @@ Player :: class : Player_Base {
     map_vote_hold_index: s64;   // card currently being held; -1 when none
     map_vote_hold_t: float;
     role_reveal_end_time: float;
+    role_roll_start_time: float;
+    role_roll_target: s64;
+    role_roll_last_tick: s64;
+    pending_round_teleport: bool;
     found_banner_end_time: float;
     pending_found_end_time: float;
     found_movement_frozen: bool;
@@ -165,6 +169,7 @@ Player :: class : Player_Base {
         }
         update_hide_seek_player(this);
         update_player_sprint(this, dt);
+        update_role_reel(this);
         update_countdown_tick_sound(this);
         if hide_seek_voting_focus_active() {
             if paint_mode || picker_open { exit_paint_mode(this); }

@@ -53,6 +53,9 @@ Hide_Seek_Role :: enum {
     NONE;
     HIDER;
     SEEKER;
+    // Joined while a round was already running. Waits in the lobby until they
+    // opt into the hunt with the Play as Seeker button, or the round ends.
+    LOBBY;
 }
 
 Map_Kind :: enum {
@@ -142,11 +145,18 @@ Hide_Seek_Game :: class : Component {
     found_feed_seeker_color: v4;
     found_feed_hider_color: v4;
     role_rng: u64;
+    // True between the roles being dealt and the last reel landing. The round
+    // clock and scoring are held off until it clears.
+    round_start_pending: bool;
     debug_vote_active: bool;
     game_mode: Hide_Seek_Game_Mode;
 
     ao_start :: method() {
         g_hide_seek = this;
+        // Priority 0 means "send me players": between rounds this server wants
+        // to fill up. It rises to 1 while a round is live so matchmaking prefers
+        // a lobby that has not started yet - see start/finish_hide_seek_round.
+        Server.set_matchmaking_priority(0);
         phase = .WAITING_FOR_PLAYERS;
         role_rng = rng_root_seed();
         game_mode = .INFECTED;
@@ -167,10 +177,17 @@ Hide_Seek_Game :: class : Component {
         for player: component_iterator(Player) { player_count += 1; }
 
         if phase == .HIDING || phase == .HUNTING {
+            if round_start_pending {
+                // The clock is pinned at its full value while reels are still
+                // spinning, then released the frame the last one lands.
+                phase_end_time = get_time() + HIDE_PHASE_SECONDS;
+                if hide_seek_all_rolls_revealed() { round_start_pending = false; }
+            }
             for player: component_iterator(Player) {
                 if player.hide_seek_role == .NONE {
-                    add_mid_round_seeker(this, player, phase == .HIDING);
+                    add_mid_round_waiter(this, player);
                 }
+                apply_pending_round_teleport(this, player);
                 if phase == .HUNTING && player.hide_seek_role == .HIDER && player.pending_found_end_time > 0 && get_time() >= player.pending_found_end_time {
                     player.pending_found_end_time = 0;
                     convert_hider_to_seeker(this, player);
@@ -181,7 +198,10 @@ Hide_Seek_Game :: class : Component {
                 }
             }
             refresh_hide_seek_counts(this);
-            award_proximity_points(this, dt);
+            // No scoring while the roll is running: nobody has been teleported
+            // yet, so every hider would be banking proximity points off seekers
+            // standing next to them in the lobby.
+            if !round_start_pending { award_proximity_points(this, dt); }
             if phase == .HUNTING && get_time() >= next_forced_whistle_time {
                 next_forced_whistle_time = get_time() + FORCED_WHISTLE_SECONDS;
                 force_all_hiders_whistle(this);
@@ -415,6 +435,88 @@ show_round_name :: proc(player: Player) {
     player.name_hidden = false;
 }
 
+// Drawn inside the bottom-center column in draw_paint_mode_button, above the
+// Paint/Emotes/Whistle row. Panels only - opening a window or overlay here would
+// nest inside that column's scope.
+draw_play_as_seeker_button :: proc(player: Player) {
+    if !hide_seek_can_join_as_seeker(player) { return; }
+
+    join_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_RED);
+    join_desc.panel.width = UIK.pixels(346);
+    join_desc.panel.height = UIK.pixels(72);
+    join_desc.panel.axis = .HORIZONTAL;
+    join_desc.panel.cross_align = .CENTER;
+    join_desc.panel.main_align = .CENTER;
+    join_desc.panel.gap = 12;
+    join_desc.panel.padding = v4.{8, 16, 8, 16};
+    join_result := UIK.panel_begin_interactive("play_as_seeker_button", join_desc.panel);
+
+    icon_box := UIK.layout_column();
+    icon_box.width = UIK.pixels(44);
+    icon_box.height = UIK.pixels(44);
+    UIK.panel_begin(icon_box);
+    UIK.image_fitted(get_asset(Texture_Asset, "magnifying_glass_icon.png"), UIK.image_desc(.CONTAIN));
+    UIK.panel_end();
+
+    label_desc := UIK.text_title();
+    label_desc.set_size_mult(0.75);
+    label_desc.set_halign(.CENTER);
+    label_desc.set_color(v4.{1, 1, 1, 1});
+    label_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
+    UIK.text(label_desc, "Play as Seeker");
+    UIK.panel_end();
+
+    if UIK.clicked(join_result) {
+        join_hide_seek_as_seeker(player);
+    }
+}
+
+// True while a lobby waiter can still opt into the running round.
+hide_seek_can_join_as_seeker :: proc(player: Player) -> bool {
+    if player.hide_seek_role != .LOBBY { return false; }
+    game := get_hide_seek_game();
+    if !#alive(game) { return false; }
+    return game.phase == .HIDING || game.phase == .HUNTING;
+}
+
+join_hide_seek_as_seeker :: proc(player: Player) {
+    game := get_hide_seek_game();
+    if !#alive(game) { return; }
+    if game.phase != .HIDING && game.phase != .HUNTING { return; }
+    add_mid_round_seeker(game, player, game.phase == .HIDING);
+    refresh_hide_seek_counts(game);
+
+    desc := SFX.default_sfx_desc();
+    desc.specific_to_player = player;
+    desc.volume = 0.8;
+    desc.speed_perturb = 0;
+    SFX.play(get_asset(SFX_Asset, "bell-ding_b7781f.wav"), desc);
+}
+
+// Mid-round joiners land here instead of being drafted straight into the hunt.
+// They keep their nameplate and sit in the lobby, free to paint and emote, until
+// they choose to join as a seeker or the round ends and rolls them into the next.
+add_mid_round_waiter :: proc(game: Hide_Seek_Game, player: Player) {
+    player.hide_seek_role = .LOBBY;
+    player.pending_round_teleport = false;
+    player.pending_found_end_time = 0;
+    player.fat_stage = 0;
+    player.next_fat_time = 0;
+    clear_found_freeze(player);
+    // Their body is dimmed out for everyone in the round (see apply_hider_stealth);
+    // a floating nameplate over nothing would give that away. Restored by
+    // return_players_to_lobby when the round ends.
+    hide_round_name(player);
+    exit_paint_mode(player);
+    player.emotes_open = false;
+    player.active_pose = 0;
+    player.role_visual_applied = .NONE;
+    player.seeker_rig_ready = false;
+    player.streamed_seeker_rig_ready = false;
+    player.spawn_placed = true;
+    teleport_player_to_lobby(game, player);
+}
+
 add_mid_round_seeker :: proc(game: Hide_Seek_Game, player: Player, hide_phase: bool) {
     player.hide_seek_role = .SEEKER;
     player.pending_found_end_time = 0;
@@ -429,10 +531,21 @@ add_mid_round_seeker :: proc(game: Hide_Seek_Game, player: Player, hide_phase: b
     player.seeker_rig_ready = false;
     player.streamed_seeker_rig_ready = false;
     player.role_reveal_end_time = get_time() + ROLE_REVEAL_SECONDS;
+    trigger_role_roll(player);
     player.spawn_placed = true;
-    // During the hide phase seekers wait in the lobby; once hunting has begun
-    // a fresh seeker joins straight into the map.
-    if hide_phase {
+    // Same as a round start: placed once their reel lands, by whatever phase is
+    // running at that moment.
+    player.pending_round_teleport = true;
+}
+
+// Moves a player into position the moment their reel has landed and held on the
+// result. Destination is read from the live phase rather than captured at roll
+// time, so a roll that spans the hiding/hunting flip still lands correctly.
+apply_pending_round_teleport :: proc(game: Hide_Seek_Game, player: Player) {
+    if !player.pending_round_teleport { return; }
+    if !role_reel_revealed(player) { return; }
+    player.pending_round_teleport = false;
+    if player.hide_seek_role == .SEEKER && game.phase == .HIDING {
         teleport_player_to_lobby(game, player);
     } else {
         teleport_player_to_map(game, player);
@@ -498,8 +611,11 @@ refresh_hide_seek_counts :: proc(game: Hide_Seek_Game) {
 
 finish_hide_seek_round :: proc(game: Hide_Seek_Game, winner: Hide_Seek_Winner) {
     game.winner = winner;
+    game.round_start_pending = false;
     game.phase = .REVEAL;
     game.phase_end_time = get_time() + VICTORY_SCREEN_SECONDS;
+    // Round over - this server is a good landing spot again.
+    Server.set_matchmaking_priority(0);
     for player: component_iterator(Player) {
         if winner == .SEEKERS && player.hide_seek_role == .SEEKER {
             Global_Leaderboard.increment_score(player, SEEKER_WINS_LEADERBOARD, 1);
@@ -516,6 +632,8 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
         player.hide_seek_role = .HIDER;
         show_round_name(player);
         player.role_visual_applied = .NONE;
+        // A reel that never finished must not drag someone out of the lobby.
+        player.pending_round_teleport = false;
         player.found_banner_end_time = 0;
         player.pending_found_end_time = 0;
         clear_found_freeze(player);
@@ -587,12 +705,19 @@ apply_hider_stealth :: proc(local: Player) {
     // Only a hider mid-round is blind to fellow hiders. Otherwise everyone is
     // visible (seekers must see hiders; the lobby shows everyone).
     blind := local.hide_seek_role == .HIDER && hide_seek_round_active();
+    // Players who joined mid-round are standing in the lobby doing nothing. A
+    // seeker waiting out the hide phase shares that lobby, so an idle stranger
+    // there reads as a hider who failed to teleport. Hidden from anyone actually
+    // in the round; lobby waiters still see each other.
+    in_round := (local.hide_seek_role == .HIDER || local.hide_seek_role == .SEEKER) && hide_seek_round_active();
     for other: component_iterator(Player) {
         if other.entity.id == local.entity.id { continue; }
         if other.animator == null { continue; }
         c := other.animator.color_multiplier;
         caught_flickering := other.pending_found_end_time > get_time();
-        if blind && other.hide_seek_role == .HIDER && !caught_flickering {
+        hide_other := blind && other.hide_seek_role == .HIDER && !caught_flickering;
+        if in_round && other.hide_seek_role == .LOBBY { hide_other = true; }
+        if hide_other {
             c.w = 0;
         } else {
             c.w = 1;
@@ -687,6 +812,7 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
         player.seeker_rig_ready = false;
         player.streamed_seeker_rig_ready = false;
         player.role_reveal_end_time = get_time() + ROLE_REVEAL_SECONDS;
+        trigger_role_roll(player);
         player.active_pose = 0;
         player.spawn_placed = true;
         exit_paint_mode(player);
@@ -695,19 +821,24 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
         player.emotes_open = false;
         // Start every round clean; nothing carries over from the last one.
         remove_all_effects(player.entity);
-        // The seeker roams the lobby while the hiders get the map to themselves.
-        if player.hide_seek_role == .SEEKER {
-            teleport_player_to_lobby(game, player);
-        } else {
-            teleport_player_to_map(game, player);
-        }
+        // Held until the reel lands - players are moved once they know what they
+        // rolled, not while the strip is still spinning. See
+        // apply_pending_round_teleport.
+        player.pending_round_teleport = true;
     }
 
     game.phase = .HIDING;
+    // Held at the full duration until every reel has landed - see ao_update - so
+    // the hiding clock starts when players can actually act, not while they are
+    // still watching the roll.
+    game.round_start_pending = true;
     game.phase_end_time = get_time() + HIDE_PHASE_SECONDS;
     game.next_forced_whistle_time = 0;
     reset_hide_seek_scores(game);
     refresh_hide_seek_counts(game);
+    // A round is live, so matchmaking should fill servers that are still in the
+    // lobby before sending anyone here.
+    Server.set_matchmaking_priority(1);
     return true;
 }
 
@@ -731,6 +862,9 @@ startfat :: proc(command_player: Player) {
 
 begin_hide_seek_hunt :: proc(game: Hide_Seek_Game) {
     if !#alive(game) || game.phase != .HIDING { return; }
+    // Skipping straight to the hunt (/force_start, /skipwait) also ends the
+    // start-up hold, or the hunt clock would stay pinned.
+    game.round_start_pending = false;
     game.phase = .HUNTING;
     game.phase_end_time = get_time() + HUNT_PHASE_SECONDS;
     game.next_forced_whistle_time = get_time() + FORCED_WHISTLE_SECONDS;
@@ -1125,7 +1259,9 @@ update_hide_seek_player :: proc(player: Player) {
     if player.hide_seek_role == .SEEKER && (!player.streamed_seeker_rig_ready || player.role_visual_applied != .SEEKER || player.equipped_weapon_type != .NONE) {
         exit_paint_mode(player);
         apply_seeker_visuals(player);
-    } else if player.hide_seek_role == .HIDER && player.role_visual_applied != .HIDER {
+    } else if (player.hide_seek_role == .HIDER || player.hide_seek_role == .LOBBY) && player.role_visual_applied != .HIDER {
+        // Lobby waiters wear the same rig as hiders - it is the lobby look, and
+        // it keeps their paint job on while they wait out the round.
         apply_hider_visuals(player);
     }
 }
@@ -1137,10 +1273,12 @@ hide_seek_phase_title :: proc(game: Hide_Seek_Game, player: Player) -> string {
         case .MAP_SELECTION:          return "VOTE FOR A MAP";
         case .STARTING_GAME:          return "STARTING IN";
         case .HIDING: {
+            if player.hide_seek_role == .LOBBY { return "NEXT ROUND"; }
             if player.hide_seek_role == .SEEKER { return "WAIT"; }
             return "HIDE";
         }
         case .HUNTING: {
+            if player.hide_seek_role == .LOBBY { return "NEXT ROUND"; }
             if player.hide_seek_role == .SEEKER { return "FIND HIDERS"; }
             return "STAY HIDDEN";
         }
@@ -1155,6 +1293,8 @@ hide_seek_phase_title :: proc(game: Hide_Seek_Game, player: Player) -> string {
 draw_found_feed :: proc(player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) || get_time() >= game.found_feed_end_time { return; }
+    // Same reason as the leaderboard and whistle countdown: not their round.
+    if player.hide_seek_role == .LOBBY { return; }
     if game.found_feed_seeker_name == "" || game.found_feed_hider_name == "" { return; }
 
     elapsed := max(0.0, get_time() - game.found_feed_start_time);
@@ -1257,6 +1397,43 @@ draw_seeker_wait_icon :: proc(alpha: float) {
     icon_box.height = UIK.pixels(60);
     UIK.panel_begin(icon_box);
     UIK.image_fitted(get_asset(Texture_Asset, "stripe_triangle.png"), UIK.image_desc(.CONTAIN), v4.{1, 1, 1, alpha});
+    UIK.panel_end();
+}
+
+// For players who joined after the round started. Sits in the same top slot the
+// whistle countdown uses, which those players never see.
+draw_lobby_waiter_banner :: proc(player: Player, game: Hide_Seek_Game) {
+    if player.hide_seek_role != .LOBBY { return; }
+    if game.phase != .HIDING && game.phase != .HUNTING { return; }
+
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 104;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    banner := UIK.panel_modal(.TRANSP_BLACK, UIK.fit(), UIK.pixels(72), 14, v4.{6, 24, 6, 24});
+    banner.axis = .HORIZONTAL;
+    banner.cross_align = .CENTER;
+    banner.main_align = .CENTER;
+    UIK.overlay_begin(.TOP_CENTER, banner, v2.{0, -250});
+    defer UIK.overlay_end();
+
+    draw_waiter_warning_icon();
+    text_desc := UIK.text_title();
+    text_desc.set_size_mult(0.9);
+    text_desc.set_halign(.CENTER);
+    text_desc.set_color(v4.{1, 1, 1, 1});
+    text_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
+    UIK.text(text_desc, "ROUND IN PROGRESS - YOU PLAY NEXT");
+    draw_waiter_warning_icon();
+}
+
+draw_waiter_warning_icon :: proc() {
+    icon_box := UIK.layout_column();
+    icon_box.width = UIK.pixels(48);
+    icon_box.height = UIK.pixels(48);
+    UIK.panel_begin(icon_box);
+    UIK.image_fitted(get_asset(Texture_Asset, "stripe_triangle.png"), UIK.image_desc(.CONTAIN));
     UIK.panel_end();
 }
 
@@ -1487,7 +1664,8 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
     active_round := game.phase == .HIDING || game.phase == .HUNTING;
     draw_hide_time_banner(player, game);
     draw_seeker_wait_banner(player, game);
-    draw_whistle_warning_banner(game);
+    draw_whistle_warning_banner(player, game);
+    draw_lobby_waiter_banner(player, game);
     draw_search_start_banner(game);
     draw_found_banner(player);
     if active_round { draw_hourglass_flip(game); }
@@ -1623,6 +1801,14 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
     }
 }
 
+// Crowns for the podium, null past third so the row falls back to "#4".
+rank_crown_texture :: proc(rank_index: s64) -> Texture_Asset {
+    if rank_index == 0 { return get_asset(Texture_Asset, "crown_gold.png"); }
+    if rank_index == 1 { return get_asset(Texture_Asset, "crown_silver.png"); }
+    if rank_index == 2 { return get_asset(Texture_Asset, "crown_bronze.png"); }
+    return null;
+}
+
 draw_hide_seek_leaderboard :: proc(player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
@@ -1630,9 +1816,15 @@ draw_hide_seek_leaderboard :: proc(player: Player) {
     // Seekers are parked in the lobby for the whole hiding phase with no way to
     // act on standings, so the board only clutters their wait screen.
     if game.phase == .HIDING && player.hide_seek_role == .SEEKER { return; }
+    // Lobby waiters are not in this round at all, so they neither see the board
+    // nor appear on it.
+    if player.hide_seek_role == .LOBBY { return; }
 
     players: [..]Player;
-    for p: component_iterator(Player) { players.append(p); }
+    for p: component_iterator(Player) {
+        if p.hide_seek_role == .LOBBY { continue; }
+        players.append(p);
+    }
     if players.count == 0 { return; }
 
     // Insertion sort, highest published score first.
@@ -1702,10 +1894,17 @@ draw_hide_seek_leaderboard :: proc(player: Player) {
         rank_box.cross_align = .CENTER;
         rank_box.main_align = .CENTER;
         UIK.panel_begin(rank_box);
-        rank_desc := UIK.text_body();
-        rank_desc.set_size_mult(0.625);
-        rank_desc.set_halign(.CENTER);
-        UIK.text(rank_desc, `#{i + 1}`);
+        crown := rank_crown_texture(i);
+        if crown != null {
+            // Top three wear a crown instead of a number - the position reads at
+            // a glance and the row keeps the same height either way.
+            UIK.image_fitted(crown, UIK.image_desc(.CONTAIN));
+        } else {
+            rank_desc := UIK.text_body();
+            rank_desc.set_size_mult(0.625);
+            rank_desc.set_halign(.CENTER);
+            UIK.text(rank_desc, `#{i + 1}`);
+        }
         UIK.panel_end();
 
         name_box := UIK.layout_column();
@@ -1893,11 +2092,11 @@ draw_hide_seek_role_reveal :: proc(player: Player) {
     slide := Ease.slide_in_and_out(0.1, 1.0, progress);
 
     role_title := "YOU ARE A HIDER";
-    instruction := "Paint your character, blend into the map, and stay hidden.";
+    instruction := "Paint yourself to match the map, then hide before the timer runs out.";
     role_color := v4.{0.25, 1.0, 0.45, 1};
     if player.hide_seek_role == .SEEKER {
         role_title = "YOU ARE A SEEKER";
-        instruction = "Wait in the lobby, then shoot every hider you find.";
+        instruction = "Wait in the lobby until the timer runs out, then hunt the hiders.";
         role_color = v4.{1.0, 0.18, 0.18, 1};
     }
 
@@ -1910,6 +2109,74 @@ draw_hide_seek_role_reveal :: proc(player: Player) {
     defer UI.pop_color_multiplier();
 
     UI.quad(screen, core_globals.white_sprite, v4.{0, 0, 0, 0.9});
+    // Blocks taps from reaching the game underneath for the whole reveal. The
+    // close button below only exists once the roll is over.
+    UI.blocker(screen, "role reveal blocker");
+
+    // The reel owns the middle of the screen. Name and instructions stay hidden
+    // until it lands, so the result is not spoiled during the spin.
+    settled := draw_role_reel(player, screen);
+    if !settled {
+        spin_rect := screen.center_rect().grow(40, 520, 40, 520).offset(0, 250);
+        spin_settings := UI.default_text_settings();
+        spin_settings.size = 44;
+        spin_settings.color = v4.{1, 1, 1, 1};
+        spin_settings.halign = .CENTER;
+        spin_settings.valign = .CENTER;
+        spin_settings.do_outline = true;
+        spin_settings.outline_thickness = 5;
+        spin_settings.outline_color = v4.{0, 0, 0, 1};
+        UI.text(spin_rect, spin_settings, "ASSIGNING ROLE");
+        return;
+    }
+
+    // "YOU ARE A SEEKER" lands right after the reel stops, punching in over a
+    // short beat so it reads as the payoff of the roll rather than a caption
+    // that was always there.
+    settle_age := role_reel_settle_age(player);
+    reveal_t := clamp((settle_age - ROLE_REEL_HOLD) / 0.32, 0, 1);
+    reveal_ease := Ease.out_back(reveal_t);
+
+    content := screen.offset(slide * 100.0, 0);
+    title_rect := content.center_rect().grow(80, 520, 10, 520).offset(0, 250);
+    title_settings := UI.default_text_settings();
+    title_settings.size = 64 * lerp(0.55, 1.0, reveal_ease);
+    title_settings.color = v4.{role_color.x, role_color.y, role_color.z, reveal_t};
+    title_settings.halign = .CENTER;
+    title_settings.valign = .CENTER;
+    title_settings.do_outline = true;
+    title_settings.outline_thickness = 6;
+    title_settings.outline_color = v4.{0, 0, 0, reveal_t};
+    UI.text(title_rect, title_settings, role_title);
+
+    // The instruction follows a beat behind the role name.
+    instruction_t := clamp((settle_age - ROLE_REEL_HOLD - 0.22) / 0.3, 0, 1);
+    instruction_rect := screen.center_rect().offset(0, -260).grow(35, 400, 35, 400);
+    instruction_settings := UI.default_text_settings();
+    instruction_settings.size = 40;
+    instruction_settings.color = v4.{1, 1, 1, instruction_t};
+    instruction_settings.halign = .CENTER;
+    instruction_settings.valign = .CENTER;
+    instruction_settings.word_wrap = true;
+    UI.text(instruction_rect, instruction_settings, instruction);
+
+    // The timer bar and the close tap belong to the reveal, not the roll, so
+    // they arrive with the role name instead of sitting under the spinning reel.
+    if reveal_t <= 0 { return; }
+    bar_bg := screen.bottom_center_rect().offset(0, 180).grow(14, 310, 14, 310);
+    bar_inner := bar_bg.inset(4);
+    bar_fill := bar_inner.subrect(0, 0, progress, 1);
+    UI.quad(bar_bg, core_globals.white_sprite, v4.{0.78, 0.78, 0.82, reveal_t});
+    UI.quad(bar_inner, core_globals.white_sprite, v4.{0.08, 0.08, 0.10, reveal_t});
+    UI.quad(bar_fill, core_globals.white_sprite, v4.{role_color.x, role_color.y, role_color.z, reveal_t});
+
+    bar_text := UI.default_text_settings();
+    bar_text.size = 28;
+    bar_text.color = v4.{1, 1, 1, reveal_t};
+    bar_text.halign = .CENTER;
+    bar_text.valign = .CENTER;
+    UI.text(bar_bg.offset(0, 46), bar_text, "TAP TO CLOSE");
+
     close_bs := UI.default_button_settings();
     close_bs.sprite = core_globals.white_sprite;
     close_bs.color = v4.{0, 0, 0, 0};
@@ -1924,39 +2191,4 @@ draw_hide_seek_role_reveal :: proc(player: Player) {
     if close_result.just_pressed && remaining > 0.5 {
         player.role_reveal_end_time = get_time() + 0.5;
     }
-
-    content := screen.offset(slide * 100.0, 0);
-    title_rect := content.center_rect().grow(80, 520, 10, 520).offset(0, 70);
-    title_settings := UI.default_text_settings();
-    title_settings.size = 64;
-    title_settings.color = role_color;
-    title_settings.halign = .CENTER;
-    title_settings.valign = .CENTER;
-    title_settings.do_outline = true;
-    title_settings.outline_thickness = 6;
-    title_settings.outline_color = v4.{0, 0, 0, 1};
-    UI.text(title_rect, title_settings, role_title);
-
-    instruction_rect := title_rect.offset(0, -110).grow(35, 80, 35, 80);
-    instruction_settings := UI.default_text_settings();
-    instruction_settings.size = 40;
-    instruction_settings.color = v4.{1, 1, 1, 1};
-    instruction_settings.halign = .CENTER;
-    instruction_settings.valign = .CENTER;
-    instruction_settings.word_wrap = true;
-    UI.text(instruction_rect, instruction_settings, instruction);
-
-    bar_bg := screen.bottom_center_rect().offset(0, 180).grow(14, 310, 14, 310);
-    bar_inner := bar_bg.inset(4);
-    bar_fill := bar_inner.subrect(0, 0, progress, 1);
-    UI.quad(bar_bg, core_globals.white_sprite, v4.{0.78, 0.78, 0.82, 1});
-    UI.quad(bar_inner, core_globals.white_sprite, v4.{0.08, 0.08, 0.10, 1});
-    UI.quad(bar_fill, core_globals.white_sprite, role_color);
-
-    bar_text := UI.default_text_settings();
-    bar_text.size = 28;
-    bar_text.color = v4.{1, 1, 1, 1};
-    bar_text.halign = .CENTER;
-    bar_text.valign = .CENTER;
-    UI.text(bar_bg.offset(0, 46), bar_text, "TAP TO CLOSE");
 }

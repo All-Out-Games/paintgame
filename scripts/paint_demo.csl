@@ -611,6 +611,19 @@ draw_paint_mode_button :: proc(player: Player) {
     UIK.overlay_begin(.BOTTOM_CENTER, v2.{0, 28});
     defer UIK.overlay_end();
 
+    // Column so the Play as Seeker button can sit above the action row.
+    stack := UIK.layout_column();
+    stack.width = UIK.fit();
+    stack.height = UIK.fit();
+    stack.gap = 12;
+    stack.cross_align = .CENTER;
+    UIK.panel_begin(stack);
+    defer UIK.panel_end();
+
+    if !player.hide_game_ui {
+        draw_play_as_seeker_button(player);
+    }
+
     row := UIK.layout_row(UIK.fit(), UIK.fit(), 14);
     row.cross_align = .CENTER;
     UIK.panel_begin(row);
@@ -890,6 +903,7 @@ EMOTE_RAIL_WIDTH   :: 260.0;  // out to the far edge of the emote button
 RIGHT_RAIL_HALF_H  :: 160.0;  // matches the zoom bar's half height
 PAINT_BUTTON_HALF_W :: 197.0; // Cancel plus Hide UI, both 190 wide with a 14 gap
 PAINT_BUTTON_H      :: 92.0;  // their height plus the 28pt offset off the bottom
+PLAY_AS_SEEKER_BLOCK_H :: 96.0; // the 72pt button plus the 12pt gap, with margin
 
 point_in_rect :: proc(rect: Rect, point: v2) -> bool {
     return point.x >= rect.min.x && point.x <= rect.max.x && point.y >= rect.min.y && point.y <= rect.max.y;
@@ -901,6 +915,12 @@ mouse_over_paint_ui :: proc(player: Player, mouse_screen: v2) -> bool {
     // whatever else is on screen.
     paint_button := screen.bottom_center_rect().grow(PAINT_BUTTON_H, PAINT_BUTTON_HALF_W, 0, PAINT_BUTTON_HALF_W);
     if point_in_rect(paint_button, mouse_screen) { return true; }
+    // Play as Seeker stacks above that row, so it needs its own block region or
+    // clicking it would also drop paint on the character behind it.
+    if hide_seek_can_join_as_seeker(player) {
+        seeker_button := screen.bottom_center_rect().grow(PAINT_BUTTON_H + PLAY_AS_SEEKER_BLOCK_H, 180, -PAINT_BUTTON_H, 180);
+        if point_in_rect(seeker_button, mouse_screen) { return true; }
+    }
     zoom_rail := screen.right_center_rect().grow(RIGHT_RAIL_HALF_H, 0, RIGHT_RAIL_HALF_H, ZOOM_RAIL_WIDTH);
     if point_in_rect(zoom_rail, mouse_screen) { return true; }
 

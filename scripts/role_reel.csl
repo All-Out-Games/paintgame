@@ -1,0 +1,247 @@
+// Slot-machine reel for the role reveal. A vertical strip of HIDER/SEEKER tiles
+// scrolls down past a center window and eases to a stop on the player's role.
+//
+// The whole animation is a pure function of (get_time() - role_roll_start_time)
+// and the target index, so the client and the server draw identical frames and
+// nothing has to be reconciled. The roll is decided up front - here the winner
+// is the role the round already assigned, so the reel reveals a result rather
+// than producing one.
+
+ROLE_REEL_DURATION :: 1.95;
+ROLE_REEL_REVOLUTIONS :: 6;
+ROLE_REEL_SLOT_H :: 132.0;
+ROLE_REEL_WIDTH :: 660.0;
+ROLE_REEL_VISIBLE_RANGE :: 2;
+ROLE_REEL_GLOW_TEXTURE :: "blinded_effect_889bd4.png";
+ROLE_REEL_TICK_SFX :: "tick_4f7d58.wav";
+ROLE_REEL_ITEM_COUNT :: 2;
+ROLE_REEL_GLOW_SIZE :: 300.0;
+// The pointer art that brackets the winning row.
+ROLE_REEL_MARKER_TEXTURE :: "roll-selector.png";
+ROLE_REEL_MARKER_WIDTH :: 150.0;
+ROLE_REEL_MARKER_GAP :: 150.0;
+ROLE_REEL_MARKER_RIGHT_ROTATION :: 180.0;
+// After it lands the reel holds on the winner, then clears off so it is not
+// sitting on top of the "YOU ARE A ..." screen.
+ROLE_REEL_HOLD :: 0.55;
+ROLE_REEL_FADE :: 0.35;
+
+// Index 0 and 1 are the two reel faces. Kept in lockstep with role_reel_target.
+role_reel_item_label :: proc(index: s64) -> string {
+    if index == 1 { return "SEEKER"; }
+    return "HIDER";
+}
+
+// Reel-only palette: blue hider, red seeker, matching the reference art. The
+// rest of the game keeps green for hiders.
+role_reel_item_color :: proc(index: s64) -> v4 {
+    if index == 1 { return v4.{1.0, 0.24, 0.24, 1}; }
+    return v4.{0.29, 0.64, 1.0, 1};
+}
+
+role_reel_target :: proc(player: Player) -> s64 {
+    if player.hide_seek_role == .SEEKER { return 1; }
+    return 0;
+}
+
+// Called wherever a role reveal is armed, so the reel and the reveal share a
+// start time.
+trigger_role_roll :: proc(player: Player) {
+    player.role_roll_start_time = get_time();
+    player.role_roll_target = role_reel_target(player);
+    player.role_roll_last_tick = -1;
+}
+
+role_reel_progress :: proc(player: Player) -> float {
+    if player.role_roll_start_time <= 0 { return 1.0; }
+    elapsed := get_time() - player.role_roll_start_time;
+    return clamp(elapsed / ROLE_REEL_DURATION, 0.0, 1.0);
+}
+
+// Strip index currently centered in the window. Everything the reel draws hangs
+// off this one number.
+role_reel_scroll :: proc(player: Player) -> float, s64 {
+    progress := role_reel_progress(player);
+    n_items := ROLE_REEL_ITEM_COUNT.(float);
+    scroll_final := (ROLE_REEL_REVOLUTIONS.(float) * n_items + player.role_roll_target.(float) + 0.5) * ROLE_REEL_SLOT_H;
+
+    inv := 1.0 - progress;
+    eased := 1.0 - inv * inv * inv;
+    scroll := eased * scroll_final;
+    base_k := (scroll / ROLE_REEL_SLOT_H).(s64);
+    return scroll, base_k;
+}
+
+// Ticks live in the sim update, not the draw, so last_tick survives server
+// reconcile. Because the scroll eases out, the ticks slow to a crawl on their
+// own as the reel settles.
+update_role_reel :: proc(player: Player) {
+    if player.role_roll_start_time <= 0 { return; }
+    if role_reel_progress(player) >= 1.0 { return; }
+
+    _, base_k := role_reel_scroll(player);
+    if base_k == player.role_roll_last_tick { return; }
+    player.role_roll_last_tick = base_k;
+
+    desc := SFX.default_sfx_desc();
+    desc.specific_to_player = player;
+    desc.volume = 0.35;
+    desc.speed_perturb = 0.04;
+    SFX.play(get_asset(SFX_Asset, ROLE_REEL_TICK_SFX), desc);
+}
+
+// True once every player taking part in the round has seen their reel land.
+// Lobby waiters are not in the round, so they never hold it up.
+hide_seek_all_rolls_revealed :: proc() -> bool {
+    for player: component_iterator(Player) {
+        if player.hide_seek_role == .LOBBY || player.hide_seek_role == .NONE { continue; }
+        if !role_reel_revealed(player) { return false; }
+    }
+    return true;
+}
+
+// True once the reel has landed and held on the winner - the moment the role is
+// actually known to the player, and so the moment it is fair to move them.
+role_reel_revealed :: proc(player: Player) -> bool {
+    return role_reel_settle_age(player) >= ROLE_REEL_HOLD;
+}
+
+// The two glowing white bars that flank the winning row, marking which line of
+// the strip counts. Drawn as a soft wide glow with a bright core on top.
+draw_role_reel_markers :: proc(tile: Rect, alpha: float) {
+    marker := get_asset(Texture_Asset, ROLE_REEL_MARKER_TEXTURE);
+    if marker == null { return; }
+
+    center_y := tile.center().y;
+    half_w := ROLE_REEL_MARKER_WIDTH * 0.5;
+    left_x := tile.center().x - ROLE_REEL_MARKER_GAP - half_w;
+    right_x := tile.center().x + ROLE_REEL_MARKER_GAP + half_w;
+    half_h := half_w / max(0.0001, marker.get_aspect());
+
+    left := Rect.{
+        min = v2.{left_x - half_w, center_y - half_h},
+        max = v2.{left_x + half_w, center_y + half_h},
+    };
+    right := Rect.{
+        min = v2.{right_x - half_w, center_y - half_h},
+        max = v2.{right_x + half_w, center_y + half_h},
+    };
+
+    tint := v4.{1, 1, 1, alpha};
+    UI.quad(left, marker, tint);
+    UI.push_matrix(Matrix4.rotate_about_point(right.center(), ROLE_REEL_MARKER_RIGHT_ROTATION));
+    UI.quad(right, marker, tint);
+    UI.pop_matrix();
+}
+
+// Seconds since the reel stopped. Negative while it is still spinning. With no
+// roll armed it reports long settled, so the reveal text shows immediately
+// rather than fading in from an animation that never ran.
+role_reel_settle_age :: proc(player: Player) -> float {
+    if player.role_roll_start_time <= 0 { return 999.0; }
+    return get_time() - player.role_roll_start_time - ROLE_REEL_DURATION;
+}
+
+// Returns true once the reel has settled, so the caller knows when it may show
+// the role name and instructions.
+draw_role_reel :: proc(player: Player, screen: Rect) -> bool {
+    if player.role_roll_start_time <= 0 { return true; }
+
+    progress := role_reel_progress(player);
+    scroll, base_k := role_reel_scroll(player);
+    settled := progress >= 1.0;
+
+    // Once it has held on the winner the whole reel fades out, handing the
+    // screen to the role reveal instead of sitting on top of it.
+    settle_age := role_reel_settle_age(player);
+    reel_alpha := 1.0 - clamp((settle_age - ROLE_REEL_HOLD) / ROLE_REEL_FADE, 0, 1);
+    if reel_alpha <= 0 { return true; }
+    // The losing faces drop away as soon as it lands, so only the winner is left
+    // during the hold.
+    neighbor_alpha := reel_alpha * (1.0 - clamp(settle_age / 0.2, 0, 1));
+
+    center := screen.center();
+    center_y := center.y + 30;
+    half_w := ROLE_REEL_WIDTH * 0.5;
+    window := Rect.{
+        min = v2.{center.x - half_w, center_y - ROLE_REEL_SLOT_H * 1.5},
+        max = v2.{center.x + half_w, center_y + ROLE_REEL_SLOT_H * 1.5},
+    };
+
+    // No frame or tile plates - the labels float over the dimmed scene. The
+    // scissor still clips the strip so tiles fade out instead of running into
+    // the reveal text above and below.
+    UI.push_scissor(window);
+    defer UI.pop_scissor();
+
+    for off: -ROLE_REEL_VISIBLE_RANGE..ROLE_REEL_VISIBLE_RANGE {
+        k := base_k + off;
+        if k < 0 { continue; }
+        idx := k % ROLE_REEL_ITEM_COUNT;
+        if idx < 0 { idx += ROLE_REEL_ITEM_COUNT; }
+
+        tile_strip_y := (k.(float) + 0.5) * ROLE_REEL_SLOT_H;
+        screen_y := center_y - (tile_strip_y - scroll);
+
+        // Fake perspective: tiles shrink and fade with distance from the window
+        // center, which is what makes the strip read as a physical reel.
+        d := abs(off);
+        scale := 1.0;
+        tile_alpha := 1.0;
+        if d == 1 {
+            scale = 0.82;
+            tile_alpha = 0.65;
+        } else if d >= 2 {
+            scale = 0.6;
+            tile_alpha = 0.3;
+        }
+        if d == 0 {
+            tile_alpha *= reel_alpha;
+        } else {
+            tile_alpha *= neighbor_alpha;
+        }
+        if tile_alpha <= 0 { continue; }
+
+        color := role_reel_item_color(idx);
+        tile_h := ROLE_REEL_SLOT_H * scale;
+        tile_w := (ROLE_REEL_WIDTH - 40) * scale;
+        tile := Rect.{
+            min = v2.{center.x - tile_w * 0.5, screen_y - tile_h * 0.5},
+            max = v2.{center.x + tile_w * 0.5, screen_y + tile_h * 0.5},
+        };
+
+        if d == 0 {
+            pop := 0.0;
+            if settled {
+                elapsed := get_time() - player.role_roll_start_time;
+                pop = sin(min(1.0, (elapsed - ROLE_REEL_DURATION) * 6.0) * PI) * 0.12;
+            }
+            grow_x := tile.width() * pop * 0.5;
+            grow_y := tile.height() * pop * 0.5;
+            tile = tile.grow(grow_y, grow_x, grow_y, grow_x);
+            // The glow behind the center slot is what sells the landing.
+            // Sized off the tile center and fitted to the texture's own aspect -
+            // stretching the radial glow across the full tile width smears it.
+            glow_tex := get_asset(Texture_Asset, ROLE_REEL_GLOW_TEXTURE);
+            glow_half := ROLE_REEL_GLOW_SIZE * 0.5 * (1.0 + pop);
+            glow_rect := Rect.{
+                min = tile.center() - v2.{glow_half, glow_half},
+                max = tile.center() + v2.{glow_half, glow_half},
+            };
+            UI.quad(glow_rect.fit_aspect(glow_tex.get_aspect()), glow_tex, v4.{color.x, color.y, color.z, 0.75 * reel_alpha});
+            draw_role_reel_markers(tile, reel_alpha);
+        }
+
+        label := UI.default_text_settings();
+        label.size = 82 * scale;
+        label.color = v4.{color.x, color.y, color.z, tile_alpha};
+        label.halign = .CENTER;
+        label.valign = .CENTER;
+        label.do_outline = true;
+        label.outline_thickness = 5;
+        label.outline_color = v4.{0, 0, 0, tile_alpha};
+        UI.text(tile, label, role_reel_item_label(idx));
+    }
+
+    return settled;
+}
