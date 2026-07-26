@@ -1,0 +1,354 @@
+// Round scoring. Every award goes through award_points, which both banks the
+// score and queues a floating "+N reason" popup - a player should never gain
+// points without being told what for.
+
+SCORE_POPUP_SLOTS :: 4;
+SCORE_POPUP_SECONDS :: 2.2;
+
+// ── Hider awards ──────────────────────────────────────────────────────────────
+SCORE_ALIVE_INTERVAL   :: 10.0;  // +1 per interval survived
+SCORE_ALIVE_MAX        :: 18;
+SCORE_SURVIVE_ROUND    :: 20;
+SCORE_VISIBLE_INTERVAL :: 5.0;   // +1 per interval seen but not discovered
+SCORE_VISIBLE_MAX      :: 30;
+SCORE_WHISTLE          :: 2;
+SCORE_FINAL_HIDER      :: 8;
+
+// ── Seeker awards ─────────────────────────────────────────────────────────────
+SCORE_FIRST_DISCOVERY  :: 10;
+SCORE_CAPTURE          :: 8;
+SCORE_FAST_CAPTURE_MAX :: 8;     // scaled by how much round time is left
+SCORE_STREAK_SECONDS   :: 20.0;
+SCORE_STREAK_SECOND    :: 4;
+SCORE_STREAK_THIRD     :: 8;
+SCORE_FINAL_CAPTURE    :: 5;
+SCORE_ALL_FOUND        :: 15;
+
+// How close a seeker must be, with line of sight, for a hider to be "visible".
+SCORE_VISIBLE_RANGE :: 9.0;
+// Movement input above this counts as moving, which stops visibility scoring.
+SCORE_STILL_EPSILON :: 0.01;
+// Grace period before a hider counts as stationary, so a brief pause between
+// steps does not pay out.
+SCORE_STILL_DELAY :: 0.5;
+
+Score_Reason :: enum {
+    ALIVE;
+    SURVIVED;
+    HIDDEN_IN_PLAIN_SIGHT;
+    WHISTLE;
+    FINAL_HIDER;
+    FIRST_DISCOVERY;
+    CAPTURE;
+    FAST_CAPTURE;
+    STREAK;
+    FINAL_CAPTURE;
+    ALL_FOUND;
+}
+
+score_reason_label :: proc(reason: Score_Reason) -> string {
+    switch reason {
+        case .ALIVE:                 return "Still Hiding";
+        case .SURVIVED:              return "Survived";
+        case .HIDDEN_IN_PLAIN_SIGHT: return "Hidden In Plain Sight";
+        case .WHISTLE:               return "Whistle";
+        case .FINAL_HIDER:           return "Last Hider";
+        case .FIRST_DISCOVERY:       return "First Find";
+        case .CAPTURE:               return "Caught A Hider";
+        case .FAST_CAPTURE:          return "Fast Catch";
+        case .STREAK:                return "Catch Streak";
+        case .FINAL_CAPTURE:         return "Final Catch";
+        case .ALL_FOUND:             return "Found Everyone";
+        default:                     return "Points";
+    }
+}
+
+score_reason_color :: proc(reason: Score_Reason) -> v4 {
+    switch reason {
+        case .SURVIVED, .FINAL_HIDER:                 return v4.{0.25, 1.0, 0.45, 1};
+        case .FIRST_DISCOVERY, .ALL_FOUND, .STREAK:   return v4.{1.0, 0.55, 0.15, 1};
+        case .FAST_CAPTURE, .FINAL_CAPTURE, .CAPTURE: return v4.{1.0, 0.30, 0.30, 1};
+        default:                                      return HUD_YELLOW;
+    }
+}
+
+award_points :: proc(player: Player, amount: s64, reason: Score_Reason) {
+    if amount <= 0 { return; }
+    player.score += amount;
+
+    slot := player.score_popup_next % SCORE_POPUP_SLOTS;
+    player.score_popup_amount[slot] = amount;
+    player.score_popup_reason[slot] = reason.(s64);
+    player.score_popup_time[slot] = get_time();
+    player.score_popup_next = player.score_popup_next + 1;
+}
+
+reset_player_scoring :: proc(player: Player) {
+    player.score_alive_timer = 0;
+    player.score_alive_points = 0;
+    player.score_vis_timer = 0;
+    player.score_vis_points = 0;
+    player.score_still_time = 0;
+    player.score_last_capture_time = 0;
+    player.score_capture_streak = 0;
+    for i: 0..SCORE_POPUP_SLOTS - 1 {
+        player.score_popup_amount[i] = 0;
+        player.score_popup_time[i] = 0;
+    }
+}
+
+// ── Visibility ────────────────────────────────────────────────────────────────
+
+// Walls block sight. There is no collider raycast, so the segment is sampled and
+// each sample tested against the colliders near it - which is why this runs on a
+// timer rather than every frame.
+SCORE_LOS_SAMPLES :: 10;
+
+score_line_of_sight_clear :: proc(from: v2, to: v2) -> bool {
+    offset := to - from;
+    distance := length(offset);
+    if distance <= 0.001 { return true; }
+
+    midpoint := from + offset * 0.5;
+    boxes: [..]Box_Collider;
+    Scene.get_all_components_in_range(midpoint, distance * 0.5 + 2.0, ref boxes);
+    polys: [..]Polygon_Collider;
+    Scene.get_all_components_in_range(midpoint, distance * 0.5 + 2.0, ref polys);
+    if boxes.count == 0 && polys.count == 0 { return true; }
+
+    for i: 1..SCORE_LOS_SAMPLES - 1 {
+        t := i.(float) / SCORE_LOS_SAMPLES.(float);
+        sample := from + offset * t;
+        for b: 0..boxes.count - 1 {
+            if boxes[b].is_trigger { continue; }
+            if boxes[b].overlaps_point(sample) { return false; }
+        }
+        for p: 0..polys.count - 1 {
+            if polys[p].is_trigger { continue; }
+            if polys[p].overlaps_point(sample) { return false; }
+        }
+    }
+    return true;
+}
+
+// A hider is "seen" when a live seeker is in range with an unobstructed view.
+score_hider_is_seen :: proc(hider: Player) -> bool {
+    hider_pos := hider.entity.world_position;
+    for seeker: component_iterator(Player) {
+        if seeker.hide_seek_role != .SEEKER { continue; }
+        if !#alive(seeker.entity) { continue; }
+        seeker_pos := seeker.entity.world_position;
+        if length_squared(seeker_pos - hider_pos) > SCORE_VISIBLE_RANGE * SCORE_VISIBLE_RANGE { continue; }
+        if score_line_of_sight_clear(seeker_pos, hider_pos) { return true; }
+    }
+    return false;
+}
+
+// ── Per-frame accrual ─────────────────────────────────────────────────────────
+
+update_hide_seek_scoring :: proc(game: Hide_Seek_Game, dt: float) {
+    if game.phase != .HUNTING { return; }
+
+    for hider: component_iterator(Player) {
+        if hider.hide_seek_role != .HIDER { continue; }
+        // Discovered, being caught, or otherwise out of play earns nothing.
+        if hider.pending_found_end_time > get_time() { continue; }
+
+        // Alive: +1 every 10s, capped.
+        if hider.score_alive_points < SCORE_ALIVE_MAX {
+            hider.score_alive_timer += dt;
+            while hider.score_alive_timer >= SCORE_ALIVE_INTERVAL && hider.score_alive_points < SCORE_ALIVE_MAX {
+                hider.score_alive_timer -= SCORE_ALIVE_INTERVAL;
+                hider.score_alive_points += 1;
+                award_points(hider, 1, .ALIVE);
+            }
+        }
+
+        // Stationary tracking. Movement input, not position, so being shoved
+        // around does not disqualify a hider who is holding still.
+        moving := length_squared(hider.input_this_frame) > SCORE_STILL_EPSILON;
+        if moving {
+            hider.score_still_time = 0;
+            hider.score_vis_timer = 0;
+        } else {
+            hider.score_still_time += dt;
+        }
+
+        // Hidden in plain sight: seen by a seeker, holding still, undiscovered.
+        if hider.score_vis_points >= SCORE_VISIBLE_MAX { continue; }
+        if hider.score_still_time < SCORE_STILL_DELAY { continue; }
+        if !score_hider_is_seen(hider) {
+            hider.score_vis_timer = 0;
+            continue;
+        }
+        hider.score_vis_timer += dt;
+        while hider.score_vis_timer >= SCORE_VISIBLE_INTERVAL && hider.score_vis_points < SCORE_VISIBLE_MAX {
+            hider.score_vis_timer -= SCORE_VISIBLE_INTERVAL;
+            hider.score_vis_points += 1;
+            award_points(hider, 1, .HIDDEN_IN_PLAIN_SIGHT);
+        }
+    }
+}
+
+// ── Event awards ──────────────────────────────────────────────────────────────
+
+score_whistle :: proc(player: Player) {
+    if player.hide_seek_role != .HIDER { return; }
+    if !hide_seek_whistles_active() { return; }
+    award_points(player, SCORE_WHISTLE, .WHISTLE);
+}
+
+// Called when a hider is caught, before the victim's role flips.
+score_capture :: proc(game: Hide_Seek_Game, seeker: Player, victim: Player) {
+    if !#alive(seeker) { return; }
+
+    if !game.first_discovery_awarded {
+        game.first_discovery_awarded = true;
+        award_points(seeker, SCORE_FIRST_DISCOVERY, .FIRST_DISCOVERY);
+    }
+
+    award_points(seeker, SCORE_CAPTURE, .CAPTURE);
+
+    // Fast capture: the more of the round still on the clock, the bigger the
+    // bonus. A catch in the closing seconds is worth nothing extra.
+    remaining := max(0.0, game.phase_end_time - get_time());
+    fraction := clamp(remaining / HUNT_PHASE_SECONDS, 0, 1);
+    fast := (SCORE_FAST_CAPTURE_MAX.(float) * fraction).(s64);
+    if fast > 0 { award_points(seeker, fast, .FAST_CAPTURE); }
+
+    // Streak: consecutive catches inside the window escalate.
+    if seeker.score_last_capture_time > 0 && get_time() - seeker.score_last_capture_time <= SCORE_STREAK_SECONDS {
+        seeker.score_capture_streak += 1;
+    } else {
+        seeker.score_capture_streak = 1;
+    }
+    seeker.score_last_capture_time = get_time();
+    if seeker.score_capture_streak == 2 { award_points(seeker, SCORE_STREAK_SECOND, .STREAK); }
+    if seeker.score_capture_streak >= 3 { award_points(seeker, SCORE_STREAK_THIRD, .STREAK); }
+
+    // Counts are refreshed after the role flip, so the victim still reads as a
+    // hider here: 1 remaining means this was the last one.
+    hiders_left := 0;
+    for player: component_iterator(Player) {
+        if player.hide_seek_role == .HIDER { hiders_left += 1; }
+    }
+    if hiders_left <= 1 {
+        award_points(seeker, SCORE_FINAL_CAPTURE, .FINAL_CAPTURE);
+        for player: component_iterator(Player) {
+            if player.hide_seek_role != .SEEKER { continue; }
+            award_points(player, SCORE_ALL_FOUND, .ALL_FOUND);
+        }
+    }
+}
+
+// Called from refresh_hide_seek_counts once exactly one hider is left.
+score_final_hider :: proc(game: Hide_Seek_Game) {
+    if game.final_hider_awarded { return; }
+    if game.hiders_left != 1 { return; }
+    game.final_hider_awarded = true;
+    for player: component_iterator(Player) {
+        if player.hide_seek_role != .HIDER { continue; }
+        award_points(player, SCORE_FINAL_HIDER, .FINAL_HIDER);
+    }
+}
+
+// Called when the round ends: anyone still hiding made it out.
+score_round_end :: proc(game: Hide_Seek_Game) {
+    for player: component_iterator(Player) {
+        if player.hide_seek_role != .HIDER { continue; }
+        if player.pending_found_end_time > get_time() { continue; }
+        award_points(player, SCORE_SURVIVE_ROUND, .SURVIVED);
+    }
+}
+
+// ── Test hooks ────────────────────────────────────────────────────────────────
+// Mirrors of the local player's scoring state so tests can assert on it. A solo
+// test round makes the only player a seeker, so the role commands exist to put
+// the test player on either side.
+
+g_score_debug_total: s64;
+g_score_debug_alive: s64;
+g_score_debug_visible: s64;
+g_score_debug_first_discovery: bool;
+
+// Mirrors scoring onto globals every frame on whatever realm is running, so a
+// test can read them without a command hop. Single-player only by design: with
+// several players the last one to update wins.
+update_score_debug :: proc(player: Player) {
+    g_score_debug_total = player.score;
+    g_score_debug_alive = player.score_alive_points;
+    g_score_debug_visible = player.score_vis_points;
+    game := get_hide_seek_game();
+    if #alive(game) { g_score_debug_first_discovery = game.first_discovery_awarded; }
+}
+
+scoresnap :: proc(command_player: Player) {
+    g_score_debug_total = command_player.score;
+    g_score_debug_alive = command_player.score_alive_points;
+    g_score_debug_visible = command_player.score_vis_points;
+    game := get_hide_seek_game();
+    if #alive(game) { g_score_debug_first_discovery = game.first_discovery_awarded; }
+    Notifier.notify(command_player, `score {command_player.score} alive {command_player.score_alive_points} seen {command_player.score_vis_points}`);
+} @chat_command @owner_or_editor
+
+scorehider :: proc(command_player: Player) {
+    command_player.hide_seek_role = .HIDER;
+    command_player.role_visual_applied = .NONE;
+    command_player.score = 0;
+    reset_player_scoring(command_player);
+} @chat_command @owner_or_editor
+
+scoreseeker :: proc(command_player: Player) {
+    command_player.hide_seek_role = .SEEKER;
+    command_player.role_visual_applied = .NONE;
+    command_player.score = 0;
+    reset_player_scoring(command_player);
+} @chat_command @owner_or_editor
+
+// ── Popups ────────────────────────────────────────────────────────────────────
+
+// Floating "+N reason" above the player's own head. Drawn from their UI path, so
+// each player sees only their own awards.
+draw_score_popups :: proc(player: Player) {
+    shown := 0;
+    for i: 0..SCORE_POPUP_SLOTS - 1 {
+        if player.score_popup_amount[i] <= 0 { continue; }
+        age := get_time() - player.score_popup_time[i];
+        if age < 0 || age >= SCORE_POPUP_SECONDS { continue; }
+
+        t := age / SCORE_POPUP_SECONDS;
+        rise := Ease.out_cubic(t);
+        alpha := 1.0 - clamp((t - 0.6) / 0.4, 0, 1);
+        pop := Ease.out_back(clamp(age / 0.18, 0, 1));
+
+        world := player.entity.world_position + player.entity.calculate_interpolation_offset();
+        world.y += 1.9 + rise * 0.9;
+        position := world_to_screen(world);
+        // Stagger overlapping popups so a burst of awards stays readable.
+        position.y += shown.(float) * 34.0;
+        shown += 1;
+
+        reason := player.score_popup_reason[i].(Score_Reason);
+        color := score_reason_color(reason);
+
+        settings := UI.default_text_settings();
+        settings.size = 34 * lerp(0.6, 1.0, pop);
+        settings.color = v4.{color.x, color.y, color.z, alpha};
+        settings.halign = .CENTER;
+        settings.valign = .CENTER;
+        settings.do_outline = true;
+        settings.outline_thickness = 4;
+        settings.outline_color = v4.{0, 0, 0, alpha};
+
+        rect := Rect.{min = position - v2.{190, 22}, max = position + v2.{190, 22}};
+        UI.text(rect, settings, `+{player.score_popup_amount[i]} {score_reason_label(reason)}`);
+    }
+}
+
+draw_score_popups_screen :: proc(player: Player) {
+    UI.push_screen_draw_context();
+    defer UI.pop_draw_context();
+    UI.push_layer(142);
+    defer UI.pop_layer();
+    draw_score_popups(player);
+}

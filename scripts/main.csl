@@ -87,7 +87,6 @@ Player :: class : Player_Base {
     spawn_placed: bool;   // set once the game has positioned this player
     score: s64;             // live, ticks every frame
     published_score: s64;   // snapshot the leaderboard renders
-    proximity_timer: float; // seconds banked toward the next point
     weapon_target: Weapon_Target;
     equipped_weapon_type: Weapon_Type;
     equipped_item_def: Item_Definition;
@@ -110,6 +109,21 @@ Player :: class : Player_Base {
     pending_found_end_time: float;
     found_movement_frozen: bool;
     fat_stage: s64;
+    // Scoring (see scoring.csl). Timers accumulate toward each award; the
+    // *_points fields track progress against that award's cap.
+    score_alive_timer: float;
+    score_alive_points: s64;
+    score_vis_timer: float;
+    score_vis_points: s64;
+    score_still_time: float;
+    score_last_capture_time: float;
+    score_capture_streak: s64;
+    // Recent awards, drawn as floating text so a player sees what they earned and
+    // why. Ring buffer; reason is a Score_Reason stored as an int.
+    score_popup_amount: [SCORE_POPUP_SLOTS]s64;
+    score_popup_reason: [SCORE_POPUP_SLOTS]s64;
+    score_popup_time:   [SCORE_POPUP_SLOTS]float;
+    score_popup_next:   s64;
     show_paint_rect: bool;
     blind_start_time: float;
     blind_end_time: float;
@@ -173,6 +187,7 @@ Player :: class : Player_Base {
         update_hide_seek_player(this);
         update_player_sprint(this, dt);
         update_role_reel(this);
+        update_score_debug(this);
         update_countdown_tick_sound(this);
         if hide_seek_voting_focus_active() {
             if paint_mode || picker_open { exit_paint_mode(this); }
@@ -211,6 +226,8 @@ Player :: class : Player_Base {
             // Drawn before anything else and above the HUD: while blinded there
             // is nothing else worth showing.
             draw_seeker_blind(this);
+            // Above the round UI: a player must always see what they scored.
+            draw_score_popups_screen(this);
             voting_focus := hide_seek_voting_focus_active();
             if voting_focus {
                 draw_hide_seek_ui(this, dt);

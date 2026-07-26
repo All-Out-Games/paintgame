@@ -1,0 +1,31 @@
+// Round scoring. A solo test round makes the only player a seeker, so /scorehider
+// puts the test player on the hiding side; the phase machinery is otherwise real.
+
+test_hider_alive_points_accrue :: proc() {
+    Test.run_admin_command("start");
+    Test.wait_seconds(1.5);
+    Test.run_admin_command("skipwait");
+    Test.wait_seconds(0.5);
+    Test.run_admin_command("scorehider");
+    Test.wait_seconds(0.5);
+
+    // +1 per 10s alive, so two ticks inside 21 seconds and no third.
+    Test.wait_seconds(21.0);
+    Test.run_admin_command("scoresnap");
+    Test.assert_var_int("two alive ticks banked", "g_score_debug_alive", 2);
+    Test.assert_var_int("score matches the alive award", "g_score_debug_total", 2);
+}
+
+test_alive_points_stop_at_cap :: proc() {
+    Test.run_admin_command("start");
+    Test.wait_seconds(1.5);
+    Test.run_admin_command("skipwait");
+    Test.wait_seconds(0.5);
+    Test.run_admin_command("scorehider");
+
+    // Nothing accrues in the lobby phases, so a paused hider banks nothing extra
+    // once the round is over.
+    Test.wait_seconds(11.0);
+    Test.run_admin_command("scoresnap");
+    Test.assert_var_int("one tick after 11s", "g_score_debug_alive", 1);
+}

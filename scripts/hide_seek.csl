@@ -37,12 +37,9 @@ MAP_VOTE_BAR_INSET :: 5.0;
 HIDER_ANIMATOR_LAYER :: 1;
 SEEKER_ANIMATOR_LAYER :: 2;
 
-// Hiders earn points for every second a seeker is within this radius. The
-// score itself ticks continuously, but the board players see only refreshes
-// on LEADERBOARD_PUBLISH_SECONDS.
-SCORE_RADIUS :: 2.0;
+// Scoring lives in scoring.csl. The board mirrors the live score every frame.
 DEFAULT_POINTS_PER_SECOND :: 1;
-LEADERBOARD_PUBLISH_SECONDS :: 20.0;
+MATCH_REPORT_MAX_ROWS :: 8;
 LEADERBOARD_MAX_ROWS :: 8;
 HUD_YELLOW :: v4.{1.0, 0.85, 0.2, 1.0};
 SEEKER_WINS_LEADERBOARD :: "top_seeker_wins";
@@ -141,7 +138,6 @@ Hide_Seek_Game :: class : Component {
     map_votes: [TOTAL_MAP_COUNT]s64;
     vote_map_indices: [VOTE_CARD_COUNT]s64;
     previous_vote_map_indices: [VOTE_CARD_COUNT]s64;
-    next_publish_time: float;
     next_forced_whistle_time: float;
     found_feed_start_time: float;
     found_feed_end_time: float;
@@ -153,6 +149,9 @@ Hide_Seek_Game :: class : Component {
     // True between the roles being dealt and the last reel landing. The round
     // clock and scoring are held off until it clears.
     round_start_pending: bool;
+    // Scoring one-shots, reset per round (see scoring.csl).
+    first_discovery_awarded: bool;
+    final_hider_awarded: bool;
     debug_vote_active: bool;
     game_mode: Hide_Seek_Game_Mode;
 
@@ -204,17 +203,16 @@ Hide_Seek_Game :: class : Component {
             }
             refresh_hide_seek_counts(this);
             // No scoring while the roll is running: nobody has been teleported
-            // yet, so every hider would be banking proximity points off seekers
-            // standing next to them in the lobby.
-            if !round_start_pending { award_proximity_points(this, dt); }
+            // yet, so every hider would be standing in plain sight of a seeker
+            // in the lobby.
+            if !round_start_pending { update_hide_seek_scoring(this, dt); }
             if phase == .HUNTING && get_time() >= next_forced_whistle_time {
                 next_forced_whistle_time = get_time() + FORCED_WHISTLE_SECONDS;
                 force_all_hiders_whistle(this);
             }
-            if get_time() >= next_publish_time {
-                next_publish_time = get_time() + LEADERBOARD_PUBLISH_SECONDS;
-                publish_leaderboard(this);
-            }
+            // The board tracks the live score - awards land the moment they are
+            // earned, alongside the popup that explains them.
+            publish_leaderboard(this);
             if seekers <= 0 {
                 finish_hide_seek_round(this, .HIDERS);
                 return;
@@ -733,30 +731,6 @@ apply_pending_round_teleport :: proc(game: Hide_Seek_Game, player: Player) {
     }
 }
 
-// A hider banks points for every whole second a seeker spends inside
-// SCORE_RADIUS. Partial seconds are kept rather than reset, so repeatedly
-// dipping in and out of range still pays out.
-award_proximity_points :: proc(game: Hide_Seek_Game, dt: float) {
-    for hider: component_iterator(Player) {
-        if hider.hide_seek_role != .HIDER { continue; }
-        near := false;
-        for seeker: component_iterator(Player) {
-            if seeker.hide_seek_role != .SEEKER { continue; }
-            offset := seeker.entity.world_position - hider.entity.world_position;
-            if length_squared(offset) <= SCORE_RADIUS * SCORE_RADIUS {
-                near = true;
-                break;
-            }
-        }
-        if !near { continue; }
-        hider.proximity_timer += dt;
-        while hider.proximity_timer >= 1.0 {
-            hider.proximity_timer -= 1.0;
-            hider.score += game.points_per_second;
-        }
-    }
-}
-
 force_all_hiders_whistle :: proc(game: Hide_Seek_Game) {
     for player: component_iterator(Player) {
         if player.hide_seek_role != .HIDER { continue; }
@@ -776,9 +750,10 @@ reset_hide_seek_scores :: proc(game: Hide_Seek_Game) {
     for player: component_iterator(Player) {
         player.score = 0;
         player.published_score = 0;
-        player.proximity_timer = 0;
+        reset_player_scoring(player);
     }
-    game.next_publish_time = get_time() + LEADERBOARD_PUBLISH_SECONDS;
+    game.first_discovery_awarded = false;
+    game.final_hider_awarded = false;
 }
 
 refresh_hide_seek_counts :: proc(game: Hide_Seek_Game) {
@@ -788,10 +763,13 @@ refresh_hide_seek_counts :: proc(game: Hide_Seek_Game) {
         if player.hide_seek_role == .HIDER { game.hiders_left += 1; }
         if player.hide_seek_role == .SEEKER { game.seekers += 1; }
     }
+    if game.phase == .HUNTING { score_final_hider(game); }
 }
 
 finish_hide_seek_round :: proc(game: Hide_Seek_Game, winner: Hide_Seek_Winner) {
     game.winner = winner;
+    // Banked before the phase flips, while roles still say who was hiding.
+    score_round_end(game);
     game.round_start_pending = false;
     game.phase = .REVEAL;
     game.phase_end_time = get_time() + VICTORY_SCREEN_SECONDS;
@@ -1156,6 +1134,9 @@ begin_hider_found :: proc(game: Hide_Seek_Game, victim: Player, finder: Player) 
         victim.add_freeze_reason(FOUND_FREEZE_REASON);
         victim.found_movement_frozen = true;
     }
+    // Scored here rather than on the role flip: the victim still counts as a
+    // hider, which is how the final-capture bonus knows it was the last one.
+    score_capture(game, finder, victim);
     publish_found_message(game, finder, victim);
 }
 
@@ -2296,26 +2277,116 @@ draw_victory_screen :: proc(player: Player, game: Hide_Seek_Game, dt: float) {
     defer UIK.overlay_end();
 
     title_desc := UIK.text_title();
-    title_desc.set_size_mult(2.5);
+    title_desc.set_size_mult(2.2);
     title_desc.set_halign(.CENTER);
-    title_desc.set_color(result_color);
-    UIK.text(title_desc, winner_title);
+    title_desc.set_color(v4.{1, 1, 1, 1});
+    UIK.text(title_desc, "MATCH REPORT");
 
-    draw_uik_countdown(game);
+    countdown_desc := UIK.text_body();
+    countdown_desc.set_size_mult(1.0);
+    countdown_desc.set_halign(.CENTER);
+    countdown_desc.set_color(v4.{0.78, 0.82, 0.9, 1});
+    UIK.text(countdown_desc, `({remaining.(s64)}s)`);
 
-    return_desc := UIK.text_title();
-    return_desc.set_size_mult(1.15);
-    return_desc.set_halign(.CENTER);
-    UIK.text(return_desc, `Returning to lobby in {remaining.(s64)}s`);
+    winner_desc := UIK.text_title();
+    winner_desc.set_size_mult(1.15);
+    winner_desc.set_halign(.CENTER);
+    winner_desc.set_color(result_color);
+    UIK.text(winner_desc, winner_title);
 
-    result_desc := UIK.text_body();
-    result_desc.set_size_mult(1.1);
-    result_desc.set_halign(.CENTER);
-    result_desc.set_color(result_color);
-    if player_won {
-        UIK.text(result_desc, "YOUR TEAM WON");
-    } else {
-        UIK.text(result_desc, "YOUR TEAM LOST");
+    draw_match_report_ranking(player);
+}
+
+// Final standings, the same shape as the live board: crown for the podium, name
+// in the player's side colour, score on the right. The local player's row is
+// tinted so they can find themselves at a glance.
+draw_match_report_ranking :: proc(local: Player) {
+    players: [..]Player;
+    for p: component_iterator(Player) {
+        if p.hide_seek_role == .LOBBY { continue; }
+        players.append(p);
+    }
+    if players.count == 0 { return; }
+    if players.count > 1 {
+        for i: 1..players.count - 1 {
+            j := i;
+            while j > 0 && players[j].score > players[j - 1].score {
+                swap := players[j];
+                players[j] = players[j - 1];
+                players[j - 1] = swap;
+                j -= 1;
+            }
+        }
+    }
+
+    board := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(660), UIK.fit(), 6, v4.{14, 18, 14, 18});
+    board.cross_align = .STRETCH;
+    UIK.panel_begin(board);
+    defer UIK.panel_end();
+
+    heading := UIK.text_title();
+    heading.set_size_mult(0.8);
+    heading.set_halign(.CENTER);
+    heading.set_color(HUD_YELLOW);
+    UIK.text(heading, "RANKING");
+
+    shown := players.count;
+    if shown > MATCH_REPORT_MAX_ROWS { shown = MATCH_REPORT_MAX_ROWS; }
+    for i: 0..shown - 1 {
+        entry := players[i];
+        is_local := entry.entity.id == local.entity.id;
+
+        row := UIK.layout_row(UIK.flex(1), UIK.pixels(54), 10);
+        row.cross_align = .CENTER;
+        row.padding = v4.{0, 10, 0, 10};
+        if is_local {
+            row.background = .MODAL_TRANSP_BLACK;
+            row.tint = v4.{1.0, 0.85, 0.35, 0.55};
+        }
+        UIK.panel_begin(row);
+
+        rank_box := UIK.layout_column();
+        rank_box.width = UIK.pixels(64);
+        rank_box.cross_align = .CENTER;
+        rank_box.main_align = .CENTER;
+        UIK.panel_begin(rank_box);
+        crown := rank_crown_texture(i);
+        if crown != null {
+            UIK.image_fitted(crown, UIK.image_desc(.CONTAIN));
+        } else {
+            rank_desc := UIK.text_title();
+            rank_desc.set_size_mult(0.7);
+            rank_desc.set_halign(.CENTER);
+            UIK.text(rank_desc, `{i + 1}`);
+        }
+        UIK.panel_end();
+
+        name_box := UIK.layout_column();
+        name_box.width = UIK.flex(1);
+        name_box.cross_align = .CENTER;
+        name_box.main_align = .CENTER;
+        name_box.clip_children = true;
+        UIK.panel_begin(name_box);
+        name_desc := UIK.text_body();
+        name_desc.set_size_mult(0.85);
+        name_desc.set_halign(.LEFT);
+        name_desc.set_color(hide_seek_side_color(entry));
+        UIK.text(name_desc, entry.get_username());
+        UIK.panel_end();
+
+        score_box := UIK.layout_column();
+        score_box.width = UIK.pixels(120);
+        score_box.cross_align = .CENTER;
+        score_box.main_align = .CENTER;
+        UIK.panel_begin(score_box);
+        score_desc := UIK.text_title();
+        score_desc.set_size_mult(0.8);
+        score_desc.set_halign(.RIGHT);
+        score_desc.set_color(v4.{1, 1, 1, 1});
+        UIK.text(score_desc, `{entry.score}`);
+        UIK.panel_end();
+
+        UIK.panel_end();
     }
 }
 
@@ -2485,6 +2556,13 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
     }
 }
 
+// Which side a player is on, for any list that mixes them: seekers red, hiders
+// yellow.
+hide_seek_side_color :: proc(player: Player) -> v4 {
+    if player.hide_seek_role == .SEEKER { return v4.{1.0, 0.28, 0.28, 1}; }
+    return HUD_YELLOW;
+}
+
 // Crowns for the podium, null past third so the row falls back to "#4".
 rank_crown_texture :: proc(rank_index: s64) -> Texture_Asset {
     if rank_index == 0 { return get_asset(Texture_Asset, "crown_gold.png"); }
@@ -2540,29 +2618,6 @@ draw_hide_seek_leaderboard :: proc(player: Player) {
     title_desc := UIK.text_title();
     title_desc.set_size_mult(0.75);
     UIK.text(title_desc, "Ranking");
-
-    // Label and count are separate fixed lines. As one string the countdown
-    // wraps once it hits two digits, which resizes the panel every tick.
-    remaining := max(0.0, game.next_publish_time - get_time());
-    next_box := UIK.layout_column();
-    next_box.width = UIK.pixels(131.25);
-    next_box.height = UIK.pixels(60);
-    next_box.gap = 0;
-    next_box.cross_align = .CENTER;
-    next_box.main_align = .CENTER;
-    next_box.clip_children = true;
-    UIK.panel_begin(next_box);
-    next_label := UIK.text_body();
-    next_label.set_size_mult(0.625);
-    next_label.set_halign(.CENTER);
-    next_label.set_color(HUD_YELLOW);
-    UIK.text(next_label, "Next update");
-    next_value := UIK.text_body();
-    next_value.set_size_mult(0.625);
-    next_value.set_halign(.CENTER);
-    next_value.set_color(HUD_YELLOW);
-    UIK.text(next_value, `{remaining.(s64)}`);
-    UIK.panel_end();
     UIK.panel_end();
 
     shown := players.count;
@@ -2600,8 +2655,7 @@ draw_hide_seek_leaderboard :: proc(player: Player) {
         name_desc := UIK.text_body();
         name_desc.set_size_mult(0.625);
         name_desc.set_halign(.CENTER);
-        color := entry.avatar_color;
-        if color != .NONE { name_desc.set_color(color_replace_get_color(color)); }
+        name_desc.set_color(hide_seek_side_color(entry));
         UIK.text(name_desc, entry.get_username());
         UIK.panel_end();
 

@@ -65,6 +65,9 @@ draw_whistle_button :: proc(player: Player) {
 
     if !on_cooldown && UIK.clicked(whistle_result) {
         blow_whistle(player);
+        // Only a deliberate whistle scores - the forced round whistle is not
+        // something the hider chose to do.
+        score_whistle(player);
         player.whistle_button_ready_time = get_time() + WHISTLE_BUTTON_COOLDOWN_SECONDS;
     }
 }
