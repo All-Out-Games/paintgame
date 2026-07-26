@@ -123,7 +123,6 @@ Player :: class : Player_Base {
     score_popup_reason: [SCORE_POPUP_SLOTS]s64;
     score_popup_time:   [SCORE_POPUP_SLOTS]float;
     score_popup_next:   s64;
-    show_paint_rect: bool;
     blind_start_time: float;
     blind_end_time: float;
     next_fat_time: float;
@@ -253,7 +252,6 @@ Player :: class : Player_Base {
                     draw_paint_line_preview(this);
                     draw_paint_cursor(this);
                 }
-                draw_paint_rect_debug(this);
                 draw_sprint_stamina(this);
                 // Sprint takes the primary slot now that the whistle has its own
                 // HUD button. Seekers keep Catch primary and get Sprint beside it.

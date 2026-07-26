@@ -389,33 +389,6 @@ draw_paint_line_preview :: proc(player: Player) {
 // Screen-space brush preview. Its diameter is derived from the same
 // character-space texel scale used by Dynamic_Canvas, so it matches the
 // painted footprint at every camera zoom level.
-// Debug overlay: outlines the canvas rect the paint mapping is using, in world
-// space around the character. If the box does not hug the body, the rect for that
-// fat stage is wrong; if it hugs the body but paint still lands elsewhere, the
-// body is being drawn through a different (stale) override.
-draw_paint_rect_debug :: proc(player: Player) {
-    if !player.show_paint_rect { return; }
-    if player.animator == null { return; }
-
-    rect_min, rect_max := paint_canvas_rect(player);
-    origin := player.entity.world_position + player.entity.calculate_interpolation_offset();
-    scale := SPRITE_RENDER_SCALE;
-    bl := world_to_screen(origin + v2.{rect_min.x * scale, rect_min.y * scale});
-    tr := world_to_screen(origin + v2.{rect_max.x * scale, rect_max.y * scale});
-    box := Rect.{min = v2.{min(bl.x, tr.x), min(bl.y, tr.y)}, max = v2.{max(bl.x, tr.x), max(bl.y, tr.y)}};
-
-    UI.push_screen_draw_context();
-    defer UI.pop_draw_context();
-    UI.push_layer(131);
-    defer UI.pop_layer();
-    thickness := 2.0;
-    color := v4.{0.2, 1.0, 0.4, 0.9};
-    UI.quad(Rect.{min = box.min, max = v2.{box.max.x, box.min.y + thickness}}, core_globals.white_sprite, color);
-    UI.quad(Rect.{min = v2.{box.min.x, box.max.y - thickness}, max = box.max}, core_globals.white_sprite, color);
-    UI.quad(Rect.{min = box.min, max = v2.{box.min.x + thickness, box.max.y}}, core_globals.white_sprite, color);
-    UI.quad(Rect.{min = v2.{box.max.x - thickness, box.min.y}, max = box.max}, core_globals.white_sprite, color);
-}
-
 draw_paint_cursor :: proc(player: Player) {
     if !player.paint_mode || !player.wear_paint_enabled || player.skin_canvas == null { return; }
 
