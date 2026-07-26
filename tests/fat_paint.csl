@@ -1,45 +1,63 @@
-// Painting has repeatedly broken when a hider GROWS into a fat stage, while
-// jumping straight to that stage with /fat worked. This walks the growth path
-// one stage at a time and asserts the canvas lookup still finds the body.
+// Painting has repeatedly broken when a hider GROWS into a fat stage. This walks
+// the growth path one stage at a time and asserts the canvas lookup still finds
+// the body.
 //
-// g_paint_hit_ratio is the share of a grid over the stage's canvas rect that
-// lands on the silhouette; g_paint_center_hit is a single probe at chest height.
-// A broken binding reports 0 and false - the body renders but nothing is under
-// the brush.
+// g_paint_hit_ratio is the share of a grid over the canvas rect that lands on the
+// character; g_paint_center_hit is a single probe at chest height. A broken
+// binding reports 0 and false - the body renders but nothing is under the brush.
+//
+// Two things this test needs to be meaningful, both learned the hard way:
+//   - Dummy players. A one-player FAT round has nobody to seek, so it finishes
+//     and returns everyone to the lobby part-way through, and every stage after
+//     that measures a lobby body rather than a fat one.
+//   - /behider. A round always rolls its first player as the seeker, and seekers
+//     wear a different rig entirely, so without this the whole run measures a
+//     seeker and the assertions say nothing about fat bodies at all.
+
+check_stage_paintable :: proc(stage_label: string) {
+    Test.run_admin_command("paintcoverage");
+    Test.assert_var_bool(`{stage_label} chest paintable`, "g_paint_center_hit", true);
+    Test.assert_var_float(`{stage_label} coverage`, "g_paint_hit_ratio", 0.35, 0.34);
+}
 
 test_paint_works_after_each_growth :: proc() {
+    Test.spawn_dummy_players(3);
+    Test.wait_seconds(6.0);
     Test.run_admin_command("startfat");
     Test.wait_seconds(1.0);
     Test.run_admin_command("skipwait");
     Test.wait_seconds(1.0);
+    Test.run_admin_command("behider");
+    Test.wait_seconds(2.0);
+    Test.run_admin_command("fat0");
+    Test.wait_seconds(2.0);
 
-    // Stage 0 is the baseline: whatever coverage a healthy body reports.
-    Test.run_admin_command("paintcoverage");
-    Test.assert_var_bool("stage 0 chest paintable", "g_paint_center_hit", true);
-    Test.assert_var_float("stage 0 coverage", "g_paint_hit_ratio", 0.35, 0.35);
-
-    Test.run_admin_command("growfat");
-    Test.wait_seconds(0.5);
-    Test.run_admin_command("paintcoverage");
-    Test.assert_var_bool("stage 1 chest paintable", "g_paint_center_hit", true);
-    Test.assert_var_float("stage 1 coverage", "g_paint_hit_ratio", 0.35, 0.35);
+    check_stage_paintable("stage 0");
 
     Test.run_admin_command("growfat");
-    Test.wait_seconds(0.5);
-    Test.run_admin_command("paintcoverage");
-    Test.assert_var_bool("stage 2 chest paintable", "g_paint_center_hit", true);
-    Test.assert_var_float("stage 2 coverage", "g_paint_hit_ratio", 0.35, 0.35);
+    Test.wait_seconds(2.0);
+    check_stage_paintable("stage 1");
 
     Test.run_admin_command("growfat");
-    Test.wait_seconds(0.5);
-    Test.run_admin_command("paintcoverage");
-    Test.assert_var_bool("stage 3 chest paintable", "g_paint_center_hit", true);
-    Test.assert_var_float("stage 3 coverage", "g_paint_hit_ratio", 0.35, 0.35);
+    Test.wait_seconds(2.0);
+    check_stage_paintable("stage 2");
 
     Test.run_admin_command("growfat");
-    Test.wait_seconds(0.5);
-    Test.run_admin_command("paintcoverage");
-    Test.assert_var_bool("stage 4 chest paintable", "g_paint_center_hit", true);
-    Test.assert_var_float("stage 4 coverage", "g_paint_hit_ratio", 0.35, 0.35);
+    Test.wait_seconds(2.0);
+    check_stage_paintable("stage 3");
+
+    Test.run_admin_command("growfat");
+    Test.wait_seconds(2.0);
+    check_stage_paintable("stage 4");
     Test.screenshot("fat4_after_growth");
+
+    // Every pose is a state per fat stage, so opening the menu and holding one
+    // also proves that state machine actually built.
+    Test.click_button("emotes_button");
+    Test.wait_seconds(1.0);
+    Test.screenshot("emote_menu");
+    Test.click_button("Handstand");
+    Test.wait_seconds(1.5);
+    Test.screenshot("emote_handstand_at_fat4");
+    check_stage_paintable("stage 4 posed");
 }

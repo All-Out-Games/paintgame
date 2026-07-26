@@ -22,11 +22,10 @@
 //   X                       - debug: flood the canvas's left half red
 //                             (orientation ground truth for mirror checks)
 
-// The Mecha setup pose is about 2.08 wide x 2.34 tall with its arms extended.
-// Keep texels square across that full frame; using the narrower arms-down idle
-// silhouette would collapse the setup-pose arms onto the canvas edge.
-SKIN_TEXELS_X :: 150;
-SKIN_TEXELS_Y :: 168;
+// The rig draws every frame into a 384 x 392 box, so keep the canvas to that
+// aspect and texels stay square across the whole character.
+SKIN_TEXELS_X :: 160;
+SKIN_TEXELS_Y :: 163;
 
 // Brush radius range (texels) for the picker's brush-size slider.
 BRUSH_MIN :: 1.0;
@@ -35,17 +34,11 @@ BRUSH_MAX :: 24.0;
 SCENE_SAMPLE_FILL_TAG      :: 1;
 SCENE_SAMPLE_PICK_ONLY_TAG :: 2;
 
-// The Mecha rig exposes a single paintable attachment (meccha_MC_circular on
-// bone body), so there is one canvas override per player.
+// The rig animates by swapping one slot's attachment frame by frame, so the
+// canvas is bound across every frame of the current stage rather than to a
+// single attachment. override_ids[0] just holds the last handle, as a
+// "something is bound" flag; bind_sprite_paint_canvas owns the real list.
 PAINTED_ATTACHMENT_COUNT :: 1;
-
-// The character-space frame (setup pose, entity-local units) the paint canvas
-// stretches over. These are the Spine export's actual setup-pose bounds after
-// the engine's import scale, including the horizontally extended arms.
-PAINT_RECT_MIN_X :: -1.0294;
-PAINT_RECT_MIN_Y :: -0.0754;
-PAINT_RECT_MAX_X ::  1.0488;
-PAINT_RECT_MAX_Y ::  2.2620;
 
 reset_paint_to_base :: proc(player: Player) {
     if player.skin_canvas == null { return; }
@@ -157,15 +150,12 @@ Paint_Demo :: class : Component {
             player.wear_paint_enabled = true;
             if player.override_ids[0] == 0 { wear_paint(player, skin); }
         }
-        // Press N: back to the normal look.
+        // Press N: back to the normal look. Every frame of the stage carries the
+        // canvas, so this has to drop the whole set, not just the last handle.
         if get_input_down(.N, false) {
             player.wear_paint_enabled = false;
-            for i: 0..PAINTED_ATTACHMENT_COUNT-1 {
-                if player.override_ids[i] != 0 {
-                    player.animator.instance.clear_attachment_sprite_override(player.override_ids[i]);
-                    player.override_ids[i] = 0;
-                }
-            }
+            clear_paint_overrides(player);
+            player.override_ids[0] = 0;
         }
 
         left_down := get_input_down(.MOUSE_LEFT, false);
@@ -252,10 +242,10 @@ Paint_Demo :: class : Component {
 }
 
 brush_world_radius :: proc(player: Player) -> float {
-    // Scales with the canvas rect AND with how large the stage's constraint
-    // draws the body, or the brush would cover a smaller share of a fat body
-    // than the cursor ring shows.
-    return player.brush_radius * ((PAINT_RECT_MAX_X - PAINT_RECT_MIN_X) * paint_rect_scale(player) / SKIN_TEXELS_X.(float)) * MECHA_RENDER_SCALE * fat_body_scale(player);
+    // The canvas frame is the same size at every stage, so the brush covers the
+    // same share of the body no matter how fat the hider is.
+    rect_width := SPRITE_PAINT_RECT_MAX_X - SPRITE_PAINT_RECT_MIN_X;
+    return player.brush_radius * (rect_width / SKIN_TEXELS_X.(float)) * SPRITE_RENDER_SCALE;
 }
 
 // World-space spacing between mesh probes along a committed line, and a ceiling
@@ -340,211 +330,19 @@ try_get_brush_canvas_px :: proc(player: Player, skin: Dynamic_Canvas, mouse: v2)
     return v2.{0, 0}, false, 0.0;
 }
 
-MECHA_RIG_PATH :: "Spines/MechaCharacter/mc_player_silhouette.spine";
-MECHA_SKIN     :: "clean3";
-MECHA_RENDER_SCALE :: 0.70;
-// Each skin binds a differently-named attachment to the body slot, and
-// override_attachment_canvas targets by attachment name - so this must match
-// the enabled skin (clean -> meccha_MC_circular, clean3 -> meccha_MC_circular5).
-MECHA_PAINT_ATTACHMENT :: "meccha_MC_circular5";
-
-mecha_paint_attachment :: proc(player: Player) -> string {
-    if player.fat_stage == 1 { return "scaling_up/meccha_PC_fat1"; }
-    if player.fat_stage == 2 { return "scaling_up/meccha_PC_fat2"; }
-    if player.fat_stage == 3 { return "scaling_up/meccha_PC_fat3"; }
-    if player.fat_stage >= 4 { return "scaling_up/meccha_PC_fat4"; }
-    return MECHA_PAINT_ATTACHMENT;
-}
-
-// Swap the player off the default rig onto the Mecha silhouette, then install
-// its locomotion and emote layers. The engine can finish building
-// player.animator after Player.ao_start, and the swapped skeleton's state
-// machine may not be ready in the same frame, so each step is retried from
-// ao_update and latches once done. Runs on client and server alike so the swap
-// and animation state replicate.
-ensure_mecha_rig :: proc(player: Player) {
-    if player.animator == null { return; }
-    player.animator.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
-
-    if !player.rig_swapped {
-        deactivate_seeker_animation_layer(player);
-        player.animator.set_skeleton(get_asset(Spine_Asset, MECHA_RIG_PATH));
-        player.rig_swapped = true;
-    }
-
-    // Keep skin selection separate from the rig-swap latch. This makes a skin
-    // change take effect for players that already existed before a hot reload.
-    if !player.mecha_skin_applied {
-        player.animator.disable_all_skins();
-        player.animator.enable_skin(MECHA_SKIN);
-        player.animator.refresh_skins();
-        player.mecha_skin_applied = true;
-    }
-
-    if player.rig_swapped && !player.locomotion_ready {
-        sm := player.animator.state_machine;
-        if sm != null && setup_mecha_locomotion(sm) {
-            player.locomotion_ready = true;
-        }
-    }
-}
-
-// Remote players' simulation positions advance at network snapshot cadence in
-// deployed games. The engine's position-delta-based `moving` variable therefore
-// pulses false between snapshots and repeatedly re-enters the run state. Keep
-// the built-in layer valid via the rig's Idle / Run_Fast clips, but cover it with
-// a Mecha locomotion layer driven by stable, replicated input intent instead.
-// Returns false until the built-in state machine is fully initialized.
-// Clears a running emote and hands the locomotion tracks back to their initial
-// states. Pose clips park "main" and mecha_locomotion on __CLEAR_TRACK__ while
-// mecha_pose is above zero, and only mecha_pose returning to 0 releases them -
-// so the machine has to be told, not just the player field.
-//
-// Safe on any rig: a machine that never had the mecha variables has no emote to
-// release, hence the try_get_variable guard rather than a role check.
-release_mecha_emote :: proc(player: Player) {
-    player.active_pose = 0;
-    if player.animator == null { return; }
-    sm := player.animator.state_machine;
-    if sm == null { return; }
-    if sm.try_get_variable("mecha_pose") == null { return; }
-    sm.set_int("mecha_pose", 0);
-    sm.set_bool("mecha_moving", false);
-}
-
-setup_mecha_locomotion :: proc(sm: State_Machine) -> bool {
-    if sm.try_get_variable("moving") == null { return false; }
-    // Idempotent on purpose: if a machine ever survives a rig swap with these
-    // layers still attached, building them again would duplicate every state.
-    if sm.try_get_variable("mecha_moving") != null { return true; }
-    moving := sm.create_variable("mecha_moving", .BOOL);
-    running := sm.create_variable("mecha_running", .BOOL);
-    pose := sm.create_variable("mecha_pose", .INT);
-    layer := sm.create_layer("mecha_locomotion", 3);
-    idle_state := layer.create_state("idle_anim", true);
-    walk_state := layer.create_state("walk_anim", true);
-    run_state  := layer.create_state("run_anim2", true);
-    // Pose clips do not key every bone, so whatever plays underneath bleeds
-    // through and the character still looks like it is running. Park this
-    // track entirely while an emote is active. Pose 0 means "no emote", and
-    // there is no NOT_EQUAL condition, hence >= 1.
-    empty_state := layer.create_state("__CLEAR_TRACK__", true);
-    layer.set_initial_state(idle_state);
-    layer.create_transition(idle_state, walk_state, false).create_bool_condition(moving, true);
-    layer.create_transition(walk_state, idle_state, false).create_bool_condition(moving, false);
-    layer.create_transition(walk_state, run_state, false).create_bool_condition(running, true);
-    layer.create_transition(run_state, walk_state, false).create_bool_condition(running, false);
-    layer.create_global_transition(empty_state, false).create_int_condition(pose, 1, .GREATER_EQUAL);
-    layer.create_transition(empty_state, idle_state, false).create_int_condition(pose, 0, .EQUAL);
-    silence_built_in_mecha_locomotion(sm, pose);
-    setup_mecha_emotes(sm, pose);
-    return true;
-}
-
-// The engine's own "main" layer keeps playing Idle underneath everything, and
-// its leg keys show through any pose that does not key them. Park it while an
-// emote is active, then hand control back to the engine's initial state.
-silence_built_in_mecha_locomotion :: proc(sm: State_Machine, pose: State_Machine_Variable) {
-    layer := sm.try_get_layer("main");
-    if layer == null { return; }
-    empty_state := layer.create_state("__CLEAR_TRACK__", true);
-    // The engine's default main layer references Idle/Run, which this custom
-    // rig does not contain. Track 3 supplies locomotion, so park track 0 for
-    // every valid pose value instead of letting it request unknown clips.
-    layer.create_global_transition(empty_state, false).create_int_condition(pose, 0, .GREATER_EQUAL);
-}
-
-// Active emote count and the pose-value -> clip mapping, shared so the emote
-// state machine and anything replaying a captured pose (the death body) agree.
+// Active emote count, shared so the state machine and the emote menu agree.
 // Kept in lockstep with the labels/icons in draw_emote_menu - same order, same
-// count - so a button's grid index maps to the matching pose value.
-// Commented entries can come back by uncommenting in all three places together.
-MECHA_EMOTE_COUNT :: 4;
-
-// pose is the player.active_pose value: 0 means no emote, 1..N select a clip.
-mecha_pose_clip :: proc(pose: s64) -> string {
-    if pose == 1 { return "pose/balancing"; }
-    if pose == 2 { return "pose/idle"; }
-    if pose == 3 { return "pose/star"; }
-    if pose == 4 { return "pose/t_pose"; }
-    // if pose == 5 { return "pose/ball"; }
-    // ... "pose/bend", "pose/bridge", "pose/costanza", "pose/future",
-    //     "pose/handstand", "pose/lying", "pose/mid_run", "pose/sitting",
-    //     "pose/superman", "pose/surrender", "pose/yoga"
-    return "";
-}
-
-setup_mecha_emotes :: proc(sm: State_Machine, pose: State_Machine_Variable) {
-    layer := sm.create_layer("mecha_emotes", 4);
-    empty := layer.create_state("__CLEAR_TRACK__", true);
-    layer.set_initial_state(empty);
-    layer.create_global_transition(empty, false).create_int_condition(pose, 0, .EQUAL);
-
-    for i: 1..MECHA_EMOTE_COUNT {
-        state := layer.create_state(mecha_pose_clip(i), true);
-        layer.create_global_transition(state, false).create_int_condition(pose, i, .EQUAL);
-    }
-}
-
-// Wear the paint: override the Mecha silhouette's single body attachment
-// (meccha_MC_circular) with the canvas in skeleton-space mode, so the whole
-// character is one continuous painted surface framed by the paint rect. The
-// override id and canvas rect are reconciled scene state, so every client and
-// late joiner renders the worn paint automatically.
-// The canvas maps every vertex by its SETUP-POSE position through this rect, so
-// the rect must be the setup-pose bounding box of the art bound to the slot. The
-// base values above are exactly that box for the clean silhouette.
-//
-// The fat skins are separate meshes, each weighted to its own fat_scale_N bone,
-// so each stage needs its own box rather than a scaled copy of the base one.
-//
-// It is the SETUP-POSE box of the mesh and nothing else. Enabling skin fatN also
-// activates a transform constraint that drives fat_scale (the parent of the body
-// and both legs) from fat_scale_N, copying that bone's 1.05/1.10/1.15/1.20 scale
-// and its y of -186..-220 onto the whole character - which is what makes the
-// character look fat, and is entirely a RUNTIME pose effect. The engine maps
-// canvas UVs from setup-pose positions, where no constraint has run, so folding
-// the constraint into these numbers (as this used to) shifts the whole mapping
-// down by most of a unit and shrinks it. Measured in-game with /paintsolve, the
-// stage 2 body maps onto canvas rows 0..0.71 with everything above setup y 1.81
-// falling off the top of the canvas entirely, and stages 3 and 4 miss the canvas
-// so completely that nothing is paintable at all.
-//
-// So these are the raw mesh boxes in setup pose, converted with the same units
-// the base rect uses, plus 1% margin. They come out close to the base rect
-// because the meshes really are drawn at close to the same size - the difference
-// between the stages is the constraint, which does not belong here.
-FAT_PAINT_RECT_1 :: v4.{-1.1625, -0.1581, 1.1315, 2.3312};
-FAT_PAINT_RECT_2 :: v4.{-1.1777, -0.1814, 1.1781, 2.3155};
-FAT_PAINT_RECT_3 :: v4.{-1.1923, -0.1712, 1.1887, 2.3354};
-FAT_PAINT_RECT_4 :: v4.{-1.2025, -0.1741, 1.1837, 2.3058};
+// count - so a button's grid index maps to the matching pose value. The clip
+// each value selects lives in sprite_pose_clip. Every pose the rig ships is
+// offered; each one costs 5 state machine states, one per fat stage.
+MECHA_EMOTE_COUNT :: 16;
 
 // x = min_x, y = min_y, z = max_x, w = max_y.
+//
+// Every frame of every fat stage is drawn in the same frame box, so one rect is
+// the whole mapping - there is no per-stage rect to get wrong.
 paint_canvas_rect_bounds :: proc(player: Player) -> v4 {
-    if player.fat_stage == 1 { return FAT_PAINT_RECT_1; }
-    if player.fat_stage == 2 { return FAT_PAINT_RECT_2; }
-    if player.fat_stage == 3 { return FAT_PAINT_RECT_3; }
-    if player.fat_stage >= 4 { return FAT_PAINT_RECT_4; }
-    return v4.{PAINT_RECT_MIN_X, PAINT_RECT_MIN_Y, PAINT_RECT_MAX_X, PAINT_RECT_MAX_Y};
-}
-
-// Brush sizing stays relative to the canvas width, so a stroke covers the same
-// share of the body at every stage.
-paint_rect_scale :: proc(player: Player) -> float {
-    bounds := paint_canvas_rect_bounds(player);
-    return (bounds.z - bounds.x) / (PAINT_RECT_MAX_X - PAINT_RECT_MIN_X);
-}
-
-// How much bigger than setup pose the stage's constraint draws the body. The
-// canvas rects are setup-pose boxes and deliberately exclude this, but anything
-// measured in world units - the cursor ring, the outward brush probe - has to
-// include it or it comes up a fifth short on the largest body.
-fat_body_scale :: proc(player: Player) -> float {
-    if player.fat_stage == 1 { return 1.05; }
-    if player.fat_stage == 2 { return 1.10; }
-    if player.fat_stage == 3 { return 1.15; }
-    if player.fat_stage >= 4 { return 1.20; }
-    return 1.0;
+    return v4.{SPRITE_PAINT_RECT_MIN_X, SPRITE_PAINT_RECT_MIN_Y, SPRITE_PAINT_RECT_MAX_X, SPRITE_PAINT_RECT_MAX_Y};
 }
 
 paint_canvas_rect :: proc(player: Player) -> v2, v2 {
@@ -552,23 +350,18 @@ paint_canvas_rect :: proc(player: Player) -> v2, v2 {
     return v2.{bounds.x, bounds.y}, v2.{bounds.z, bounds.w};
 }
 
+// Wear the paint: bind the canvas across every frame of the player's current
+// fat stage, so the character is one continuous painted surface framed by the
+// paint rect. bind_sprite_paint_canvas clears the previous binding first, so
+// reaching this from several paths (round start, the retry when the id reads 0,
+// the B key, every stage change) never stacks overrides on the slot.
 wear_paint :: proc(player: Player, skin: Dynamic_Canvas) {
     if player.animator == null { return; }
-    // Exactly one canvas override per player, always. wear_paint is reached from
-    // several paths (round start, the retry when the id reads 0, the B key, every
-    // body rebuild), and each one used to add another override to the same slot.
-    // The renderer shows the newest, but the cursor hit test can walk an older one
-    // that is bound to an attachment no longer displayed - so the body looks
-    // painted while nothing is ever under the brush.
-    clear_paint_overrides(player);
-    rect_min, rect_max := paint_canvas_rect(player);
-    player.animator.instance.set_paint_canvas_rect(rect_min, rect_max);
-    player.override_ids[0] = player.animator.instance.override_attachment_canvas(mecha_paint_attachment(player), skin, true);
-    // Mirror the handle into machine-local state. The field above is synced and
+    bind_sprite_paint_canvas(player);
+    // Mirror the stage into machine-local state. override_ids[0] is synced and
     // can be replaced by the server's handle, which is meaningless here - see
     // apply_hider_body_skin.
     set_fat_visual_stage(player.entity.id, player.fat_stage, player.override_ids[0]);
-    register_paint_override(player.entity.id, player.override_ids[0]);
 }
 
 // Rubber-band from the anchor to the cursor once the first point is down.
@@ -606,7 +399,7 @@ draw_paint_rect_debug :: proc(player: Player) {
 
     rect_min, rect_max := paint_canvas_rect(player);
     origin := player.entity.world_position + player.entity.calculate_interpolation_offset();
-    scale := MECHA_RENDER_SCALE;
+    scale := SPRITE_RENDER_SCALE;
     bl := world_to_screen(origin + v2.{rect_min.x * scale, rect_min.y * scale});
     tr := world_to_screen(origin + v2.{rect_max.x * scale, rect_max.y * scale});
     box := Rect.{min = v2.{min(bl.x, tr.x), min(bl.y, tr.y)}, max = v2.{max(bl.x, tr.x), max(bl.y, tr.y)}};
@@ -918,7 +711,8 @@ draw_emote_menu :: proc(player: Player) {
     UIK.begin(begin_desc);
     defer UIK.end();
 
-    menu := UIK.panel_modal(.WHITE, UIK.pixels(760), UIK.pixels(650), 14, v4.{24, 28, 24, 28});
+    // Four rows of four at 104 apiece, plus the header and the Stop button.
+    menu := UIK.panel_modal(.WHITE, UIK.pixels(760), UIK.pixels(620), 14, v4.{24, 28, 24, 28});
     menu.cross_align = .STRETCH;
     UIK.overlay_begin(.CENTER, menu);
     defer UIK.overlay_end();
@@ -941,38 +735,38 @@ draw_emote_menu :: proc(player: Player) {
         return;
     }
 
-    UIK.grid_begin(4, 112);
+    UIK.grid_begin(4, 104);
 
-    // Must stay in lockstep with the names array in setup_mecha_emotes - same
-    // order, same count - so a button's grid index maps to the matching pose.
-    // Commented entries can come back by uncommenting here and there together.
-    labels: [4]string = {
-        "Balancing", "Idle", "Star", "T Pose",
-        // "Ball", "Bend", "Bridge", "Costanza", "Future",
-        // "Handstand", "Lying", "Mid Run", "Sitting",
-        // "Superman", "Surrender", "Yoga"
+    // Must stay in lockstep with sprite_pose_clip - same order, same count - so a
+    // button's grid index maps to the matching pose. Alphabetical, matching the
+    // order the icons sit in on disk.
+    labels: [MECHA_EMOTE_COUNT]string = {
+        "Balancing", "Ball", "Bend", "Bridge",
+        "Costanza", "Future", "Handstand", "Idle",
+        "Lying", "Mid Run", "Sitting", "Star",
+        "Superman", "Surrender", "T Pose", "Yoga",
     };
-    icons: [4]string = {
+    icons: [MECHA_EMOTE_COUNT]string = {
         "emote-icons/mc_player_silhouette-clean-pose-balancing_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-ball_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-bend_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-bridge_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-costanza_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-future_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-handstand_0.png",
         "emote-icons/mc_player_silhouette-clean-pose-idle_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-lying_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-mid_run_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-sitting_0.png",
         "emote-icons/mc_player_silhouette-clean-pose-star_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-superman_0.png",
+        "emote-icons/mc_player_silhouette-clean-pose-surrender_0.png",
         "emote-icons/mc_player_silhouette-clean-pose-t_pose_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-ball_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-bend_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-bridge_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-costanza_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-future_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-handstand_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-lying_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-mid_run_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-sitting_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-superman_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-surrender_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-yoga_0.png"
+        "emote-icons/mc_player_silhouette-clean-pose-yoga_0.png",
     };
     pose_desc := UIK.widget_desc_button_default(.BUTTON_SHINY_BLUE);
     pose_desc.panel.width = UIK.flex(1);
-    pose_desc.panel.height = UIK.pixels(104);
+    pose_desc.panel.height = UIK.pixels(96);
     for i: 0..labels.count - 1 {
         icon := get_asset(Texture_Asset, icons[i]);
         result := UIK.icon_button(labels[i], icon, pose_desc);

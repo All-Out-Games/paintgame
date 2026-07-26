@@ -288,17 +288,9 @@ Hide_Seek_Game :: class : Component {
 
 g_hide_seek: Hide_Seek_Game;
 
-// A stage change is rebuilt in two steps, one frame apart:
-//   1 - swap straight to the target skin
-//   2 - bind the canvas, capturing the mapping against the settled pose
-//
-// The swap has to go directly from the outgoing skin to the incoming one. This
-// used to strip to the base skin first and swap again on the next frame, to
-// retire the outgoing stage's transform constraint on a frame of its own - and
-// that left the body unpaintable from the second fat stage on. Growing into the
-// first fat stage worked (the strip is a no-op when the base skin is already
-// on), so painting died exactly when a hider grew from one fat stage into
-// another, which is the shape the bug was reported in.
+// A stage change takes one step, a frame after the change itself: move the paint
+// canvas onto the new stage's frames, capturing the mapping against a pose the
+// engine has actually drawn.
 REBUILD_IDLE  :: 0;
 REBUILD_SKIN  :: 2;
 
@@ -1269,14 +1261,6 @@ capture_original_player_skins :: proc(player: Player) {
     player.original_player_skins_captured = true;
 }
 
-hider_skin_for_stage :: proc(stage: s64) -> string {
-    if stage == 1 { return "fat1"; }
-    if stage == 2 { return "fat2"; }
-    if stage == 3 { return "fat3"; }
-    if stage >= 4 { return "fat4"; }
-    return MECHA_SKIN;
-}
-
 // Which fat stage each player's canvas was created for, on this machine.
 //
 // Machine-local rather than a player field, for the same reason g_fat_visuals
@@ -1344,17 +1328,10 @@ apply_hider_body_skin :: proc(player: Player) {
     }
     player.override_ids[0] = 0;
 
-    // Step 1: swap straight from whatever skin is on to the target one. Going via
-    // the base skin on its own frame breaks the canvas binding - see the rebuild
-    // notes above. ensure_fat_visuals binds the canvas next frame.
-    player.animator.set_skeleton(get_asset(Spine_Asset, SEEKER_RIG));
-    player.animator.set_skeleton(get_asset(Spine_Asset, MECHA_RIG_PATH));
-    player.animator.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
-    player.locomotion_ready = false;
-    player.animator.disable_all_skins();
-    player.animator.enable_skin(hider_skin_for_stage(player.fat_stage));
-    player.animator.refresh_skins();
-    player.mecha_skin_applied = true;
+    // The body itself needs nothing done to it: the stage is an animation on
+    // this rig, and update_sprite_animation pushes it every frame. All that is
+    // left is to move the canvas onto the new stage's frames, which
+    // ensure_fat_visuals does next frame, once the engine has posed one.
     set_fat_visual(player.entity.id, player.fat_stage, REBUILD_SKIN, 0);
 }
 
@@ -1408,12 +1385,12 @@ behider :: proc(command_player: Player) {
     update_hide_seek_player(command_player);
 } @chat_command @owner_or_editor
 
-// Reports whether the canvas override actually took. override id 0 means
-// override_attachment_canvas found no attachment by that name - which is the
-// difference between "the mapping is off" and "there is no canvas at all".
+// Reports whether the canvas binding actually took. override id 0 means not one
+// frame of the stage accepted the canvas - which is the difference between "the
+// mapping is off" and "there is no canvas at all".
 paintdebug :: proc(command_player: Player) {
     bounds := paint_canvas_rect_bounds(command_player);
-    Notifier.notify(command_player, `stage {command_player.fat_stage} att {mecha_paint_attachment(command_player)} override {command_player.override_ids[0]}`);
+    Notifier.notify(command_player, `stage {command_player.fat_stage} prefix {sprite_stage_prefix(command_player.fat_stage)} override {command_player.override_ids[0]}`);
     Notifier.notify(command_player, `rect x {format_float(bounds.x, decimals=3)}..{format_float(bounds.z, decimals=3)} y {format_float(bounds.y, decimals=3)}..{format_float(bounds.w, decimals=3)}`);
 } @chat_command @owner_or_editor
 
@@ -1452,7 +1429,7 @@ measure_paint_coverage :: proc(player: Player) {
             fx := ix.(float) / 8.0;
             fy := iy.(float) / 12.0;
             local := v2.{lerp(rect_min.x, rect_max.x, fx), lerp(rect_min.y, rect_max.y, fy)};
-            probe := origin + v2.{local.x * MECHA_RENDER_SCALE, local.y * MECHA_RENDER_SCALE};
+            probe := origin + v2.{local.x * SPRITE_RENDER_SCALE, local.y * SPRITE_RENDER_SCALE};
             _, hit := player.animator.try_get_paint_canvas_uv(probe, player.skin_canvas);
             total += 1;
             if hit { hits += 1; }
@@ -1460,7 +1437,11 @@ measure_paint_coverage :: proc(player: Player) {
     }
     if total > 0 { g_paint_hit_ratio = hits.(float) / total.(float); }
 
-    chest := origin + v2.{0, 1.2 * MECHA_RENDER_SCALE};
+    // Chest height as a share of the canvas frame rather than a fixed distance:
+    // the frame is the one thing that is the same at every stage, and a constant
+    // tuned to one body ends up over the head of a shorter one.
+    chest_y := lerp(rect_min.y, rect_max.y, 0.55);
+    chest := origin + v2.{0, chest_y * SPRITE_RENDER_SCALE};
     _, center_hit := player.animator.try_get_paint_canvas_uv(chest, player.skin_canvas);
     g_paint_center_hit = center_hit;
 }
@@ -1525,7 +1506,7 @@ solve_paint_rect :: proc(player: Player) {
     for ix: 0..80 {
         for iy: 0..100 {
             local := v2.{lerp(-2.5, 2.5, ix.(float) / 80.0), lerp(-2.5, 3.5, iy.(float) / 100.0)};
-            probe := origin + v2.{local.x * MECHA_RENDER_SCALE, local.y * MECHA_RENDER_SCALE};
+            probe := origin + v2.{local.x * SPRITE_RENDER_SCALE, local.y * SPRITE_RENDER_SCALE};
             uv, hit := player.animator.try_get_paint_canvas_uv(probe, player.skin_canvas);
             if !hit { continue; }
             // Row 0 of the canvas sits at rect max.y, column 0 at min.x.
@@ -1563,40 +1544,6 @@ solve_paint_rect :: proc(player: Player) {
     }
 }
 
-// Diagnostic: force the canvas onto one specific body attachment, ignoring the
-// stage. Only the attachment the active skin is actually displaying can report
-// hits from /paintsolve, so stepping through these identifies which mesh is on
-// screen when a stage stops being paintable.
-paintbind :: proc(command_player: Player, which: int = 0) {
-    if command_player.animator == null || command_player.skin_canvas == null { return; }
-    names: [5]string = {
-        MECHA_PAINT_ATTACHMENT,
-        "scaling_up/meccha_PC_fat1",
-        "scaling_up/meccha_PC_fat2",
-        "scaling_up/meccha_PC_fat3",
-        "scaling_up/meccha_PC_fat4",
-    };
-    if which < 0 || which > 4 { return; }
-    clear_paint_overrides(command_player);
-    rect_min, rect_max := paint_canvas_rect(command_player);
-    command_player.animator.instance.set_paint_canvas_rect(rect_min, rect_max);
-    command_player.override_ids[0] = command_player.animator.instance.override_attachment_canvas(names[which], command_player.skin_canvas, true);
-    register_paint_override(command_player.entity.id, command_player.override_ids[0]);
-    Notifier.notify(command_player, `bound {names[which]} -> {command_player.override_ids[0]}`);
-} @chat_command @owner_or_editor
-
-// Diagnostic: a single canvas-mapping query, the same one painting a stroke
-// makes. /paintsolve makes thousands, which is too blunt to tell "the mapping
-// was used at all" apart from "the mapping was hammered".
-g_paint_touch_hit: bool;
-
-painttouch :: proc(command_player: Player) {
-    if command_player.animator == null || command_player.skin_canvas == null { return; }
-    chest := command_player.entity.world_position + v2.{0, 1.2 * MECHA_RENDER_SCALE};
-    _, hit := command_player.animator.try_get_paint_canvas_uv(chest, command_player.skin_canvas);
-    g_paint_touch_hit = hit;
-} @chat_command @owner_or_editor
-
 paintsolve :: proc(command_player: Player) {
     solve_paint_rect(command_player);
     Notifier.notify(command_player, `stage {command_player.fat_stage} hits {g_paint_solve_hits}`);
@@ -1607,12 +1554,6 @@ paintsolve :: proc(command_player: Player) {
 // direct /fat set which was never the broken case.
 growfat :: proc(command_player: Player) {
     grow_fat_hider(command_player);
-} @chat_command @owner_or_editor
-
-// Same ladder as /growfat but through the /fat set path, to tell a problem with
-// growing apart from a problem with the stage itself.
-nextfat :: proc(command_player: Player) {
-    set_fat_stage(command_player, command_player.fat_stage + 1);
 } @chat_command @owner_or_editor
 
 paintrect :: proc(command_player: Player) {
@@ -1783,10 +1724,10 @@ apply_seeker_visuals :: proc(player: Player) {
         player.seeker_shotgun_override_id = 0;
     }
     // Drop any emote before the swap. An emote parks the locomotion tracks on
-    // __CLEAR_TRACK__ and only releases them when mecha_pose returns to 0 - but
+    // __CLEAR_TRACK__ and only releases them when sprite_pose returns to 0 - but
     // ao_update only pushes the pose for non-seekers, so once the role flips
     // nothing would ever clear it and the new rig stays frozen mid-pose.
-    release_mecha_emote(player);
+    release_sprite_emote(player);
     player.animator.set_skeleton(get_asset(Spine_Asset, SEEKER_RIG));
     player.animator.scale = v2.{0.7, 0.7};
     player.animator.layer = SEEKER_ANIMATOR_LAYER;
@@ -1810,7 +1751,7 @@ apply_seeker_visuals :: proc(player: Player) {
     );
     player.emotes_open = false;
     // Force the hider path to validate its locomotion layer after the next rig
-    // swap. setup_mecha_locomotion is idempotent when that layer survives.
+    // swap. setup_sprite_locomotion is idempotent when that layer survives.
     player.locomotion_ready = false;
     player.seeker_rig_ready = true;
     player.streamed_seeker_rig_ready = true;
@@ -1830,12 +1771,12 @@ apply_hider_visuals :: proc(player: Player) {
         player.animator.instance.clear_attachment_sprite(player.seeker_shotgun_override_id);
         player.seeker_shotgun_override_id = 0;
     }
-    player.animator.set_skeleton(get_asset(Spine_Asset, MECHA_RIG_PATH));
-    player.animator.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
+    player.animator.set_skeleton(get_asset(Spine_Asset, SPRITE_RIG));
+    player.animator.scale = v2.{SPRITE_RENDER_SCALE, SPRITE_RENDER_SCALE};
     player.animator.layer = HIDER_ANIMATOR_LAYER;
     apply_hider_body_skin(player);
     // The state machine can survive a skeleton swap. Clear the latch so
-    // ensure_mecha_rig validates or rebuilds the Mecha layers either way.
+    // ensure_sprite_rig validates or rebuilds the locomotion layer either way.
     player.locomotion_ready = false;
     player.seeker_rig_ready = false;
     player.streamed_seeker_rig_ready = false;

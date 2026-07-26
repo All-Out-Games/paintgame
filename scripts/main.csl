@@ -45,7 +45,6 @@ Player :: class : Player_Base {
     last_scene_sample_serial: u64;
     wear_paint_enabled: bool;
     rig_swapped:   bool;
-    mecha_skin_applied: bool;
     locomotion_ready: bool;
 
     // HSV colour picker (toggle with P). brush_color is derived from these on
@@ -170,7 +169,7 @@ Player :: class : Player_Base {
         // Swap to the Mecha silhouette rig. Retried from ao_update if the
         // animator isn't ready yet.
         if hide_seek_role != .SEEKER {
-            ensure_mecha_rig(this);
+            ensure_sprite_rig(this);
         }
         update_hide_seek_player(this);
     }
@@ -182,7 +181,7 @@ Player :: class : Player_Base {
         capture_original_player_skins(this);
         camera.follow_player = true;
         if hide_seek_role != .SEEKER {
-            ensure_mecha_rig(this);
+            ensure_sprite_rig(this);
         }
         update_hide_seek_player(this);
         update_player_sprint(this, dt);
@@ -199,9 +198,7 @@ Player :: class : Player_Base {
             // position advances at snapshot cadence, which makes that value
             // pulse on and off and restarts locomotion. Input intent is present
             // on every simulated frame, including remote-player resimulation.
-            animator.state_machine.set_bool("mecha_moving", length_squared(input_this_frame) > 0.0001);
-            animator.state_machine.set_bool("mecha_running", sprint_active);
-            animator.state_machine.set_int("mecha_pose", active_pose);
+            update_sprite_animation(this);
         } else if hide_seek_role == .SEEKER && seeker_rig_ready {
             animator.state_machine.set_bool("seeker_moving", length_squared(input_this_frame) > 0.0001);
         }

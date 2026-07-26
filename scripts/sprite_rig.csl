@@ -1,0 +1,250 @@
+// The hider body: the frame-by-frame Chameleon rig.
+//
+// This replaces a mesh rig that carried one skin per fat stage, each with its own
+// skin-owned bone and transform constraint. Enabling a second fat skin on that
+// rig stacked constraints that nothing in the skin API could unwind - not
+// disable_all_skins, not disable_skin by name, not set_skin, not a fresh canvas,
+// not even set_skeleton - which left the body both deformed and unpaintable from
+// the second fat stage onwards. That is why painting died the moment a hider grew
+// from one fat stage into another, while growing into the first one worked.
+//
+// This rig has one bone, one slot and one skin. Fatness is an ANIMATION here
+// ("fat2_idle_anim" rather than a "fat2" skin), so a stage change never touches
+// skins, skin bones or constraints, and the failure cannot happen.
+//
+// Its 1010 frames all declare the same 384x392 box at (6,143), so one paint rect
+// serves every stage and there is no per-stage rect to get wrong either.
+
+SPRITE_RIG :: "Spines/MechaSprite/Chameleon_frames.spine";
+
+// This rig draws the character about 2.1x smaller than the mesh rig it replaces
+// - measured in game, a stage 0 body stands 1.10 rig units tall here against the
+// mesh rig's 2.28 - so this is the mesh rig's 0.70 scaled up to keep players the
+// size they were.
+SPRITE_RENDER_SCALE :: 1.45;
+
+// Frame counts per clip, straight from the rig.
+SPRITE_IDLE_FRAMES :: 60;
+SPRITE_WALK_FRAMES :: 16;
+SPRITE_RUN_FRAMES  :: 18;
+
+SPRITE_STAGE_COUNT :: 5;
+
+sprite_stage_prefix :: proc(stage: s64) -> string {
+    if stage == 1 { return "fat1"; }
+    if stage == 2 { return "fat2"; }
+    if stage == 3 { return "fat3"; }
+    if stage >= 4 { return "fat4"; }
+    return "clean";
+}
+
+// Attachment names are zero padded to four digits.
+sprite_frame_index :: proc(i: s64) -> string {
+    if i < 10   { return `000{i}`; }
+    if i < 100  { return `00{i}`; }
+    if i < 1000 { return `0{i}`; }
+    return `{i}`;
+}
+
+// The emote menu's pose values, as this rig's clip suffixes. Kept in lockstep
+// with the labels and icons in draw_emote_menu - same order, same count - so a
+// button's grid index maps to the matching pose value. Alphabetical, which is
+// also the order the icons sit in on disk, so the three lists are easy to check
+// against each other.
+sprite_pose_clip :: proc(pose: s64) -> string {
+    if pose ==  1 { return "pose_balancing"; }
+    if pose ==  2 { return "pose_ball"; }
+    if pose ==  3 { return "pose_bend"; }
+    if pose ==  4 { return "pose_bridge"; }
+    if pose ==  5 { return "pose_costanza"; }
+    if pose ==  6 { return "pose_future"; }
+    if pose ==  7 { return "pose_handstand"; }
+    if pose ==  8 { return "pose_idle"; }
+    if pose ==  9 { return "pose_lying"; }
+    if pose == 10 { return "pose_mid_run"; }
+    if pose == 11 { return "pose_sitting"; }
+    if pose == 12 { return "pose_star"; }
+    if pose == 13 { return "pose_superman"; }
+    if pose == 14 { return "pose_surrender"; }
+    if pose == 15 { return "pose_t_pose"; }
+    if pose == 16 { return "pose_yoga"; }
+    return "";
+}
+
+// Every attachment the given stage can display, so the canvas covers the
+// character whichever frame is up. Only the clips this game plays - the rig also
+// ships poses the emote menu does not offer.
+sprite_stage_attachments :: proc(stage: s64, names: ref [..]string) {
+    prefix := sprite_stage_prefix(stage);
+    for i: 0..SPRITE_IDLE_FRAMES - 1 { names.append(`{prefix}_idle_anim_{sprite_frame_index(i)}`); }
+    for i: 0..SPRITE_WALK_FRAMES - 1 { names.append(`{prefix}_walk_anim_{sprite_frame_index(i)}`); }
+    for i: 0..SPRITE_RUN_FRAMES - 1  { names.append(`{prefix}_run_anim2_{sprite_frame_index(i)}`); }
+    names.append(`{prefix}_idle_anim2_0000`);
+    for pose: 1..MECHA_EMOTE_COUNT {
+        names.append(`{prefix}_{sprite_pose_clip(pose)}_0000`);
+    }
+}
+
+// ---- Animation ----
+//
+// Tracks 0, 1, 2 and 10000 are reserved by the engine, so locomotion runs on its
+// own layer at track 3 and the built-in main layer is parked - it asks for Idle
+// and Run, which this rig does not contain.
+SPRITE_LOCOMOTION_TRACK :: 3;
+
+setup_sprite_locomotion :: proc(sm: State_Machine) -> bool {
+    if sm.try_get_variable("moving") == null { return false; }
+    // Idempotent: if a machine ever survives a rig swap with this layer still
+    // attached, building it again would duplicate every state.
+    if sm.try_get_variable("sprite_fat") != null { return true; }
+
+    fat     := sm.create_variable("sprite_fat", .INT);
+    moving  := sm.create_variable("sprite_moving", .BOOL);
+    running := sm.create_variable("sprite_running", .BOOL);
+    pose    := sm.create_variable("sprite_pose", .INT);
+
+    layer := sm.create_layer("sprite_locomotion", SPRITE_LOCOMOTION_TRACK);
+    // A layer must get its initial state in the function that creates it.
+    idle_0 := layer.create_state(`{sprite_stage_prefix(0)}_idle_anim`, true);
+    layer.set_initial_state(idle_0);
+
+    // One proc per stage: a single proc creating all 35 states and their
+    // transitions exhausts the VM's register budget.
+    for stage: 0..SPRITE_STAGE_COUNT - 1 {
+        setup_sprite_stage_states(layer, stage, fat, moving, running, pose);
+    }
+    silence_built_in_sprite_locomotion(sm, pose);
+    return true;
+}
+
+setup_sprite_stage_states :: proc(
+    layer: State_Machine_Layer,
+    stage: s64,
+    fat: State_Machine_Variable,
+    moving: State_Machine_Variable,
+    running: State_Machine_Variable,
+    pose: State_Machine_Variable
+) {
+    prefix := sprite_stage_prefix(stage);
+
+    idle_state := layer.create_state(`{prefix}_idle_anim`, true);
+    walk_state := layer.create_state(`{prefix}_walk_anim`, true);
+    run_state  := layer.create_state(`{prefix}_run_anim2`, true);
+
+    to_idle := layer.create_global_transition(idle_state, false);
+    to_idle.create_int_condition(fat, stage, .EQUAL);
+    to_idle.create_int_condition(pose, 0, .EQUAL);
+    to_idle.create_bool_condition(moving, false);
+
+    to_walk := layer.create_global_transition(walk_state, false);
+    to_walk.create_int_condition(fat, stage, .EQUAL);
+    to_walk.create_int_condition(pose, 0, .EQUAL);
+    to_walk.create_bool_condition(moving, true);
+    to_walk.create_bool_condition(running, false);
+
+    to_run := layer.create_global_transition(run_state, false);
+    to_run.create_int_condition(fat, stage, .EQUAL);
+    to_run.create_int_condition(pose, 0, .EQUAL);
+    to_run.create_bool_condition(moving, true);
+    to_run.create_bool_condition(running, true);
+
+    for i: 1..MECHA_EMOTE_COUNT {
+        pose_state := layer.create_state(`{prefix}_{sprite_pose_clip(i)}`, true);
+        to_pose := layer.create_global_transition(pose_state, false);
+        to_pose.create_int_condition(fat, stage, .EQUAL);
+        to_pose.create_int_condition(pose, i, .EQUAL);
+    }
+}
+
+// The engine's own main layer keeps asking for Idle and Run, which this rig does
+// not have. Park it for every valid pose value; track 3 supplies the body.
+silence_built_in_sprite_locomotion :: proc(sm: State_Machine, pose: State_Machine_Variable) {
+    layer := sm.try_get_layer("main");
+    if layer == null { return; }
+    empty_state := layer.create_state("__CLEAR_TRACK__", true);
+    layer.create_global_transition(empty_state, false).create_int_condition(pose, 0, .GREATER_EQUAL);
+}
+
+// Clears a running emote. Safe on any rig: a machine that never had these
+// variables has no emote to release, hence the try_get_variable guard.
+release_sprite_emote :: proc(player: Player) {
+    player.active_pose = 0;
+    if player.animator == null { return; }
+    sm := player.animator.state_machine;
+    if sm == null { return; }
+    if sm.try_get_variable("sprite_pose") == null { return; }
+    sm.set_int("sprite_pose", 0);
+    sm.set_bool("sprite_moving", false);
+}
+
+// Pushed every sim frame, on client and server alike, so the body replicates.
+update_sprite_animation :: proc(player: Player) {
+    if player.animator == null || !player.locomotion_ready { return; }
+    sm := player.animator.state_machine;
+    if sm == null { return; }
+    sm.set_int("sprite_fat", player.fat_stage);
+    sm.set_int("sprite_pose", player.active_pose);
+    sm.set_bool("sprite_moving", length_squared(player.input_this_frame) > 0.0001);
+    sm.set_bool("sprite_running", player.sprint_active);
+}
+
+// ---- Paint canvas ----
+//
+// The frame box is 384x392 at (6,143) in rig units, and the rig imports at
+// 0.0041885 units per rig unit - measured in game by pinning a single-frame pose
+// and solving the quad the engine reports back through a known rect. Every frame
+// of every stage shares this box, so this one rect is the whole mapping.
+SPRITE_PAINT_RECT_MIN_X :: -0.7791;
+SPRITE_PAINT_RECT_MIN_Y :: -0.2220;
+SPRITE_PAINT_RECT_MAX_X ::  0.8293;
+SPRITE_PAINT_RECT_MAX_Y ::  1.4199;
+
+// Bind the paint canvas across every frame the player's current stage can show.
+// The canvas has to reach each frame attachment individually: this rig animates
+// by swapping the slot's attachment, so a canvas on only one of them would show
+// for a single frame of the loop and vanish for the rest.
+bind_sprite_paint_canvas :: proc(player: Player) {
+    if player.animator == null || player.skin_canvas == null { return; }
+    clear_paint_overrides(player);
+    player.override_ids[0] = 0;
+
+    player.animator.instance.set_paint_canvas_rect(
+        v2.{SPRITE_PAINT_RECT_MIN_X, SPRITE_PAINT_RECT_MIN_Y},
+        v2.{SPRITE_PAINT_RECT_MAX_X, SPRITE_PAINT_RECT_MAX_Y}
+    );
+
+    names: [..]string;
+    sprite_stage_attachments(player.fat_stage, ref names);
+    for i: 0..names.count - 1 {
+        id := player.animator.instance.override_attachment_canvas(names[i], player.skin_canvas, true);
+        if id != 0 {
+            register_paint_override(player.entity.id, id);
+            // Any non-zero handle proves the bind took; the field only needs to
+            // read non-zero so the retry in handle_paint_input stands down.
+            player.override_ids[0] = id;
+        }
+    }
+}
+
+// Swap the player onto the sprite rig and install its locomotion layer. The
+// engine can finish building player.animator after Player.ao_start, and the
+// swapped skeleton's state machine may not be ready the same frame, so each step
+// is retried from ao_update and latches once done. Runs on client and server
+// alike so the swap and animation state replicate.
+ensure_sprite_rig :: proc(player: Player) {
+    if player.animator == null { return; }
+    player.animator.scale = v2.{SPRITE_RENDER_SCALE, SPRITE_RENDER_SCALE};
+
+    if !player.rig_swapped {
+        deactivate_seeker_animation_layer(player);
+        player.animator.set_skeleton(get_asset(Spine_Asset, SPRITE_RIG));
+        player.rig_swapped = true;
+    }
+
+    if player.rig_swapped && !player.locomotion_ready {
+        sm := player.animator.state_machine;
+        if sm != null && setup_sprite_locomotion(sm) {
+            player.locomotion_ready = true;
+        }
+    }
+}
