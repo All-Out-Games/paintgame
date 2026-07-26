@@ -110,6 +110,9 @@ Player :: class : Player_Base {
     pending_found_end_time: float;
     found_movement_frozen: bool;
     fat_stage: s64;
+    show_paint_rect: bool;
+    blind_start_time: float;
+    blind_end_time: float;
     next_fat_time: float;
     last_whistle_time: float;
     whistle_button_ready_time: float;
@@ -205,6 +208,9 @@ Player :: class : Player_Base {
         }
         // UI must be drawn from player late_update, gated on is_local_or_server.
         if is_local_or_server() {
+            // Drawn before anything else and above the HUD: while blinded there
+            // is nothing else worth showing.
+            draw_seeker_blind(this);
             voting_focus := hide_seek_voting_focus_active();
             if voting_focus {
                 draw_hide_seek_ui(this, dt);
@@ -233,6 +239,7 @@ Player :: class : Player_Base {
                     draw_paint_line_preview(this);
                     draw_paint_cursor(this);
                 }
+                draw_paint_rect_debug(this);
                 draw_sprint_stamina(this);
                 // Sprint takes the primary slot now that the whistle has its own
                 // HUD button. Seekers keep Catch primary and get Sprint beside it.
@@ -262,6 +269,9 @@ Player :: class : Player_Base {
         return true;
     }
 
+    // Runs on clients right after state arrives from the server - the exact
+    // moment a fat stage can change without this machine having run the growth.
     ao_on_state_sync :: method() {
+        ensure_fat_visuals(this);
     }
 }

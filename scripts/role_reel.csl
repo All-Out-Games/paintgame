@@ -7,7 +7,7 @@
 // is the role the round already assigned, so the reel reveals a result rather
 // than producing one.
 
-ROLE_REEL_DURATION :: 1.95;
+ROLE_REEL_DURATION :: 1.46;
 ROLE_REEL_REVOLUTIONS :: 6;
 ROLE_REEL_SLOT_H :: 132.0;
 ROLE_REEL_WIDTH :: 660.0;
@@ -23,47 +23,92 @@ ROLE_REEL_MARKER_GAP :: 150.0;
 ROLE_REEL_MARKER_RIGHT_ROTATION :: 180.0;
 // After it lands the reel holds on the winner, then clears off so it is not
 // sitting on top of the "YOU ARE A ..." screen.
-ROLE_REEL_HOLD :: 0.55;
-ROLE_REEL_FADE :: 0.35;
+ROLE_REEL_HOLD :: 0.41;
+ROLE_REEL_FADE :: 0.26;
 
-// Index 0 and 1 are the two reel faces. Kept in lockstep with role_reel_target.
-role_reel_item_label :: proc(index: s64) -> string {
+// Two reels run back to back: the role, then the game mode. The second starts
+// once the first has cleared, so only one strip is ever on screen.
+Reel_Kind :: enum {
+    ROLE;
+    MODE;
+}
+
+REEL_COLUMN_WIDTH :: 400.0;
+REEL_COLUMN_GAP :: 36.0;
+// The role column rolls alone and centred; once it lands and holds, the mode
+// column slides in from the right and the role column shifts left to make room.
+REEL_SLIDE_SECONDS :: 0.3;
+
+// Index 0 and 1 are the two faces of each reel. Kept in lockstep with reel_target.
+reel_item_label :: proc(kind: Reel_Kind, index: s64) -> string {
+    if kind == .MODE {
+        if index == 1 { return "FAT"; }
+        return "INFECTION";
+    }
     if index == 1 { return "SEEKER"; }
     return "HIDER";
 }
 
 // Reel-only palette: blue hider, red seeker, matching the reference art. The
 // rest of the game keeps green for hiders.
-role_reel_item_color :: proc(index: s64) -> v4 {
+reel_item_color :: proc(kind: Reel_Kind, index: s64) -> v4 {
+    if kind == .MODE {
+        if index == 1 { return v4.{1.0, 0.62, 0.16, 1}; }
+        return v4.{0.42, 1.0, 0.45, 1};
+    }
     if index == 1 { return v4.{1.0, 0.24, 0.24, 1}; }
     return v4.{0.29, 0.64, 1.0, 1};
 }
 
-role_reel_target :: proc(player: Player) -> s64 {
+reel_target :: proc(player: Player, kind: Reel_Kind) -> s64 {
+    if kind == .MODE {
+        game := get_hide_seek_game();
+        if #alive(game) && game.game_mode == .FAT { return 1; }
+        return 0;
+    }
     if player.hide_seek_role == .SEEKER { return 1; }
     return 0;
+}
+
+reel_duration :: proc(kind: Reel_Kind) -> float {
+    return ROLE_REEL_DURATION;
+}
+
+// The mode column starts once the role column has landed and held on its result.
+reel_start_time :: proc(player: Player, kind: Reel_Kind) -> float {
+    if kind == .MODE { return player.role_roll_start_time + ROLE_REEL_DURATION + ROLE_REEL_HOLD; }
+    return player.role_roll_start_time;
+}
+
+// 0 while the role column still has the screen to itself, 1 once the machine has
+// fully opened out into two columns.
+reel_slide_t :: proc(player: Player) -> float {
+    elapsed := get_time() - reel_start_time(player, .MODE);
+    return Ease.out_cubic(clamp(elapsed / REEL_SLIDE_SECONDS, 0, 1));
 }
 
 // Called wherever a role reveal is armed, so the reel and the reveal share a
 // start time.
 trigger_role_roll :: proc(player: Player) {
     player.role_roll_start_time = get_time();
-    player.role_roll_target = role_reel_target(player);
+    // Kept for reference/debugging; the reels read their targets live from the
+    // role and game mode, which are already settled by the time this is armed.
+    player.role_roll_target = reel_target(player, .ROLE);
     player.role_roll_last_tick = -1;
 }
 
-role_reel_progress :: proc(player: Player) -> float {
+reel_progress :: proc(player: Player, kind: Reel_Kind) -> float {
     if player.role_roll_start_time <= 0 { return 1.0; }
-    elapsed := get_time() - player.role_roll_start_time;
-    return clamp(elapsed / ROLE_REEL_DURATION, 0.0, 1.0);
+    elapsed := get_time() - reel_start_time(player, kind);
+    return clamp(elapsed / reel_duration(kind), 0.0, 1.0);
 }
 
 // Strip index currently centered in the window. Everything the reel draws hangs
 // off this one number.
-role_reel_scroll :: proc(player: Player) -> float, s64 {
-    progress := role_reel_progress(player);
+reel_scroll :: proc(player: Player, kind: Reel_Kind) -> float, s64 {
+    progress := reel_progress(player, kind);
     n_items := ROLE_REEL_ITEM_COUNT.(float);
-    scroll_final := (ROLE_REEL_REVOLUTIONS.(float) * n_items + player.role_roll_target.(float) + 0.5) * ROLE_REEL_SLOT_H;
+    scroll_final := (ROLE_REEL_REVOLUTIONS.(float) * n_items + reel_target(player, kind).(float) + 0.5) * ROLE_REEL_SLOT_H;
 
     inv := 1.0 - progress;
     eased := 1.0 - inv * inv * inv;
@@ -77,11 +122,18 @@ role_reel_scroll :: proc(player: Player) -> float, s64 {
 // own as the reel settles.
 update_role_reel :: proc(player: Player) {
     if player.role_roll_start_time <= 0 { return; }
-    if role_reel_progress(player) >= 1.0 { return; }
+    kind := Reel_Kind.ROLE;
+    if reel_progress(player, .ROLE) >= 1.0 { kind = .MODE; }
+    if reel_progress(player, kind) >= 1.0 { return; }
+    if get_time() < reel_start_time(player, kind) { return; }
 
-    _, base_k := role_reel_scroll(player);
-    if base_k == player.role_roll_last_tick { return; }
-    player.role_roll_last_tick = base_k;
+    _, base_k := reel_scroll(player, kind);
+    // Offset the mode reel's tick key so the two reels cannot share a value and
+    // silence each other's first tick.
+    tick_key := base_k;
+    if kind == .MODE { tick_key += 100000; }
+    if tick_key == player.role_roll_last_tick { return; }
+    player.role_roll_last_tick = tick_key;
 
     desc := SFX.default_sfx_desc();
     desc.specific_to_player = player;
@@ -108,14 +160,15 @@ role_reel_revealed :: proc(player: Player) -> bool {
 
 // The two glowing white bars that flank the winning row, marking which line of
 // the strip counts. Drawn as a soft wide glow with a bright core on top.
-draw_role_reel_markers :: proc(tile: Rect, alpha: float) {
+// Brackets the machine's current extent - one column while the role is rolling,
+// both once the mode column has slid in.
+draw_role_reel_markers :: proc(machine_left: float, machine_right: float, center_y: float, alpha: float) {
     marker := get_asset(Texture_Asset, ROLE_REEL_MARKER_TEXTURE);
     if marker == null { return; }
 
-    center_y := tile.center().y;
     half_w := ROLE_REEL_MARKER_WIDTH * 0.5;
-    left_x := tile.center().x - ROLE_REEL_MARKER_GAP - half_w;
-    right_x := tile.center().x + ROLE_REEL_MARKER_GAP + half_w;
+    left_x := machine_left - ROLE_REEL_MARKER_GAP - half_w;
+    right_x := machine_right + ROLE_REEL_MARKER_GAP + half_w;
     half_h := half_w / max(0.0001, marker.get_aspect());
 
     left := Rect.{
@@ -134,39 +187,88 @@ draw_role_reel_markers :: proc(tile: Rect, alpha: float) {
     UI.pop_matrix();
 }
 
-// Seconds since the reel stopped. Negative while it is still spinning. With no
-// roll armed it reports long settled, so the reveal text shows immediately
+// Seconds since a given reel stopped. Negative while it is still spinning. With
+// no roll armed it reports long settled, so the reveal text shows immediately
 // rather than fading in from an animation that never ran.
-role_reel_settle_age :: proc(player: Player) -> float {
+reel_settle_age :: proc(player: Player, kind: Reel_Kind) -> float {
     if player.role_roll_start_time <= 0 { return 999.0; }
-    return get_time() - player.role_roll_start_time - ROLE_REEL_DURATION;
+    return get_time() - reel_start_time(player, kind) - reel_duration(kind);
 }
 
-// Returns true once the reel has settled, so the caller knows when it may show
-// the role name and instructions.
+// Age of the whole sequence, measured from the last reel landing and holding.
+// This is what gates the reveal text and the round start.
+role_reel_settle_age :: proc(player: Player) -> float {
+    return reel_settle_age(player, .MODE);
+}
+
+// Two columns side by side, slot-machine style: both start spinning together and
+// stop left to right, the role column first and the mode column REEL_STAGGER
+// later. Returns true once the last column has landed, held and faded.
 draw_role_reel :: proc(player: Player, screen: Rect) -> bool {
     if player.role_roll_start_time <= 0 { return true; }
 
-    progress := role_reel_progress(player);
-    scroll, base_k := role_reel_scroll(player);
-    settled := progress >= 1.0;
+    role_window := reel_window(player, screen, .ROLE);
+    draw_one_reel(player, screen, .ROLE);
 
-    // Once it has held on the winner the whole reel fades out, handing the
-    // screen to the role reveal instead of sitting on top of it.
-    settle_age := role_reel_settle_age(player);
-    reel_alpha := 1.0 - clamp((settle_age - ROLE_REEL_HOLD) / ROLE_REEL_FADE, 0, 1);
-    if reel_alpha <= 0 { return true; }
-    // The losing faces drop away as soon as it lands, so only the winner is left
-    // during the hold.
-    neighbor_alpha := reel_alpha * (1.0 - clamp(settle_age / 0.2, 0, 1));
+    done := false;
+    right_edge := role_window.max.x;
+    mode_started := get_time() >= reel_start_time(player, .MODE);
+    if mode_started {
+        done = draw_one_reel(player, screen, .MODE);
+        right_edge = reel_window(player, screen, .MODE).max.x;
+    }
 
+    // One marker pair brackets whatever the machine currently spans, so the
+    // winning row reads as a single line whether there are one or two columns.
+    _, sequence_alpha := reel_alphas(player, .MODE);
+    if sequence_alpha > 0 {
+        draw_role_reel_markers(role_window.min.x, right_edge, role_window.center().y, sequence_alpha);
+    }
+    return done;
+}
+
+// Both columns fade together off the last one to land, so a column that has
+// already stopped keeps showing its result while the other is still spinning.
+reel_alphas :: proc(player: Player, kind: Reel_Kind) -> float, float {
+    sequence_age := reel_settle_age(player, .MODE);
+    sequence_alpha := 1.0 - clamp((sequence_age - ROLE_REEL_HOLD) / ROLE_REEL_FADE, 0, 1);
+    // The losing faces of a column drop away as soon as that column lands.
+    own_age := reel_settle_age(player, kind);
+    neighbor_alpha := sequence_alpha * (1.0 - clamp(own_age / 0.2, 0, 1));
+    return neighbor_alpha, sequence_alpha;
+}
+
+// Column geometry, animated by the slide. The role column starts centred and
+// moves left; the mode column comes in from off the right edge.
+reel_window :: proc(player: Player, screen: Rect, kind: Reel_Kind) -> Rect {
     center := screen.center();
     center_y := center.y + 30;
-    half_w := ROLE_REEL_WIDTH * 0.5;
-    window := Rect.{
-        min = v2.{center.x - half_w, center_y - ROLE_REEL_SLOT_H * 1.5},
-        max = v2.{center.x + half_w, center_y + ROLE_REEL_SLOT_H * 1.5},
+    offset := (REEL_COLUMN_WIDTH + REEL_COLUMN_GAP) * 0.5;
+    slide := reel_slide_t(player);
+
+    center_x := lerp(center.x, center.x - offset, slide);
+    if kind == .MODE {
+        center_x = lerp(screen.max.x + REEL_COLUMN_WIDTH, center.x + offset, slide);
+    }
+    half_w := REEL_COLUMN_WIDTH * 0.5;
+    return Rect.{
+        min = v2.{center_x - half_w, center_y - ROLE_REEL_SLOT_H * 1.5},
+        max = v2.{center_x + half_w, center_y + ROLE_REEL_SLOT_H * 1.5},
     };
+}
+
+draw_one_reel :: proc(player: Player, screen: Rect, kind: Reel_Kind) -> bool {
+    progress := reel_progress(player, kind);
+    scroll, base_k := reel_scroll(player, kind);
+    settled := progress >= 1.0;
+
+    settle_age := reel_settle_age(player, kind);
+    neighbor_alpha, reel_alpha := reel_alphas(player, kind);
+    if reel_alpha <= 0 { return true; }
+
+    window := reel_window(player, screen, kind);
+    center := window.center();
+    center_y := center.y;
 
     // No frame or tile plates - the labels float over the dimmed scene. The
     // scissor still clips the strip so tiles fade out instead of running into
@@ -202,9 +304,9 @@ draw_role_reel :: proc(player: Player, screen: Rect) -> bool {
         }
         if tile_alpha <= 0 { continue; }
 
-        color := role_reel_item_color(idx);
+        color := reel_item_color(kind, idx);
         tile_h := ROLE_REEL_SLOT_H * scale;
-        tile_w := (ROLE_REEL_WIDTH - 40) * scale;
+        tile_w := (REEL_COLUMN_WIDTH - 24) * scale;
         tile := Rect.{
             min = v2.{center.x - tile_w * 0.5, screen_y - tile_h * 0.5},
             max = v2.{center.x + tile_w * 0.5, screen_y + tile_h * 0.5},
@@ -213,8 +315,7 @@ draw_role_reel :: proc(player: Player, screen: Rect) -> bool {
         if d == 0 {
             pop := 0.0;
             if settled {
-                elapsed := get_time() - player.role_roll_start_time;
-                pop = sin(min(1.0, (elapsed - ROLE_REEL_DURATION) * 6.0) * PI) * 0.12;
+                pop = sin(min(1.0, settle_age * 6.0) * PI) * 0.12;
             }
             grow_x := tile.width() * pop * 0.5;
             grow_y := tile.height() * pop * 0.5;
@@ -229,19 +330,42 @@ draw_role_reel :: proc(player: Player, screen: Rect) -> bool {
                 max = tile.center() + v2.{glow_half, glow_half},
             };
             UI.quad(glow_rect.fit_aspect(glow_tex.get_aspect()), glow_tex, v4.{color.x, color.y, color.z, 0.75 * reel_alpha});
-            draw_role_reel_markers(tile, reel_alpha);
         }
 
         label := UI.default_text_settings();
-        label.size = 82 * scale;
+        // "INFECTION" is the longest face; sized so it fits a column without
+        // being clipped by the scissor.
+        label.size = 58 * scale;
         label.color = v4.{color.x, color.y, color.z, tile_alpha};
         label.halign = .CENTER;
         label.valign = .CENTER;
         label.do_outline = true;
         label.outline_thickness = 5;
         label.outline_color = v4.{0, 0, 0, tile_alpha};
-        UI.text(tile, label, role_reel_item_label(idx));
+        UI.text(tile, label, reel_item_label(kind, idx));
     }
 
-    return settled;
+    // Caption above the strip, so it is clear which of the two things is being
+    // rolled. Sits outside the scissor so it is never clipped.
+    UI.pop_scissor();
+    caption := "YOUR ROLE";
+    if kind == .MODE { caption = "GAME MODE"; }
+    caption_settings := UI.default_text_settings();
+    caption_settings.size = 38;
+    caption_settings.color = v4.{1, 1, 1, 0.85 * reel_alpha};
+    caption_settings.halign = .CENTER;
+    caption_settings.valign = .CENTER;
+    caption_settings.do_outline = true;
+    caption_settings.outline_thickness = 4;
+    caption_settings.outline_color = v4.{0, 0, 0, reel_alpha};
+    caption_rect := Rect.{
+        min = v2.{window.min.x, window.max.y + 6},
+        max = v2.{window.max.x, window.max.y + 58},
+    };
+    UI.text(caption_rect, caption_settings, caption);
+    UI.push_scissor(window);
+
+    // Only the last reel finishing ends the sequence.
+    if kind != .MODE { return false; }
+    return settle_age >= ROLE_REEL_HOLD + ROLE_REEL_FADE;
 }

@@ -80,14 +80,20 @@ blow_whistle :: proc(player: Player) {
 
 WHISTLE_WARNING_SECONDS :: 5.0;
 
+// Shared so the fat warning knows whether this banner already owns the top slot.
+whistle_warning_active :: proc(player: Player, game: Hide_Seek_Game) -> bool {
+    if game.phase != .HUNTING { return false; }
+    // Lobby waiters are not in the round; the whistle does not involve them.
+    if player.hide_seek_role == .LOBBY { return false; }
+    remaining := game.next_forced_whistle_time - get_time();
+    return remaining > 0 && remaining <= WHISTLE_WARNING_SECONDS;
+}
+
 // Replaces the old "Whistle 23" line in the round HUD: silent until the forced
 // whistle is close, then a countdown right under the timer.
 draw_whistle_warning_banner :: proc(player: Player, game: Hide_Seek_Game) {
-    if game.phase != .HUNTING { return; }
-    // Lobby waiters are not in the round; the whistle does not involve them.
-    if player.hide_seek_role == .LOBBY { return; }
+    if !whistle_warning_active(player, game) { return; }
     remaining := game.next_forced_whistle_time - get_time();
-    if remaining <= 0 || remaining > WHISTLE_WARNING_SECONDS { return; }
 
     begin_desc := UIK.window(UI.get_safe_screen_rect());
     begin_desc.layer = 104;

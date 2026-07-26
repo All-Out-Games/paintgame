@@ -93,8 +93,14 @@ Paint_Demo :: class : Component {
         // retrying the requested canvas override until the animator exists;
         // otherwise a fast profile response leaves the painted canvas valid
         // but hidden behind the original rig forever.
+        //
+        // Skips the frame a skin was swapped on: apply_hider_body_skin leaves the
+        // canvas unbound on purpose so the mapping is captured against the new
+        // skin's pose, and binding here would undo that.
         if player.wear_paint_enabled && player.override_ids[0] == 0 && player.animator != null {
-            wear_paint(player, skin);
+            if !fat_visual_rebuilding(player.entity.id) {
+                wear_paint(player, skin);
+            }
         }
 
         if !player.paint_mode {
@@ -246,7 +252,9 @@ Paint_Demo :: class : Component {
 }
 
 brush_world_radius :: proc(player: Player) -> float {
-    return player.brush_radius * ((PAINT_RECT_MAX_X - PAINT_RECT_MIN_X) / SKIN_TEXELS_X.(float)) * MECHA_RENDER_SCALE;
+    // Scales with the canvas rect, or the brush would cover a smaller share of a
+    // fat body than the cursor ring shows.
+    return player.brush_radius * ((PAINT_RECT_MAX_X - PAINT_RECT_MIN_X) * paint_rect_scale(player) / SKIN_TEXELS_X.(float)) * MECHA_RENDER_SCALE;
 }
 
 // World-space spacing between mesh probes along a committed line, and a ceiling
@@ -482,10 +490,76 @@ setup_mecha_emotes :: proc(sm: State_Machine, pose: State_Machine_Variable) {
 // character is one continuous painted surface framed by the paint rect. The
 // override id and canvas rect are reconciled scene state, so every client and
 // late joiner renders the worn paint automatically.
+// The canvas maps every vertex by its SETUP-POSE position through this rect, so
+// the rect must be the setup-pose bounding box of the art bound to the slot. The
+// base values above are exactly that box for the clean silhouette.
+//
+// The fat skins are separate meshes weighted to their own fat_scale_N bones, and
+// those bones sit at different offsets with scales 1.05/1.10/1.15/1.20 - so each
+// stage has its own box, wider and taller than the base and not concentric with
+// it. The numbers below are that box per stage, measured from the rig's mesh
+// vertices and converted with the same units the base rect uses. They are not a
+// scale factor: the growth is only ~12% and is off-centre, so scaling the base
+// rect (as this used to) drifts the mapping further off with every stage, which
+// is why the higher stages failed while stage 1 looked fine.
+// Each value is that stage's mesh box multiplied by the stage's whole-body
+// scale. Enabling skin fatN activates a transform constraint that drives the
+// fat_scale bone - the parent of the body and both legs - from fat_scale_N,
+// copying its 1.05/1.10/1.15/1.20 scale onto the entire character at runtime.
+// Measuring the meshes alone misses that factor, which is why the rect used to
+// come up short, and increasingly so at the later stages.
+// Each stage's posed bounding box with the skin's transform constraint applied,
+// plus 3% margin.
+//
+// The constraint drives fat_scale from fat_scale_N with mixRotate/mixX/mixShearY
+// pinned to 0 - but mixY and mixScaleX/Y default to 1, so it copies the target's
+// SCALE *and its Y POSITION*. Those targets sit at y -186 to -220, which drops
+// the whole body by nearly a full unit. Accounting for the scale but not that
+// translation left the rect floating above the character: at stage 4 the rect
+// covered y -0.20..2.78 while the body actually occupies y -1.09..1.83.
+FAT_PAINT_RECT_1 :: v4.{-1.2330, -0.9473, 1.1993, 1.6922};
+FAT_PAINT_RECT_2 :: v4.{-1.3088, -0.9614, 1.3080, 1.8121};
+FAT_PAINT_RECT_3 :: v4.{-1.3853, -0.9806, 1.3797, 1.9303};
+FAT_PAINT_RECT_4 :: v4.{-1.4578, -1.1352, 1.4337, 1.8698};
+
+// x = min_x, y = min_y, z = max_x, w = max_y.
+paint_canvas_rect_bounds :: proc(player: Player) -> v4 {
+    if player.fat_stage == 1 { return FAT_PAINT_RECT_1; }
+    if player.fat_stage == 2 { return FAT_PAINT_RECT_2; }
+    if player.fat_stage == 3 { return FAT_PAINT_RECT_3; }
+    if player.fat_stage >= 4 { return FAT_PAINT_RECT_4; }
+    return v4.{PAINT_RECT_MIN_X, PAINT_RECT_MIN_Y, PAINT_RECT_MAX_X, PAINT_RECT_MAX_Y};
+}
+
+// Brush sizing stays relative to the canvas width, so a stroke covers the same
+// share of the body at every stage.
+paint_rect_scale :: proc(player: Player) -> float {
+    bounds := paint_canvas_rect_bounds(player);
+    return (bounds.z - bounds.x) / (PAINT_RECT_MAX_X - PAINT_RECT_MIN_X);
+}
+
+paint_canvas_rect :: proc(player: Player) -> v2, v2 {
+    bounds := paint_canvas_rect_bounds(player);
+    return v2.{bounds.x, bounds.y}, v2.{bounds.z, bounds.w};
+}
+
 wear_paint :: proc(player: Player, skin: Dynamic_Canvas) {
     if player.animator == null { return; }
-    player.animator.instance.set_paint_canvas_rect(v2.{PAINT_RECT_MIN_X, PAINT_RECT_MIN_Y}, v2.{PAINT_RECT_MAX_X, PAINT_RECT_MAX_Y});
+    // Exactly one canvas override per player, always. wear_paint is reached from
+    // several paths (round start, the retry when the id reads 0, the B key, every
+    // body rebuild), and each one used to add another override to the same slot.
+    // The renderer shows the newest, but the cursor hit test can walk an older one
+    // that is bound to an attachment no longer displayed - so the body looks
+    // painted while nothing is ever under the brush.
+    clear_paint_overrides(player);
+    rect_min, rect_max := paint_canvas_rect(player);
+    player.animator.instance.set_paint_canvas_rect(rect_min, rect_max);
     player.override_ids[0] = player.animator.instance.override_attachment_canvas(mecha_paint_attachment(player), skin, true);
+    // Mirror the handle into machine-local state. The field above is synced and
+    // can be replaced by the server's handle, which is meaningless here - see
+    // apply_hider_body_skin.
+    set_fat_visual_stage(player.entity.id, player.fat_stage, player.override_ids[0]);
+    register_paint_override(player.entity.id, player.override_ids[0]);
 }
 
 // Rubber-band from the anchor to the cursor once the first point is down.
@@ -513,6 +587,33 @@ draw_paint_line_preview :: proc(player: Player) {
 // Screen-space brush preview. Its diameter is derived from the same
 // character-space texel scale used by Dynamic_Canvas, so it matches the
 // painted footprint at every camera zoom level.
+// Debug overlay: outlines the canvas rect the paint mapping is using, in world
+// space around the character. If the box does not hug the body, the rect for that
+// fat stage is wrong; if it hugs the body but paint still lands elsewhere, the
+// body is being drawn through a different (stale) override.
+draw_paint_rect_debug :: proc(player: Player) {
+    if !player.show_paint_rect { return; }
+    if player.animator == null { return; }
+
+    rect_min, rect_max := paint_canvas_rect(player);
+    origin := player.entity.world_position + player.entity.calculate_interpolation_offset();
+    scale := MECHA_RENDER_SCALE;
+    bl := world_to_screen(origin + v2.{rect_min.x * scale, rect_min.y * scale});
+    tr := world_to_screen(origin + v2.{rect_max.x * scale, rect_max.y * scale});
+    box := Rect.{min = v2.{min(bl.x, tr.x), min(bl.y, tr.y)}, max = v2.{max(bl.x, tr.x), max(bl.y, tr.y)}};
+
+    UI.push_screen_draw_context();
+    defer UI.pop_draw_context();
+    UI.push_layer(131);
+    defer UI.pop_layer();
+    thickness := 2.0;
+    color := v4.{0.2, 1.0, 0.4, 0.9};
+    UI.quad(Rect.{min = box.min, max = v2.{box.max.x, box.min.y + thickness}}, core_globals.white_sprite, color);
+    UI.quad(Rect.{min = v2.{box.min.x, box.max.y - thickness}, max = box.max}, core_globals.white_sprite, color);
+    UI.quad(Rect.{min = box.min, max = v2.{box.min.x + thickness, box.max.y}}, core_globals.white_sprite, color);
+    UI.quad(Rect.{min = v2.{box.max.x - thickness, box.min.y}, max = box.max}, core_globals.white_sprite, color);
+}
+
 draw_paint_cursor :: proc(player: Player) {
     if !player.paint_mode || !player.wear_paint_enabled || player.skin_canvas == null { return; }
 

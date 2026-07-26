@@ -9,6 +9,9 @@ HUNT_PHASE_SECONDS :: 180.0;
 FOUND_FLICKER_SECONDS :: 3.0;
 FOUND_FREEZE_REASON :: "hide_seek_found_flicker";
 FAT_GROWTH_SECONDS :: 20.0;
+// Minimum gap between a fat growth and a forced whistle. Both warn 5s ahead, so
+// 10 keeps the two banners from overlapping and leaves a clear beat between them.
+FAT_WHISTLE_SEPARATION :: 10.0;
 FAT_MAX_STAGE :: 4;
 REVEAL_SECONDS :: 20.0;
 HIDER_WIN_REVEAL_SECONDS :: 10.0;
@@ -48,7 +51,8 @@ HIDER_WINS_LEADERBOARD :: "top_hider_wins";
 // Every hider is whistled automatically on this cadence, so camping a corner
 // in silence is not viable.
 FORCED_WHISTLE_SECONDS :: 30.0;
-ROLE_REVEAL_SECONDS :: 10.0;
+// Two reels plus the role message; see role_reel.csl for the stage timings.
+ROLE_REVEAL_SECONDS :: 13.0;
 
 Hide_Seek_Role :: enum {
     NONE;
@@ -195,7 +199,7 @@ Hide_Seek_Game :: class : Component {
                 }
                 if phase == .HUNTING && game_mode == .FAT && player.hide_seek_role == .HIDER && player.fat_stage < FAT_MAX_STAGE && get_time() >= player.next_fat_time {
                     grow_fat_hider(player);
-                    player.next_fat_time = get_time() + FAT_GROWTH_SECONDS;
+                    schedule_next_fat_time(this, player);
                 }
             }
             refresh_hide_seek_counts(this);
@@ -260,7 +264,7 @@ Hide_Seek_Game :: class : Component {
                 if player_count < min_players {
                     phase = .WAITING_FOR_PLAYERS;
                 } else if get_time() >= phase_end_time {
-                    start_hide_seek_round(this);
+                    start_hide_seek_round(this, false, .INFECTED, true);
                 }
             }
             case .HIDING: {
@@ -285,6 +289,180 @@ Hide_Seek_Game :: class : Component {
 }
 
 g_hide_seek: Hide_Seek_Game;
+
+// A stage change is rebuilt in three steps, one frame apart:
+//   1 - strip to the base skin, retiring the old stage's transform constraint
+//   2 - enable the target skin, activating only its constraint
+//   3 - bind the canvas, capturing the mapping against the settled pose
+// Doing it in one call left the old constraint live and the mapping captured
+// against the previous pose, which is why any second rebuild misbehaved while a
+// cold /fat4 - with no previous stage to leave anything behind - always worked.
+REBUILD_IDLE  :: 0;
+REBUILD_BASE  :: 1;
+REBUILD_SKIN  :: 2;
+
+Fat_Visual_Entry :: struct {
+    id:    u64;
+    stage: s64;
+    phase: s64;
+    // Frame the current rebuild step ran on; the next step waits for a later one.
+    skin_frame: u64;
+    // The canvas override handle THIS machine created. Handles are machine-local,
+    // but player.override_ids[0] is a synced field - so after a reconcile it can
+    // hold the server's handle, and clearing that leaves our real override still
+    // bound to the old attachment while a second one is added to the same slot.
+    override_id: u64;
+}
+
+Paint_Override_Entry :: struct {
+    player_id:   u64;
+    override_id: u64;
+}
+
+// EVERY canvas override this machine has created per player, not just the latest.
+//
+// A predicted growth is rolled back and replayed by reconciliation. Rollback
+// restores CSL fields but cannot un-create an engine-side override, so a replay
+// can leave several stacked on the same slot - and remembering only the last one
+// means the earlier ones stay bound to attachments that are no longer shown.
+// That is the difference between /fat3 (server-only, one clean rebuild) and
+// growing into stage 3 (predicted, replayed).
+g_paint_overrides: [..]Paint_Override_Entry;
+
+register_paint_override :: proc(player_id: u64, override_id: u64) {
+    if override_id == 0 { return; }
+    for i: 0..g_paint_overrides.count - 1 {
+        if g_paint_overrides[i].player_id == player_id && g_paint_overrides[i].override_id == override_id { return; }
+    }
+    entry: Paint_Override_Entry;
+    entry.player_id = player_id;
+    entry.override_id = override_id;
+    g_paint_overrides.append(entry);
+}
+
+clear_paint_overrides :: proc(player: Player) {
+    if player.animator == null { return; }
+    kept: [..]Paint_Override_Entry;
+    for i: 0..g_paint_overrides.count - 1 {
+        if g_paint_overrides[i].player_id == player.entity.id {
+            player.animator.instance.clear_attachment_sprite_override(g_paint_overrides[i].override_id);
+        } else {
+            kept.append(g_paint_overrides[i]);
+        }
+    }
+    g_paint_overrides.clear();
+    for i: 0..kept.count - 1 { g_paint_overrides.append(kept[i]); }
+}
+
+// Which fat stage each player's body was last REBUILT for, on this machine.
+//
+// Deliberately not a field on Player: player fields are synced, so the server
+// setting "applied = 2" would arrive on a client that never rebuilt anything and
+// tell it there was nothing to do. That is exactly why growing broke while /fat
+// always worked - the command runs on the client you are sitting at, a growth
+// often does not.
+g_fat_visuals: [..]Fat_Visual_Entry;
+
+fat_visual_stage :: proc(id: u64) -> s64 {
+    for i: 0..g_fat_visuals.count - 1 {
+        if g_fat_visuals[i].id == id { return g_fat_visuals[i].stage; }
+    }
+    return -1;
+}
+
+fat_visual_override :: proc(id: u64) -> u64 {
+    for i: 0..g_fat_visuals.count - 1 {
+        if g_fat_visuals[i].id == id { return g_fat_visuals[i].override_id; }
+    }
+    return 0;
+}
+
+fat_visual_skin_frame :: proc(id: u64) -> u64 {
+    for i: 0..g_fat_visuals.count - 1 {
+        if g_fat_visuals[i].id == id { return g_fat_visuals[i].skin_frame; }
+    }
+    return 0;
+}
+
+// True while a stage change is still being applied - nothing else should bind
+// the canvas until the sequence finishes.
+fat_visual_rebuilding :: proc(id: u64) -> bool {
+    for i: 0..g_fat_visuals.count - 1 {
+        if g_fat_visuals[i].id == id { return g_fat_visuals[i].phase != REBUILD_IDLE; }
+    }
+    return false;
+}
+
+fat_visual_phase :: proc(id: u64) -> s64 {
+    for i: 0..g_fat_visuals.count - 1 {
+        if g_fat_visuals[i].id == id { return g_fat_visuals[i].phase; }
+    }
+    return REBUILD_IDLE;
+}
+
+set_fat_visual :: proc(id: u64, stage: s64, phase: s64, override_id: u64) {
+    for i: 0..g_fat_visuals.count - 1 {
+        if g_fat_visuals[i].id == id {
+            g_fat_visuals[i].stage = stage;
+            g_fat_visuals[i].phase = phase;
+            g_fat_visuals[i].override_id = override_id;
+            g_fat_visuals[i].skin_frame = get_frame_number();
+            return;
+        }
+    }
+    entry: Fat_Visual_Entry;
+    entry.id = id;
+    entry.stage = stage;
+    entry.phase = phase;
+    entry.override_id = override_id;
+    entry.skin_frame = get_frame_number();
+    g_fat_visuals.append(entry);
+}
+
+set_fat_visual_stage :: proc(id: u64, stage: s64, override_id: u64) {
+    set_fat_visual(id, stage, REBUILD_IDLE, override_id);
+}
+
+// Rebuilds the body skin, canvas rect and attachment override whenever this
+// machine has not built them for the player's current stage. Safe to call every
+// frame - it is a list lookup until something actually changed.
+// Drives the three-step rebuild. Safe to call every frame; it is a list lookup
+// until a step is actually due.
+ensure_fat_visuals :: proc(player: Player) {
+    if player.animator == null { return; }
+    // Only seekers are excluded - they wear a different rig entirely. Everyone
+    // else, including a player whose role is still NONE in the pre-round lobby,
+    // must be able to finish a rebuild; gating this on HIDER/LOBBY stranded them
+    // on the base skin after step 1.
+    if player.hide_seek_role == .SEEKER { return; }
+
+    id := player.entity.id;
+    if fat_visual_stage(id) != player.fat_stage {
+        apply_hider_body_skin(player);
+        return;
+    }
+    // Each step waits for a frame the engine has actually posed.
+    if get_frame_number() <= fat_visual_skin_frame(id) { return; }
+
+    phase := fat_visual_phase(id);
+    if phase == REBUILD_BASE {
+        // Now that the old constraint has been retired against the base skin,
+        // bring up the target stage.
+        player.animator.disable_all_skins();
+        player.animator.enable_skin(hider_skin_for_stage(player.fat_stage));
+        player.animator.refresh_skins();
+        set_fat_visual(id, player.fat_stage, REBUILD_SKIN, 0);
+        return;
+    }
+    if phase == REBUILD_SKIN {
+        if !player.wear_paint_enabled {
+            set_fat_visual(id, player.fat_stage, REBUILD_IDLE, 0);
+            return;
+        }
+        wear_paint(player, player.skin_canvas);
+        return;
+    }
+}
 
 get_hide_seek_game :: proc() -> Hide_Seek_Game {
     if #alive(g_hide_seek) { return g_hide_seek; }
@@ -335,6 +513,10 @@ tally_map_votes :: proc(game: Hide_Seek_Game) {
 }
 
 map_is_in_current_vote :: proc(game: Hide_Seek_Game, map_index: s64) -> bool {
+    // "No vote" is -1, and so is an unset card slot. Without this guard the two
+    // match, tally_map_votes writes map_votes[-1], and every non-voting player
+    // corrupts memory past the array.
+    if map_index < 0 || map_index >= TOTAL_MAP_COUNT { return false; }
     for i: 0..VOTE_CARD_COUNT - 1 {
         if game.vote_map_indices[i] == map_index { return true; }
     }
@@ -405,17 +587,21 @@ vote :: proc(command_player: Player) {
 // Ties (including nobody voting) break randomly among the leaders.
 resolve_map_vote :: proc(game: Hide_Seek_Game) -> Map_Kind {
     tally_map_votes(game);
-    first_map := game.vote_map_indices[0];
-    best_votes := game.map_votes[first_map];
-    for slot: 1..VOTE_CARD_COUNT - 1 {
+    // Same guard as the card: an unset slot is -1 and must never reach map_votes.
+    best_votes: s64 = -1;
+    for slot: 0..VOTE_CARD_COUNT - 1 {
         map_index := game.vote_map_indices[slot];
+        if map_index < 0 || map_index >= TOTAL_MAP_COUNT { continue; }
         if game.map_votes[map_index] > best_votes { best_votes = game.map_votes[map_index]; }
     }
     tied: [..]s64;
     for slot: 0..VOTE_CARD_COUNT - 1 {
         map_index := game.vote_map_indices[slot];
+        if map_index < 0 || map_index >= TOTAL_MAP_COUNT { continue; }
         if game.map_votes[map_index] == best_votes { tied.append(map_index); }
     }
+    // Nothing valid to pick from - the vote never populated.
+    if tied.count == 0 { return .CITY; }
     if tied.count == 1 { return tied[0].(Map_Kind); }
     rng := rng_root_seed();
     return tied[rng_range_int(ref rng, 0, tied.count - 1)].(Map_Kind);
@@ -635,6 +821,12 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
         player.role_visual_applied = .NONE;
         // A reel that never finished must not drag someone out of the lobby.
         player.pending_round_teleport = false;
+        // No blind survives into the lobby.
+        clear_blind(player);
+        // Nobody waits out the lobby still fat. role_visual_applied is cleared
+        // above, so the rebuild that follows picks up stage 0.
+        player.fat_stage = 0;
+        player.next_fat_time = 0;
         player.found_banner_end_time = 0;
         player.pending_found_end_time = 0;
         clear_found_freeze(player);
@@ -778,7 +970,19 @@ update_countdown_tick_sound :: proc(player: Player) {
     SFX.play(get_asset(SFX_Asset, "mouse_click_cee011.wav"), desc);
 }
 
-start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false, mode: Hide_Seek_Game_Mode = .INFECTED) -> bool {
+// Mode odds as cumulative bands off a single draw, rarest first. One draw rather
+// than a roll per mode, so the outcomes are mutually exclusive by construction
+// and adding a third mode is one line rather than a nest of conditions. Rates are
+// a share of 1.0; whatever is left over falls through to INFECTED.
+FAT_MODE_RATE :: 0.5;
+
+roll_game_mode :: proc(game: Hide_Seek_Game) -> Hide_Seek_Game_Mode {
+    roll := rng_range_float(ref game.role_rng, 0, 1);
+    if roll < FAT_MODE_RATE { return .FAT; }
+    return .INFECTED;
+}
+
+start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false, mode: Hide_Seek_Game_Mode = .INFECTED, randomize_mode: bool = false) -> bool {
     players: [..]Player;
     for player: component_iterator(Player) {
         if #alive(player) && #alive(player.entity) { players.append(player); }
@@ -787,6 +991,10 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
     if !bypass_minimum && players.count < required_players { return false; }
     if players.count == 0 { return false; }
     game.game_mode = mode;
+    // Rolled before any reel is armed, so the mode reel reveals a decided result
+    // rather than producing one. The /start commands pass an explicit mode and
+    // skip this.
+    if randomize_mode { game.game_mode = roll_game_mode(game); }
 
     // Clear last round's bodies in case this start skipped the reveal (e.g. /start).
     clear_hide_seek_corpses();
@@ -808,8 +1016,7 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
         player.fat_stage = 0;
         player.next_fat_time = 0;
         clear_found_freeze(player);
-        player.fat_stage = 0;
-        player.next_fat_time = 0;
+        clear_blind(player);
         player.seeker_rig_ready = false;
         player.streamed_seeker_rig_ready = false;
         player.role_reveal_end_time = get_time() + ROLE_REVEAL_SECONDS;
@@ -843,11 +1050,22 @@ start_hide_seek_round :: proc(game: Hide_Seek_Game, bypass_minimum: bool = false
     return true;
 }
 
+// Rolls the mode like a real round does, so the mode reel is exercised. Use
+// /startfat or /startinfected to pin one.
 start :: proc(command_player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
     game.selected_map = .CITY;
-    if !start_hide_seek_round(game, true) {
+    if !start_hide_seek_round(game, true, .INFECTED, true) {
+        Notifier.notify(command_player, "No players are available to start the round.");
+    }
+} @chat_command @owner_or_editor
+
+startinfected :: proc(command_player: Player) {
+    game := get_hide_seek_game();
+    if !#alive(game) { return; }
+    game.selected_map = .CITY;
+    if !start_hide_seek_round(game, true, .INFECTED) {
         Notifier.notify(command_player, "No players are available to start the round.");
     }
 } @chat_command @owner_or_editor
@@ -873,7 +1091,7 @@ begin_hide_seek_hunt :: proc(game: Hide_Seek_Game) {
     // search begins, whether the timer expires or an editor skips it.
     for player: component_iterator(Player) {
         if game.game_mode == .FAT && player.hide_seek_role == .HIDER {
-            player.next_fat_time = get_time() + FAT_GROWTH_SECONDS;
+            schedule_next_fat_time(game, player);
         }
         bell_desc := SFX.default_sfx_desc();
         bell_desc.specific_to_player = player;
@@ -892,7 +1110,7 @@ force_start :: proc(command_player: Player) {
     game := get_hide_seek_game();
     if !#alive(game) { return; }
     game.selected_map = .CITY;
-    if !start_hide_seek_round(game, true) {
+    if !start_hide_seek_round(game, true, .INFECTED, true) {
         Notifier.notify(command_player, "No players are available to start the round.");
         return;
     }
@@ -1086,21 +1304,211 @@ hider_skin_for_stage :: proc(stage: s64) -> string {
 
 apply_hider_body_skin :: proc(player: Player) {
     if player.animator == null { return; }
+    // Clear every override this machine created for this player, then the synced
+    // handle if it is something else again. Clearing only the latest left older
+    // ones bound to attachments that are no longer shown.
+    clear_paint_overrides(player);
     if player.override_ids[0] != 0 {
         player.animator.instance.clear_attachment_sprite_override(player.override_ids[0]);
-        player.override_ids[0] = 0;
     }
+    player.override_ids[0] = 0;
+
+    // Step 1 only: strip back to the base skin. That retires the previous
+    // stage's transform constraint before the target's is introduced, so the two
+    // are never live together. ensure_fat_visuals runs the remaining steps.
     player.animator.disable_all_skins();
-    player.animator.enable_skin(hider_skin_for_stage(player.fat_stage));
+    player.animator.enable_skin(MECHA_SKIN);
     player.animator.refresh_skins();
     player.mecha_skin_applied = true;
-    if player.wear_paint_enabled { wear_paint(player, player.skin_canvas); }
+    set_fat_visual(player.entity.id, player.fat_stage, REBUILD_BASE, 0);
 }
 
 grow_fat_hider :: proc(player: Player) {
     if player.hide_seek_role != .HIDER || player.fat_stage >= FAT_MAX_STAGE { return; }
     player.fat_stage += 1;
     apply_hider_body_skin(player);
+    // Each stage is a fresh canvas. The old strokes were authored for a smaller,
+    // differently shaped body, so carrying them over just stretches them out of
+    // place - and repainting is the cost of growing.
+    reset_paint_for_new_body(player);
+    blind_all_seekers();
+}
+
+// Back to the flat avatar colour the character starts a round with.
+reset_paint_for_new_body :: proc(player: Player) {
+    if player.skin_canvas == null { return; }
+    color := player.avatar_color;
+    if color == .NONE {
+        player.skin_canvas.fill(v4.{0.55, 0.32, 0.78, 1});
+        return;
+    }
+    player.skin_canvas.fill(color_replace_get_color(color));
+}
+
+// Testing: jump straight to a fat stage without waiting out the growth timer.
+// Stage 0 is the normal silhouette, so /fat 0 undoes it.
+set_fat_stage :: proc(command_player: Player, stage: s64) {
+    if stage < 0 || stage > FAT_MAX_STAGE {
+        Notifier.notify(command_player, `Fat stage must be 0 to {FAT_MAX_STAGE}.`);
+        return;
+    }
+    command_player.fat_stage = stage;
+    apply_hider_body_skin(command_player);
+    // Matches a real growth, so testing sees the same thing players do.
+    reset_paint_for_new_body(command_player);
+    // Push the timer out so an active FAT round does not immediately grow past
+    // the stage being inspected.
+    command_player.next_fat_time = get_time() + FAT_GROWTH_SECONDS;
+}
+
+fat :: proc(command_player: Player, stage: int = 1) {
+    set_fat_stage(command_player, stage);
+} @chat_command @owner_or_editor
+
+// Reports whether the canvas override actually took. override id 0 means
+// override_attachment_canvas found no attachment by that name - which is the
+// difference between "the mapping is off" and "there is no canvas at all".
+paintdebug :: proc(command_player: Player) {
+    bounds := paint_canvas_rect_bounds(command_player);
+    Notifier.notify(command_player, `stage {command_player.fat_stage} att {mecha_paint_attachment(command_player)} override {command_player.override_ids[0]}`);
+    Notifier.notify(command_player, `rect x {format_float(bounds.x, decimals=3)}..{format_float(bounds.z, decimals=3)} y {format_float(bounds.y, decimals=3)}..{format_float(bounds.w, decimals=3)}`);
+} @chat_command @owner_or_editor
+
+// Samples the paint mapping at the cursor. "hit false" means the canvas lookup
+// itself is failing (no override bound, or the mesh test misses); "hit true"
+// with uv outside 0..1 means the rect is wrong for this stage.
+painttest :: proc(command_player: Player) {
+    if command_player.animator == null || command_player.skin_canvas == null {
+        Notifier.notify(command_player, "No animator or canvas.");
+        return;
+    }
+    mouse := get_mouse_world_position();
+    uv, hit := command_player.animator.try_get_paint_canvas_uv(mouse, command_player.skin_canvas);
+    Notifier.notify(command_player, `stage {command_player.fat_stage} hit {hit} uv {format_float(uv.x, decimals=3)},{format_float(uv.y, decimals=3)}`);
+    Notifier.notify(command_player, `override {command_player.override_ids[0]} visual_stage {fat_visual_stage(command_player.entity.id)}`);
+} @chat_command @owner_or_editor
+
+// Measured paint mapping coverage, for tests to assert on.
+g_paint_hit_ratio: float;
+g_paint_center_hit: bool;
+
+// Samples the canvas lookup over a grid spanning the current stage's rect, plus
+// one point at chest height. A stage where the binding is broken reports 0 for
+// both; a healthy stage hits wherever the silhouette actually is.
+measure_paint_coverage :: proc(player: Player) {
+    g_paint_hit_ratio = 0;
+    g_paint_center_hit = false;
+    if player.animator == null || player.skin_canvas == null { return; }
+
+    rect_min, rect_max := paint_canvas_rect(player);
+    origin := player.entity.world_position;
+    hits := 0;
+    total := 0;
+    for ix: 0..8 {
+        for iy: 0..12 {
+            fx := ix.(float) / 8.0;
+            fy := iy.(float) / 12.0;
+            local := v2.{lerp(rect_min.x, rect_max.x, fx), lerp(rect_min.y, rect_max.y, fy)};
+            probe := origin + v2.{local.x * MECHA_RENDER_SCALE, local.y * MECHA_RENDER_SCALE};
+            _, hit := player.animator.try_get_paint_canvas_uv(probe, player.skin_canvas);
+            total += 1;
+            if hit { hits += 1; }
+        }
+    }
+    if total > 0 { g_paint_hit_ratio = hits.(float) / total.(float); }
+
+    chest := origin + v2.{0, 1.2 * MECHA_RENDER_SCALE};
+    _, center_hit := player.animator.try_get_paint_canvas_uv(chest, player.skin_canvas);
+    g_paint_center_hit = center_hit;
+}
+
+paintcoverage :: proc(command_player: Player) {
+    measure_paint_coverage(command_player);
+    Notifier.notify(command_player, `stage {command_player.fat_stage} coverage {format_float(g_paint_hit_ratio, decimals=3)} center {g_paint_center_hit}`);
+} @chat_command @owner_or_editor
+
+// One growth through the real path, so tests exercise upgrades rather than the
+// direct /fat set which was never the broken case.
+growfat :: proc(command_player: Player) {
+    grow_fat_hider(command_player);
+} @chat_command @owner_or_editor
+
+paintrect :: proc(command_player: Player) {
+    command_player.show_paint_rect = !command_player.show_paint_rect;
+} @chat_command @owner_or_editor
+
+
+fat0 :: proc(command_player: Player) { set_fat_stage(command_player, 0); } @chat_command @owner_or_editor
+fat1 :: proc(command_player: Player) { set_fat_stage(command_player, 1); } @chat_command @owner_or_editor
+fat2 :: proc(command_player: Player) { set_fat_stage(command_player, 2); } @chat_command @owner_or_editor
+fat3 :: proc(command_player: Player) { set_fat_stage(command_player, 3); } @chat_command @owner_or_editor
+fat4 :: proc(command_player: Player) { set_fat_stage(command_player, 4); } @chat_command @owner_or_editor
+
+BLIND_SECONDS :: 5.0;
+// The curtain takes this long to fall, and the same to lift at the end.
+BLIND_CURTAIN_SECONDS :: 0.45;
+
+// Growing costs the hiders their cover, so it buys them something: every seeker
+// is blinded while it happens. Refreshing an active blind rather than stacking
+// keeps simultaneous growths to a single 5s window.
+blind_all_seekers :: proc() {
+    for player: component_iterator(Player) {
+        if player.hide_seek_role != .SEEKER { continue; }
+        player.blind_start_time = get_time();
+        player.blind_end_time = get_time() + BLIND_SECONDS;
+
+        desc := SFX.default_sfx_desc();
+        desc.specific_to_player = player;
+        desc.volume = 0.7;
+        desc.speed_perturb = 0;
+        SFX.play(get_asset(SFX_Asset, "SFX/braam2.wav"), desc);
+    }
+}
+
+clear_blind :: proc(player: Player) {
+    player.blind_start_time = 0;
+    player.blind_end_time = 0;
+}
+
+// A curtain of darkness falls from the top, holds, then lifts. Drawn above the
+// HUD so it actually blinds - there is no point leaving the round UI readable.
+draw_seeker_blind :: proc(player: Player) {
+    remaining := player.blind_end_time - get_time();
+    if remaining <= 0 { return; }
+
+    age := get_time() - player.blind_start_time;
+    fall := Ease.out_cubic(clamp(age / BLIND_CURTAIN_SECONDS, 0, 1));
+    lift := Ease.out_cubic(clamp(remaining / BLIND_CURTAIN_SECONDS, 0, 1));
+    coverage := min(fall, lift);
+    if coverage <= 0 { return; }
+
+    screen := UI.get_safe_screen_rect();
+    UI.push_screen_draw_context();
+    defer UI.pop_draw_context();
+    UI.push_layer(148);
+    defer UI.pop_layer();
+
+    // Full-bleed rather than safe-area, so nothing shows around the edges.
+    full := UI.get_screen_rect();
+    height := full.height() * coverage;
+    curtain := Rect.{
+        min = v2.{full.min.x, full.max.y - height},
+        max = v2.{full.max.x, full.max.y},
+    };
+    UI.quad(curtain, core_globals.white_sprite, v4.{0, 0, 0, 1});
+
+    // The message rides the leading edge down, then sits centred once covered.
+    if coverage < 0.45 { return; }
+    text_settings := UI.default_text_settings();
+    text_settings.size = 56;
+    text_settings.color = v4.{1, 1, 1, clamp((coverage - 0.45) / 0.35, 0, 1)};
+    text_settings.halign = .CENTER;
+    text_settings.valign = .CENTER;
+    text_settings.do_outline = true;
+    text_settings.outline_thickness = 5;
+    text_settings.outline_color = v4.{0, 0, 0, 1};
+    label_rect := screen.center_rect().grow(60, 420, 60, 420);
+    UI.text(label_rect, text_settings, `BLINDED FOR {(remaining + 0.999).(s64)}s`);
 }
 
 SEEKER_ANIMATION_LAYER :: "seeker_shotgun";
@@ -1181,6 +1589,9 @@ apply_seeker_visuals :: proc(player: Player) {
         weapon_unequip(player, player.equipped_weapon_type);
         player.equipped_weapon_type = .NONE;
     }
+    // Same as the body rebuild: drop every override this machine made, not just
+    // whatever the synced field happens to hold.
+    clear_paint_overrides(player);
     if player.override_ids[0] != 0 {
         player.animator.instance.clear_attachment_sprite_override(player.override_ids[0]);
         player.override_ids[0] = 0;
@@ -1264,6 +1675,12 @@ update_hide_seek_player :: proc(player: Player) {
         // Lobby waiters wear the same rig as hiders - it is the lobby look, and
         // it keeps their paint job on while they wait out the round.
         apply_hider_visuals(player);
+    } else {
+        // Growth is synced state, so a client can arrive at a new stage by
+        // reconcile or resimulation rather than by running grow_fat_hider. This
+        // rebuilds from the state itself instead of trusting that this machine
+        // ran the growth.
+        ensure_fat_visuals(player);
     }
 }
 
@@ -1426,6 +1843,55 @@ draw_lobby_waiter_banner :: proc(player: Player, game: Hide_Seek_Game) {
     text_desc.set_color(v4.{1, 1, 1, 1});
     text_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
     UIK.text(text_desc, "ROUND IN PROGRESS - YOU PLAY NEXT");
+    draw_waiter_warning_icon();
+}
+
+FAT_WARNING_SECONDS :: 5.0;
+
+// Next growth time for a hider, nudged clear of the forced whistle schedule so
+// the two countdowns never share the screen. Checks the upcoming whistles rather
+// than just the next one, because pushing past one can land on the following one.
+schedule_next_fat_time :: proc(game: Hide_Seek_Game, player: Player) {
+    t := get_time() + FAT_GROWTH_SECONDS;
+    for i: 0..2 {
+        whistle := game.next_forced_whistle_time + i.(float) * FORCED_WHISTLE_SECONDS;
+        if abs(t - whistle) < FAT_WHISTLE_SEPARATION { t = whistle + FAT_WHISTLE_SEPARATION; }
+    }
+    player.next_fat_time = t;
+}
+
+// Fat mode only: a heads-up before each growth stage, same treatment as the
+// whistle countdown. Stacks under it when both are counting down at once.
+draw_fat_warning_banner :: proc(player: Player, game: Hide_Seek_Game) {
+    if game.phase != .HUNTING || game.game_mode != .FAT { return; }
+    if player.hide_seek_role != .HIDER { return; }
+    if player.fat_stage >= FAT_MAX_STAGE { return; }
+    remaining := player.next_fat_time - get_time();
+    if remaining <= 0 || remaining > FAT_WARNING_SECONDS { return; }
+
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 104;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    banner_y := -250.0;
+    if whistle_warning_active(player, game) { banner_y = -318; }
+
+    banner := UIK.panel_modal(.TRANSP_BLACK, UIK.fit(), UIK.pixels(56), 12, v4.{4, 20, 4, 20});
+    banner.axis = .HORIZONTAL;
+    banner.cross_align = .CENTER;
+    banner.main_align = .CENTER;
+    UIK.overlay_begin(.TOP_CENTER, banner, v2.{0, banner_y});
+    defer UIK.overlay_end();
+
+    draw_waiter_warning_icon();
+    text_desc := UIK.text_title();
+    text_desc.set_size_mult(0.85);
+    text_desc.set_halign(.CENTER);
+    text_desc.set_color(v4.{1, 1, 1, 1});
+    text_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
+    // Ceil, so it reads 5s..1s and never sits on 0 before the growth lands.
+    UIK.text(text_desc, `Getting Fat in {(remaining + 0.999).(s64)}s`);
     draw_waiter_warning_icon();
 }
 
@@ -1670,6 +2136,7 @@ draw_hide_seek_ui :: proc(player: Player, dt: float) {
     draw_hide_time_banner(player, game);
     draw_seeker_wait_banner(player, game);
     draw_whistle_warning_banner(player, game);
+    draw_fat_warning_banner(player, game);
     draw_lobby_waiter_banner(player, game);
     draw_search_start_banner(game);
     draw_found_banner(player);
@@ -1953,6 +2420,12 @@ draw_hide_seek_leaderboard :: proc(player: Player) {
 }
 
 draw_map_vote_card :: proc(player: Player, game: Hide_Seek_Game, index: s64, dt: float) {
+    // vote_map_indices start at -1 and are filled in by choose_vote_maps. A client
+    // can see phase == MAP_SELECTION a frame before those indices arrive, and this
+    // card reads game.map_votes[index] - so an unset slot would index [-1] and
+    // throw. Thrown inside draw_map_vote_ui's UIK window, that skips its deferred
+    // UIK.end() and every later UIK.begin trips UIK_MULTIPLE_BEGINS.
+    if index < 0 || index >= TOTAL_MAP_COUNT { return; }
     map := index.(Map_Kind);
 
     card := UIK.layout_column();
@@ -2131,20 +2604,10 @@ draw_hide_seek_role_reveal :: proc(player: Player) {
 
     // The reel owns the middle of the screen. Name and instructions stay hidden
     // until it lands, so the result is not spoiled during the spin.
+    // Each reel captions itself ("YOUR ROLE" / "GAME MODE"), so nothing else is
+    // drawn while the sequence runs.
     settled := draw_role_reel(player, screen);
-    if !settled {
-        spin_rect := screen.center_rect().grow(40, 520, 40, 520).offset(0, 250);
-        spin_settings := UI.default_text_settings();
-        spin_settings.size = 44;
-        spin_settings.color = v4.{1, 1, 1, 1};
-        spin_settings.halign = .CENTER;
-        spin_settings.valign = .CENTER;
-        spin_settings.do_outline = true;
-        spin_settings.outline_thickness = 5;
-        spin_settings.outline_color = v4.{0, 0, 0, 1};
-        UI.text(spin_rect, spin_settings, "ASSIGNING ROLE");
-        return;
-    }
+    if !settled { return; }
 
     // "YOU ARE A SEEKER" lands right after the reel stops, punching in over a
     // short beat so it reads as the payoff of the roll rather than a caption

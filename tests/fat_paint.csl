@@ -1,0 +1,45 @@
+// Painting has repeatedly broken when a hider GROWS into a fat stage, while
+// jumping straight to that stage with /fat worked. This walks the growth path
+// one stage at a time and asserts the canvas lookup still finds the body.
+//
+// g_paint_hit_ratio is the share of a grid over the stage's canvas rect that
+// lands on the silhouette; g_paint_center_hit is a single probe at chest height.
+// A broken binding reports 0 and false - the body renders but nothing is under
+// the brush.
+
+test_paint_works_after_each_growth :: proc() {
+    Test.run_admin_command("startfat");
+    Test.wait_seconds(1.0);
+    Test.run_admin_command("skipwait");
+    Test.wait_seconds(1.0);
+
+    // Stage 0 is the baseline: whatever coverage a healthy body reports.
+    Test.run_admin_command("paintcoverage");
+    Test.assert_var_bool("stage 0 chest paintable", "g_paint_center_hit", true);
+    Test.assert_var_float("stage 0 coverage", "g_paint_hit_ratio", 0.35, 0.35);
+
+    Test.run_admin_command("growfat");
+    Test.wait_seconds(0.5);
+    Test.run_admin_command("paintcoverage");
+    Test.assert_var_bool("stage 1 chest paintable", "g_paint_center_hit", true);
+    Test.assert_var_float("stage 1 coverage", "g_paint_hit_ratio", 0.35, 0.35);
+
+    Test.run_admin_command("growfat");
+    Test.wait_seconds(0.5);
+    Test.run_admin_command("paintcoverage");
+    Test.assert_var_bool("stage 2 chest paintable", "g_paint_center_hit", true);
+    Test.assert_var_float("stage 2 coverage", "g_paint_hit_ratio", 0.35, 0.35);
+
+    Test.run_admin_command("growfat");
+    Test.wait_seconds(0.5);
+    Test.run_admin_command("paintcoverage");
+    Test.assert_var_bool("stage 3 chest paintable", "g_paint_center_hit", true);
+    Test.assert_var_float("stage 3 coverage", "g_paint_hit_ratio", 0.35, 0.35);
+
+    Test.run_admin_command("growfat");
+    Test.wait_seconds(0.5);
+    Test.run_admin_command("paintcoverage");
+    Test.assert_var_bool("stage 4 chest paintable", "g_paint_center_hit", true);
+    Test.assert_var_float("stage 4 coverage", "g_paint_hit_ratio", 0.35, 0.35);
+    Test.screenshot("fat4_after_growth");
+}
