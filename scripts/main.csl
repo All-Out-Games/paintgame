@@ -86,6 +86,16 @@ Player :: class : Player_Base {
     spawn_placed: bool;   // set once the game has positioned this player
     score: s64;             // live, ticks every frame
     published_score: s64;   // snapshot the leaderboard renders
+    // Persistent levelling (see leveling.csl). total_xp is the saved value; the
+    // rest is derived from it whenever it changes.
+    total_xp: s64;
+    level: s64;
+    level_xp: s64;
+    level_xp_needed: s64;
+    last_round_xp: s64;
+    // When the XP sweep and gain text should start playing. Stamped on the award
+    // and again on the return to the lobby, so the payoff plays in both places.
+    xp_anim_start: float;
     weapon_target: Weapon_Target;
     equipped_weapon_type: Weapon_Type;
     equipped_item_def: Item_Definition;
@@ -158,6 +168,7 @@ Player :: class : Player_Base {
         sprint_base_speed = agent.movement_speed;
         if sprint_base_speed <= 0 { sprint_base_speed = 300.0; }
         last_countdown_tick_second = -1;
+        load_player_level(this);
         weapon_target = entity.add_component(Weapon_Target);
         weapon_target.health = 100.0;
         weapon_target.max_health = 100.0;
@@ -224,6 +235,8 @@ Player :: class : Player_Base {
             draw_seeker_blind(this);
             // Above the round UI: a player must always see what they scored.
             draw_score_popups_screen(this);
+            draw_all_lobby_level_badges();
+            draw_lobby_level_hud(this);
             voting_focus := hide_seek_voting_focus_active();
             if voting_focus {
                 draw_hide_seek_ui(this, dt);

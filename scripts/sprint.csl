@@ -8,6 +8,8 @@ WALK_SPEED_MULTIPLIER :: 0.85;
 HIDER_WALK_SPEED_MULTIPLIER :: 0.8;
 SPRINT_SPEED_MULTIPLIER :: 1.5;
 SHIFT_KEYCAP_TEXTURE :: "shift.png";
+// Entity origin is at the feet, so this hangs the stamina bar just below them.
+SPRINT_BAR_Y_OFFSET :: -0.3;
 
 Sprint_Ability :: class : Ability_Base {
     on_init :: method() {
@@ -52,8 +54,11 @@ draw_sprint_stamina :: proc(player: Player) {
     UI.push_layer(12);
     defer UI.pop_layer();
 
-    y_offset := 2.0 + player.fat_stage.(float) * 0.12;
-    center := player.entity.world_position + v2.{0, y_offset};
+    // Under the feet, not over the head. The nameplate sits directly above the
+    // body and moved down when the sprite rig replaced the mesh rig, so anything
+    // drawn above collides with it - and would again on the next rig change.
+    // Below the body there is nothing to collide with at any fat stage.
+    center := player.entity.world_position + v2.{0, SPRINT_BAR_Y_OFFSET};
     outer := Rect.{min = center - v2.{0.68, 0.075}, max = center + v2.{0.68, 0.075}};
     UI.quad(outer, core_globals.white_sprite, v4.{0.015, 0.02, 0.03, 0.94});
     inner := outer.inset(0.025);

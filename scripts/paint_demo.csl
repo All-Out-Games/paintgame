@@ -685,7 +685,9 @@ draw_emote_menu :: proc(player: Player) {
     defer UIK.end();
 
     // Four rows of four at 104 apiece, plus the header and the Stop button.
-    menu := UIK.panel_modal(.WHITE, UIK.pixels(760), UIK.pixels(620), 14, v4.{24, 28, 24, 28});
+    // Tall enough for four rows plus the level requirement printed under each
+    // locked tile - at 620 the last row's label fell outside the panel.
+    menu := UIK.panel_modal(.WHITE, UIK.pixels(760), UIK.pixels(672), 14, v4.{24, 28, 24, 28});
     menu.cross_align = .STRETCH;
     UIK.overlay_begin(.CENTER, menu);
     defer UIK.overlay_end();
@@ -697,6 +699,9 @@ draw_emote_menu :: proc(player: Player) {
     title_desc.set_size_mult(1.25);
     UIK.text(title_desc, "POSES / EMOTES");
     UIK.spacer(UIK.flex(1), UIK.pixels(1));
+    // Your level, next to the requirements it is measured against - otherwise a
+    // tile reading "LV 9" means nothing without leaving the menu to check.
+    draw_level_badge(player.level, 44);
     close_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_RED);
     close_desc.panel.width = UIK.pixels(52);
     close_desc.panel.height = UIK.pixels(52);
@@ -737,13 +742,45 @@ draw_emote_menu :: proc(player: Player) {
         "emote-icons/mc_player_silhouette-clean-pose-t_pose_0.png",
         "emote-icons/mc_player_silhouette-clean-pose-yoga_0.png",
     };
-    pose_desc := UIK.widget_desc_button_default(.BUTTON_SHINY_BLUE);
-    pose_desc.panel.width = UIK.flex(1);
-    pose_desc.panel.height = UIK.pixels(96);
     for i: 0..labels.count - 1 {
-        icon := get_asset(Texture_Asset, icons[i]);
-        result := UIK.icon_button(labels[i], icon, pose_desc);
-        if UIK.clicked(result) {
+        required := emote_required_level(i);
+        locked := !emote_unlocked(player, i);
+
+        // Locked emotes stay visible and in place - they are the reason to keep
+        // levelling - but read as unavailable: greyed plate, dimmed art, and the
+        // level that unlocks them printed on the tile so the requirement never
+        // has to be hunted for.
+        cell := UIK.widget_desc_button_default(.BUTTON_SHINY_BLUE);
+        if locked { cell = UIK.widget_desc_button_default(.BUTTON_BASIC_GREY); }
+        cell.panel.width = UIK.flex(1);
+        cell.panel.height = UIK.pixels(96);
+        cell.panel.axis = .VERTICAL;
+        cell.panel.cross_align = .CENTER;
+        cell.panel.main_align = .CENTER;
+        cell.panel.gap = 0;
+        cell.panel.padding = v4.{4, 4, 4, 4};
+
+        result := UIK.panel_begin_interactive(labels[i], cell.panel, locked);
+        icon_box := UIK.layout_column();
+        icon_box.width = UIK.flex(1);
+        icon_box.height = UIK.flex(1);
+        UIK.panel_begin(icon_box);
+        icon_tint := v4.{1, 1, 1, 1};
+        if locked { icon_tint = v4.{0.42, 0.44, 0.5, 0.85}; }
+        UIK.image_fitted(get_asset(Texture_Asset, icons[i]), UIK.image_desc(.CONTAIN), icon_tint);
+        UIK.panel_end();
+
+        if locked {
+            requirement := UIK.text_body();
+            requirement.set_size_mult(0.62);
+            requirement.set_halign(.CENTER);
+            requirement.set_color(HUD_YELLOW);
+            requirement.set_outline(true, 3.0, v4.{0, 0, 0, 1});
+            UIK.text(requirement, `LV {required}`);
+        }
+        UIK.panel_end();
+
+        if !locked && UIK.clicked(result) {
             player.active_pose = i + 1;
             player.emotes_open = false;
         }

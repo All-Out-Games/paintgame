@@ -1,0 +1,429 @@
+// Persistent levelling. Leaderboard points are XP: whatever a player scores in a
+// round is banked when that round completes, capped per round, and their level is
+// derived from the running total.
+//
+// XP to go from level L to L+1 is 40 + 8L + L*L, with levels starting at 1. That
+// reproduces the intended curve exactly - cumulative 270 at level 5, 1,005 at 10,
+// 4,750 at 20, 13,195 at 30, 28,340 at 40 and 52,185 at 50.
+
+LEVEL_MAX :: 50;
+XP_PER_ROUND_MAX :: 120;
+XP_SAVE_KEY :: "xp";
+
+level_xp_required :: proc(level: s64) -> s64 {
+    if level >= LEVEL_MAX { return 0; }
+    return 40 + 8 * level + level * level;
+}
+
+// Level, XP banked into it, and XP needed to finish it. At the cap the last two
+// report a full bar rather than a division by zero.
+level_from_xp :: proc(total_xp: s64) -> s64, s64, s64 {
+    level: s64 = 1;
+    remaining := total_xp;
+    if remaining < 0 { remaining = 0; }
+    while level < LEVEL_MAX {
+        needed := level_xp_required(level);
+        if remaining < needed { return level, remaining, needed; }
+        remaining -= needed;
+        level += 1;
+    }
+    return LEVEL_MAX, 1, 1;
+}
+
+LEVEL_LEADERBOARD :: "top_levels";
+
+// Set, not incremented: the board should read the player's level exactly, and a
+// level is derived from a running XP total rather than accumulated in steps.
+// Global_Leaderboard.increment_score would drift the moment a write was missed or
+// applied twice; writing the value itself is idempotent, which also means it is
+// safe that this runs on both realms and on every join.
+publish_level_to_leaderboard :: proc(player: Player) {
+    Save.ordered_set(LEVEL_LEADERBOARD, player.get_user_id(), player.level.(f64));
+}
+
+load_player_level :: proc(player: Player) {
+    player.total_xp = Save.get_int(player, XP_SAVE_KEY, 0);
+    level, into, needed := level_from_xp(player.total_xp);
+    player.level = level;
+    player.level_xp = into;
+    player.level_xp_needed = needed;
+    // Existing players appear on the board without having to finish a round first.
+    publish_level_to_leaderboard(player);
+}
+
+// Banked once a round completes. The leaderboard keeps showing the full score;
+// only the XP taken from it is capped.
+award_round_xp :: proc(player: Player) {
+    gain := player.score;
+    if gain <= 0 {
+        player.last_round_xp = 0;
+        return;
+    }
+    if gain > XP_PER_ROUND_MAX { gain = XP_PER_ROUND_MAX; }
+
+    before := player.level;
+    player.last_round_xp = gain;
+    player.total_xp += gain;
+    level, into, needed := level_from_xp(player.total_xp);
+    player.level = level;
+    player.level_xp = into;
+    player.level_xp_needed = needed;
+    Save.set_int(player, XP_SAVE_KEY, player.total_xp);
+    publish_level_to_leaderboard(player);
+    arm_xp_animation(player);
+
+    if player.level > before {
+        desc := SFX.default_sfx_desc();
+        desc.specific_to_player = player;
+        desc.volume = 0.8;
+        desc.speed_perturb = 0;
+        SFX.play(get_asset(SFX_Asset, "bell-ding_b7781f.wav"), desc);
+    }
+}
+
+// Every player who took part in the round that just finished. Lobby waiters sat
+// it out, so they bank nothing.
+award_round_xp_to_all :: proc() {
+    for player: component_iterator(Player) {
+        if player.hide_seek_role == .LOBBY || player.hide_seek_role == .NONE {
+            player.last_round_xp = 0;
+            continue;
+        }
+        award_round_xp(player);
+    }
+}
+
+// Level each emote unlocks at, in the same order as the emote menu's own lists.
+//
+// The first row is free so the menu is worth opening on day one, then unlocks
+// come quickly at first and stretch out: a handful inside the first few rounds,
+// the mid ones over a session or two, and the last few as long-term goals. At the
+// 120 XP round cap that is roughly 1, 2, 3 and 5 rounds for the early ones, out
+// to ~110 rounds for the last.
+// Written out rather than held in a constant array: indexing one of those here
+// reported a count of zero, so every emote came back as level 1 and nothing ever
+// locked.
+emote_required_level :: proc(index: s64) -> s64 {
+    if index == 4  { return 2; }
+    if index == 5  { return 3; }
+    if index == 6  { return 4; }
+    if index == 7  { return 5; }
+    if index == 8  { return 7; }
+    if index == 9  { return 9; }
+    if index == 10 { return 11; }
+    if index == 11 { return 13; }
+    if index == 12 { return 16; }
+    if index == 13 { return 20; }
+    if index == 14 { return 25; }
+    if index == 15 { return 30; }
+    return 1;
+}
+
+emote_unlocked :: proc(player: Player, index: s64) -> bool {
+    return player.level >= emote_required_level(index);
+}
+
+// ── UI ────────────────────────────────────────────────────────────────────────
+
+LEVEL_BADGE_TEXTURE :: "level_backing.png";
+XP_BAR_TEXTURE :: "XP_backing.png";
+XP_BAR_FILL_TEXTURE :: "XP_bar_fancy.png";
+XP_BAR_HEIGHT :: 30.0;
+// Border the track art draws inside, so the fill sits within it rather than over it.
+XP_BAR_INSET :: 3.0;
+// Badge plus the row gap, subtracted so the fill width matches the track's.
+XP_BAR_BADGE_SPACE :: 66.0;
+
+// The diamond badge with the level number in it. Used anywhere a player is
+// listed, so rankings read as "who, at what level".
+draw_level_badge :: proc(level: s64, size: float) {
+    badge := UIK.layout_column();
+    badge.width = UIK.pixels(size);
+    badge.height = UIK.pixels(size);
+    badge.background_sprite_override = get_asset(Texture_Asset, LEVEL_BADGE_TEXTURE);
+    badge.tint = v4.{1, 1, 1, 1};
+    badge.cross_align = .CENTER;
+    badge.main_align = .CENTER;
+    UIK.panel_begin(badge);
+    label := UIK.text_title();
+    label.set_size_mult(size / 64.0);
+    label.set_word_wrap(false);
+    label.set_halign(.CENTER);
+    label.set_color(v4.{1, 1, 1, 1});
+    label.set_outline(true, 4.0, v4.{0, 0, 0, 1});
+    UIK.text(label, `{level}`);
+    UIK.panel_end();
+}
+
+// Level badge pinned to the left of the player's own nameplate. username_rect is
+// the rect the engine just laid the name out in, so the badge tracks the name
+// wherever it ends up rather than guessing an offset from the body.
+//
+// Only drawn while the nameplate is actually up, which is the lobby - names are
+// hidden for the duration of a round.
+LOBBY_BADGE_GAP :: 8.0;
+LOBBY_BADGE_SCALE :: 1.6;
+
+// World-space fallback: how high above the feet the nameplate sits, and how wide
+// the badge should be, when username_rect is not usable.
+LOBBY_BADGE_NAME_HEIGHT :: 2.11;
+LOBBY_BADGE_WORLD_SIZE :: 0.62;
+// Left of the name, which is centred over the player.
+LOBBY_BADGE_X_OFFSET :: -0.85;
+// World units, not pixels - world-space text is sized in world units. Twice what
+// the badge carried before, which was too small to read at a glance.
+LOBBY_BADGE_TEXT_SIZE :: 0.42;
+LOBBY_BADGE_LAYER :: 12;
+
+// Every player's badge, not just your own - a level is something you show off, so
+// it has to be on the other bodies in the lobby too. Called once from the local
+// player's UI path, which is why it iterates rather than each player drawing its
+// own: only the local client renders, and it renders everyone.
+draw_all_lobby_level_badges :: proc() {
+    for player: component_iterator(Player) {
+        draw_lobby_level_badge(player);
+    }
+}
+
+draw_lobby_level_badge :: proc(player: Player) {
+    if player.name_hidden { return; }
+    if !#alive(player.entity) { return; }
+
+    // Anchored to the entity rather than projected into screen space. Screen-space
+    // drawing advances in simulation steps while the engine's nameplate is
+    // render-interpolated, so the two disagreed every frame and the badge jittered
+    // against the name it is supposed to sit beside. Inside an anchored world-space
+    // block the engine interpolates this the same way it does the nameplate.
+    UI.begin_world_space_ui(player.entity);
+    defer UI.end_world_space_ui();
+    UI.push_layer(LOBBY_BADGE_LAYER);
+    defer UI.pop_layer();
+
+    center := player.entity.world_position + v2.{LOBBY_BADGE_X_OFFSET, LOBBY_BADGE_NAME_HEIGHT};
+    half := LOBBY_BADGE_WORLD_SIZE * 0.5;
+    badge := Rect.{min = center - v2.{half, half}, max = center + v2.{half, half}};
+
+    backing := get_asset(Texture_Asset, LEVEL_BADGE_TEXTURE);
+    UI.quad(badge.fit_aspect(backing.get_aspect()), backing);
+
+    settings := UI.default_text_settings();
+    settings.size = LOBBY_BADGE_TEXT_SIZE;
+    settings.color = v4.{1, 1, 1, 1};
+    settings.halign = .CENTER;
+    settings.valign = .CENTER;
+    settings.do_outline = true;
+    settings.outline_thickness = 0.03;
+    settings.outline_color = v4.{0, 0, 0, 1};
+    UI.text(badge, settings, `{player.level}`);
+}
+
+// Lobby-only progress panel, top left, a quarter of the screen wide.
+//
+// Deliberately absent during a round: the same corner carries the live ranking
+// then, and XP is a between-rounds concern. The reveal is excluded too, since the
+// match report shows this same bar with the round's gain on it.
+LOBBY_HUD_WIDTH_FRACTION :: 0.25;
+LOBBY_HUD_PADDING :: 12.0;
+
+draw_lobby_level_hud :: proc(player: Player) {
+    game := get_hide_seek_game();
+    if !#alive(game) { return; }
+    if hide_seek_round_active() { return; }
+    if game.phase == .REVEAL { return; }
+
+    begin_desc := UIK.window(UI.get_safe_screen_rect());
+    begin_desc.layer = 100;
+    UIK.begin(begin_desc);
+    defer UIK.end();
+
+    // title_window_width reports the window in the unscaled units UIK.pixels
+    // expects, so the panel is a true quarter of the screen at any UI scale.
+    width := UIK.title_window_width() * LOBBY_HUD_WIDTH_FRACTION;
+    panel := UIK.panel_modal(.TRANSP_BLACK, UIK.pixels(width), UIK.fit(), 8, v4.{LOBBY_HUD_PADDING, LOBBY_HUD_PADDING, LOBBY_HUD_PADDING, LOBBY_HUD_PADDING});
+    panel.cross_align = .STRETCH;
+    // No plate behind it - the badge and bar art already read against the world,
+    // and every label carries a stroke instead.
+    panel.show_background = false;
+    UIK.overlay_begin(.TOP_LEFT, panel, v2.{12, -12});
+    defer UIK.overlay_end();
+
+    draw_level_progress(player, width - LOBBY_HUD_PADDING * 2);
+}
+
+// Level, progress bar and what was just earned. Shown on the match report so the
+// round's payoff is visible where the standings are.
+// Seconds since the XP payoff was last armed, or a large number if it never was.
+// Driven by a stamp rather than the round phase so the same sweep plays twice:
+// once on the match report as the XP lands, and again on the way back into the
+// lobby, where the panel is the first thing a player looks at.
+xp_anim_age :: proc(player: Player) -> float {
+    if player.xp_anim_start <= 0 { return 999.0; }
+    return get_time() - player.xp_anim_start;
+}
+
+// Replays the sweep and the gain text. Called on the award and on the return to
+// the lobby.
+arm_xp_animation :: proc(player: Player) {
+    if player.last_round_xp <= 0 { return; }
+    player.xp_anim_start = get_time();
+}
+
+XP_FILL_SWEEP_SECONDS :: 1.4;
+XP_GAIN_FLOAT_SECONDS :: 2.0;
+XP_GAIN_FLOAT_RISE :: 16.0;
+
+draw_level_progress :: proc(player: Player, width: float) {
+    row := UIK.layout_row(UIK.pixels(width), UIK.pixels(72), 14);
+    row.cross_align = .CENTER;
+    UIK.panel_begin(row);
+
+    draw_level_badge(player.level, 52);
+
+    column := UIK.layout_column();
+    column.width = UIK.flex(1);
+    column.height = UIK.pixels(58);
+    column.gap = 4;
+    column.cross_align = .STRETCH;
+    column.main_align = .CENTER;
+    UIK.panel_begin(column);
+
+    // The badge already says what level you are, so the caption only appears when
+    // it has something the badge cannot show: what you just earned, or that there
+    // is nothing left to earn.
+    age := xp_anim_age(player);
+    float_t := clamp(age / XP_GAIN_FLOAT_SECONDS, 0, 1);
+    gain_alpha := 1.0;
+    gain_rise := 0.0;
+    if player.last_round_xp > 0 && age < 900 {
+        // Rises and fades like a reward popup rather than sitting there as a
+        // static label. Bottom padding is what lifts it - UIK has no free offset.
+        gain_rise = Ease.out_cubic(float_t) * XP_GAIN_FLOAT_RISE;
+        gain_alpha = 1.0 - clamp((float_t - 0.55) / 0.45, 0, 1);
+    }
+
+    show_caption := player.level >= LEVEL_MAX || (player.last_round_xp > 0 && gain_alpha > 0);
+    if show_caption {
+        caption := UIK.layout_row(UIK.flex(1), UIK.pixels(24), 8);
+        caption.cross_align = .CENTER;
+        caption.main_align = .SPACE_BETWEEN;
+        caption.padding = v4.{0, 0, gain_rise, 0};
+        UIK.panel_begin(caption);
+        // text_title is the heavy face; word wrap off so a long caption cannot
+        // break onto two lines in a narrow panel.
+        gained := UIK.text_title();
+        gained.set_size_mult(0.62);
+        gained.set_word_wrap(false);
+        gained.set_color(v4.{HUD_YELLOW.x, HUD_YELLOW.y, HUD_YELLOW.z, gain_alpha});
+        gained.set_outline(true, 3.0, v4.{0, 0, 0, gain_alpha});
+        if player.level >= LEVEL_MAX {
+            UIK.text(gained, "MAX LEVEL");
+        } else {
+            UIK.text(gained, `+{player.last_round_xp} XP`);
+        }
+        UIK.panel_end();
+    }
+
+    // Sweeps from where the bar stood before the round to where it stands now, so
+    // the gain is something you watch happen. A level-up mid-round would put the
+    // start below zero, which clamps to an empty bar filling up - the right read.
+    shown_xp := player.level_xp.(float);
+    if player.last_round_xp > 0 && age < XP_FILL_SWEEP_SECONDS {
+        start_xp := max(0.0, player.level_xp.(float) - player.last_round_xp.(float));
+        sweep := Ease.out_cubic(clamp(age / XP_FILL_SWEEP_SECONDS, 0, 1));
+        shown_xp = lerp(start_xp, player.level_xp.(float), sweep);
+    }
+    fraction := 1.0;
+    if player.level_xp_needed > 0 { fraction = clamp(shown_xp / player.level_xp_needed.(float), 0, 1); }
+    draw_xp_bar(player, width - XP_BAR_BADGE_SPACE, XP_BAR_HEIGHT, fraction);
+
+    UIK.panel_end();
+    UIK.panel_end();
+}
+
+// XP_backing is the track, XP_bar_fancy is the fill - both drawn as their own
+// art, no tinting one to stand in for the other.
+//
+// The count sits in a fixed-width anchor panel pinned to the track's midpoint, so
+// it reads as centred on the whole bar at any fill level. UIK lays children out
+// in sequence with no layering, so the fill is split around that anchor: the
+// segment before it, and the segment after. The anchor carries the fill art
+// itself once the bar is past halfway, which is what keeps the yellow continuous
+// rather than notched where the text sits.
+XP_BAR_COUNT_WIDTH :: 76.0;
+
+draw_xp_bar :: proc(player: Player, width: float, height: float, fraction: float) {
+    track := UIK.layout_row(UIK.flex(1), UIK.pixels(height), 0);
+    track.background_sprite_override = get_asset(Texture_Asset, XP_BAR_TEXTURE);
+    track.tint = v4.{1, 1, 1, 1};
+    track.padding = v4.{XP_BAR_INSET, XP_BAR_INSET, XP_BAR_INSET, XP_BAR_INSET};
+    track.cross_align = .STRETCH;
+    track.main_align = .START;
+    track.clip_children = true;
+    UIK.panel_begin(track);
+
+    inner_width := width - XP_BAR_INSET * 2;
+    fill_width := inner_width * fraction;
+    half := inner_width * 0.5;
+    anchor_left := half - XP_BAR_COUNT_WIDTH * 0.5;
+    anchor_right := half + XP_BAR_COUNT_WIDTH * 0.5;
+
+    draw_xp_bar_segment(clamp(fill_width, 0, anchor_left));
+    draw_xp_bar_spacer(anchor_left - clamp(fill_width, 0, anchor_left));
+
+    anchor := UIK.layout_column();
+    anchor.width = UIK.pixels(XP_BAR_COUNT_WIDTH);
+    anchor.height = UIK.flex(1);
+    anchor.cross_align = .CENTER;
+    anchor.main_align = .CENTER;
+    if fill_width >= half {
+        anchor.background_sprite_override = get_asset(Texture_Asset, XP_BAR_FILL_TEXTURE);
+        anchor.tint = v4.{1, 1, 1, 1};
+    }
+    UIK.panel_begin(anchor);
+    draw_xp_bar_count(player);
+    UIK.panel_end();
+
+    draw_xp_bar_segment(clamp(fill_width - anchor_right, 0, inner_width - anchor_right));
+
+    rest := UIK.layout_column();
+    rest.width = UIK.flex(1);
+    rest.height = UIK.flex(1);
+    UIK.panel_begin(rest);
+    UIK.panel_end();
+
+    UIK.panel_end();
+}
+
+draw_xp_bar_segment :: proc(segment_width: float) {
+    if segment_width <= 0.5 { return; }
+    fill := UIK.layout_column();
+    fill.width = UIK.pixels(segment_width);
+    fill.height = UIK.flex(1);
+    fill.background_sprite_override = get_asset(Texture_Asset, XP_BAR_FILL_TEXTURE);
+    fill.tint = v4.{1, 1, 1, 1};
+    UIK.panel_begin(fill);
+    UIK.panel_end();
+}
+
+draw_xp_bar_spacer :: proc(spacer_width: float) {
+    if spacer_width <= 0.5 { return; }
+    gap := UIK.layout_column();
+    gap.width = UIK.pixels(spacer_width);
+    gap.height = UIK.flex(1);
+    UIK.panel_begin(gap);
+    UIK.panel_end();
+}
+
+draw_xp_bar_count :: proc(player: Player) {
+    count := UIK.text_title();
+    count.set_size_mult(0.46);
+    count.set_word_wrap(false);
+    count.set_halign(.CENTER);
+    count.set_color(v4.{1, 1, 1, 1});
+    count.set_outline(true, 3.0, v4.{0, 0, 0, 1});
+    if player.level >= LEVEL_MAX {
+        UIK.text(count, `{player.total_xp} XP`);
+    } else {
+        UIK.text(count, `{player.level_xp}/{player.level_xp_needed}`);
+    }
+}

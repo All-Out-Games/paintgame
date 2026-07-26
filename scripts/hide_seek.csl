@@ -19,7 +19,10 @@ VICTORY_SCREEN_SECONDS :: 5.0;
 // Value kept as-is so a reason added before a hot reload still resolves.
 ROUND_NAME_REASON :: "hide_seek_hider";
 HIDER_NAME_OFFSET_REASON :: "hide_seek_hider_rig";
-HIDER_NAME_OFFSET :: 1.15;
+// No lift needed: the sprite rig's nameplate already anchors at the top of its
+// frame, unlike the mesh rig this replaced - which anchored low enough to need a
+// whole body height of lift here.
+HIDER_NAME_OFFSET :: 0.0;
 SEEKER_RIG :: "$AO/streamed_character";
 SEEKER_SHOTGUN_TEXTURE :: "shotgun-color.png";
 SEEKER_WEAPON_SLOT :: "weapon_held";
@@ -762,6 +765,9 @@ finish_hide_seek_round :: proc(game: Hide_Seek_Game, winner: Hide_Seek_Winner) {
     game.winner = winner;
     // Banked before the phase flips, while roles still say who was hiding.
     score_round_end(game);
+    // The round is complete, so the scores are final: XP is taken from them here
+    // and nowhere else.
+    award_round_xp_to_all();
     game.round_start_pending = false;
     game.phase = .REVEAL;
     game.phase_end_time = get_time() + VICTORY_SCREEN_SECONDS;
@@ -787,6 +793,10 @@ return_players_to_lobby :: proc(game: Hide_Seek_Game) {
         player.pending_round_teleport = false;
         // No blind survives into the lobby.
         clear_blind(player);
+        // Replay the XP payoff on arrival: the lobby panel is the first thing a
+        // player looks at coming out of a round, so the sweep and the gain text
+        // run again there rather than only on the match report.
+        arm_xp_animation(player);
         // Nobody waits out the lobby still fat. role_visual_applied is cleared
         // above, so the rebuild that follows picks up stage 0.
         player.fat_stage = 0;
@@ -2129,6 +2139,8 @@ draw_victory_screen :: proc(player: Player, game: Hide_Seek_Game, dt: float) {
     UIK.text(winner_desc, winner_title);
 
     draw_match_report_ranking(player);
+    // The round's XP payoff, directly under the standings it came from.
+    draw_level_progress(player, 660);
 }
 
 // Final standings, the same shape as the live board: crown for the podium, name
@@ -2194,6 +2206,8 @@ draw_match_report_ranking :: proc(local: Player) {
             UIK.text(rank_desc, `{i + 1}`);
         }
         UIK.panel_end();
+
+        draw_level_badge(entry.level, 40);
 
         name_box := UIK.layout_column();
         name_box.width = UIK.flex(1);
@@ -2482,6 +2496,8 @@ draw_hide_seek_leaderboard :: proc(player: Player) {
             UIK.text(rank_desc, `#{i + 1}`);
         }
         UIK.panel_end();
+
+        draw_level_badge(entry.level, 26);
 
         name_box := UIK.layout_column();
         name_box.width = UIK.flex(1);
