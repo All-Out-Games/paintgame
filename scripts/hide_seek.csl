@@ -290,15 +290,18 @@ Hide_Seek_Game :: class : Component {
 
 g_hide_seek: Hide_Seek_Game;
 
-// A stage change is rebuilt in three steps, one frame apart:
-//   1 - strip to the base skin, retiring the old stage's transform constraint
-//   2 - enable the target skin, activating only its constraint
-//   3 - bind the canvas, capturing the mapping against the settled pose
-// Doing it in one call left the old constraint live and the mapping captured
-// against the previous pose, which is why any second rebuild misbehaved while a
-// cold /fat4 - with no previous stage to leave anything behind - always worked.
+// A stage change is rebuilt in two steps, one frame apart:
+//   1 - swap straight to the target skin
+//   2 - bind the canvas, capturing the mapping against the settled pose
+//
+// The swap has to go directly from the outgoing skin to the incoming one. This
+// used to strip to the base skin first and swap again on the next frame, to
+// retire the outgoing stage's transform constraint on a frame of its own - and
+// that left the body unpaintable from the second fat stage on. Growing into the
+// first fat stage worked (the strip is a no-op when the base skin is already
+// on), so painting died exactly when a hider grew from one fat stage into
+// another, which is the shape the bug was reported in.
 REBUILD_IDLE  :: 0;
-REBUILD_BASE  :: 1;
 REBUILD_SKIN  :: 2;
 
 Fat_Visual_Entry :: struct {
@@ -441,19 +444,10 @@ ensure_fat_visuals :: proc(player: Player) {
         apply_hider_body_skin(player);
         return;
     }
-    // Each step waits for a frame the engine has actually posed.
+    // The bind waits for a frame the engine has actually posed the new skin on.
     if get_frame_number() <= fat_visual_skin_frame(id) { return; }
 
     phase := fat_visual_phase(id);
-    if phase == REBUILD_BASE {
-        // Now that the old constraint has been retired against the base skin,
-        // bring up the target stage.
-        player.animator.disable_all_skins();
-        player.animator.enable_skin(hider_skin_for_stage(player.fat_stage));
-        player.animator.refresh_skins();
-        set_fat_visual(id, player.fat_stage, REBUILD_SKIN, 0);
-        return;
-    }
     if phase == REBUILD_SKIN {
         if !player.wear_paint_enabled {
             set_fat_visual(id, player.fat_stage, REBUILD_IDLE, 0);
@@ -1302,8 +1296,64 @@ hider_skin_for_stage :: proc(stage: s64) -> string {
     return MECHA_SKIN;
 }
 
+// Which fat stage each player's canvas was created for, on this machine.
+//
+// Machine-local rather than a player field, for the same reason g_fat_visuals
+// is: player fields are synced, so the server recording "the canvas is built for
+// stage 2" would tell a client that never rebuilt anything there was nothing to
+// do.
+Canvas_Stage_Entry :: struct {
+    id:    u64;
+    stage: s64;
+}
+g_canvas_stages: [..]Canvas_Stage_Entry;
+
+paint_canvas_stage :: proc(id: u64) -> s64 {
+    for i: 0..g_canvas_stages.count - 1 {
+        if g_canvas_stages[i].id == id { return g_canvas_stages[i].stage; }
+    }
+    // The canvas Player.ao_start makes belongs to the base body.
+    return 0;
+}
+
+set_paint_canvas_stage :: proc(id: u64, stage: s64) {
+    for i: 0..g_canvas_stages.count - 1 {
+        if g_canvas_stages[i].id == id {
+            g_canvas_stages[i].stage = stage;
+            return;
+        }
+    }
+    entry: Canvas_Stage_Entry;
+    entry.id = id;
+    entry.stage = stage;
+    g_canvas_stages.append(entry);
+}
+
+// Hand the player a brand new canvas whenever the body under it changes.
+//
+// A canvas cannot be carried from one fat body to the next. Re-binding the same
+// canvas onto the next stage's mesh leaves that mesh with no working mapping at
+// all - measured: nothing on it is paintable, and forcing the canvas onto any
+// other body attachment does not help either, while the base body it was created
+// against keeps working. Growing already costs the old paint anyway, since the
+// strokes were authored for a smaller, differently shaped body, so there is
+// nothing to carry over.
+rebuild_paint_canvas_for_stage :: proc(player: Player) {
+    id := player.entity.id;
+    if paint_canvas_stage(id) == player.fat_stage { return; }
+    set_paint_canvas_stage(id, player.fat_stage);
+    // Released before allocating, so a stage change never holds two canvases at
+    // once against the scene's canvas budget.
+    if player.skin_canvas != null { player.skin_canvas.destroy(); }
+    player.skin_canvas = Dynamic_Canvas.create(SKIN_TEXELS_X, SKIN_TEXELS_Y, 32);
+    // Any stroke in flight was measured in the old canvas's texels.
+    player.was_painting = false;
+    reset_paint_for_new_body(player);
+}
+
 apply_hider_body_skin :: proc(player: Player) {
     if player.animator == null { return; }
+    rebuild_paint_canvas_for_stage(player);
     // Clear every override this machine created for this player, then the synced
     // handle if it is something else again. Clearing only the latest left older
     // ones bound to attachments that are no longer shown.
@@ -1313,14 +1363,18 @@ apply_hider_body_skin :: proc(player: Player) {
     }
     player.override_ids[0] = 0;
 
-    // Step 1 only: strip back to the base skin. That retires the previous
-    // stage's transform constraint before the target's is introduced, so the two
-    // are never live together. ensure_fat_visuals runs the remaining steps.
+    // Step 1: swap straight from whatever skin is on to the target one. Going via
+    // the base skin on its own frame breaks the canvas binding - see the rebuild
+    // notes above. ensure_fat_visuals binds the canvas next frame.
+    player.animator.set_skeleton(get_asset(Spine_Asset, SEEKER_RIG));
+    player.animator.set_skeleton(get_asset(Spine_Asset, MECHA_RIG_PATH));
+    player.animator.scale = v2.{MECHA_RENDER_SCALE, MECHA_RENDER_SCALE};
+    player.locomotion_ready = false;
     player.animator.disable_all_skins();
-    player.animator.enable_skin(MECHA_SKIN);
+    player.animator.enable_skin(hider_skin_for_stage(player.fat_stage));
     player.animator.refresh_skins();
     player.mecha_skin_applied = true;
-    set_fat_visual(player.entity.id, player.fat_stage, REBUILD_BASE, 0);
+    set_fat_visual(player.entity.id, player.fat_stage, REBUILD_SKIN, 0);
 }
 
 grow_fat_hider :: proc(player: Player) {
@@ -1363,6 +1417,14 @@ set_fat_stage :: proc(command_player: Player, stage: s64) {
 
 fat :: proc(command_player: Player, stage: int = 1) {
     set_fat_stage(command_player, stage);
+} @chat_command @owner_or_editor
+
+// Testing: a one-player round always rolls its only player as the seeker, so
+// anything that inspects the hider body needs a way back onto the hider rig.
+behider :: proc(command_player: Player) {
+    command_player.hide_seek_role = .HIDER;
+    command_player.role_visual_applied = .NONE;
+    update_hide_seek_player(command_player);
 } @chat_command @owner_or_editor
 
 // Reports whether the canvas override actually took. override id 0 means
@@ -1427,10 +1489,149 @@ paintcoverage :: proc(command_player: Player) {
     Notifier.notify(command_player, `stage {command_player.fat_stage} coverage {format_float(g_paint_hit_ratio, decimals=3)} center {g_paint_center_hit}`);
 } @chat_command @owner_or_editor
 
+// Diagnostic: recovers the setup-pose bounds the engine ACTUALLY maps through
+// the paint rect, instead of deriving them from the rig by hand.
+//
+// Every uv the engine returns is a probe's setup-pose position expressed in the
+// rect currently in force, so converting each uv back through that rect and
+// taking the span gives the box that would map the body onto exactly 0..1 -
+// which is the correct rect for this stage, by construction.
+g_paint_solve_min_x: float;
+g_paint_solve_min_y: float;
+g_paint_solve_max_x: float;
+g_paint_solve_max_y: float;
+g_paint_solve_uv_min_x: float;
+g_paint_solve_uv_min_y: float;
+g_paint_solve_uv_max_x: float;
+g_paint_solve_uv_max_y: float;
+g_paint_solve_body_min_x: float;
+g_paint_solve_body_min_y: float;
+g_paint_solve_body_max_x: float;
+g_paint_solve_body_max_y: float;
+g_paint_solve_hits: s64;
+g_paint_solve_stage: s64;
+g_paint_solve_visual_stage: s64;
+g_paint_solve_phase: s64;
+g_paint_solve_override: s64;
+g_paint_solve_role: s64;
+
+solve_paint_rect :: proc(player: Player) {
+    g_paint_solve_hits = 0;
+    g_paint_solve_min_x = 0;
+    g_paint_solve_min_y = 0;
+    g_paint_solve_max_x = 0;
+    g_paint_solve_max_y = 0;
+    g_paint_solve_uv_min_x = 0;
+    g_paint_solve_uv_min_y = 0;
+    g_paint_solve_uv_max_x = 0;
+    g_paint_solve_uv_max_y = 0;
+    g_paint_solve_body_min_x = 0;
+    g_paint_solve_body_min_y = 0;
+    g_paint_solve_body_max_x = 0;
+    g_paint_solve_body_max_y = 0;
+    g_paint_solve_stage = player.fat_stage;
+    g_paint_solve_visual_stage = fat_visual_stage(player.entity.id);
+    g_paint_solve_phase = fat_visual_phase(player.entity.id);
+    g_paint_solve_override = player.override_ids[0].(s64);
+    g_paint_solve_role = player.hide_seek_role.(s64);
+    if player.animator == null || player.skin_canvas == null { return; }
+
+    rect_min, rect_max := paint_canvas_rect(player);
+    width := rect_max.x - rect_min.x;
+    height := rect_max.y - rect_min.y;
+    origin := player.entity.world_position;
+
+    for ix: 0..80 {
+        for iy: 0..100 {
+            local := v2.{lerp(-2.5, 2.5, ix.(float) / 80.0), lerp(-2.5, 3.5, iy.(float) / 100.0)};
+            probe := origin + v2.{local.x * MECHA_RENDER_SCALE, local.y * MECHA_RENDER_SCALE};
+            uv, hit := player.animator.try_get_paint_canvas_uv(probe, player.skin_canvas);
+            if !hit { continue; }
+            // Row 0 of the canvas sits at rect max.y, column 0 at min.x.
+            setup_x := rect_min.x + uv.x * width;
+            setup_y := rect_max.y - uv.y * height;
+            if g_paint_solve_hits == 0 {
+                g_paint_solve_min_x = setup_x;
+                g_paint_solve_max_x = setup_x;
+                g_paint_solve_min_y = setup_y;
+                g_paint_solve_max_y = setup_y;
+                g_paint_solve_uv_min_x = uv.x;
+                g_paint_solve_uv_max_x = uv.x;
+                g_paint_solve_uv_min_y = uv.y;
+                g_paint_solve_uv_max_y = uv.y;
+                g_paint_solve_body_min_x = local.x;
+                g_paint_solve_body_max_x = local.x;
+                g_paint_solve_body_min_y = local.y;
+                g_paint_solve_body_max_y = local.y;
+            } else {
+                g_paint_solve_min_x = min(g_paint_solve_min_x, setup_x);
+                g_paint_solve_max_x = max(g_paint_solve_max_x, setup_x);
+                g_paint_solve_min_y = min(g_paint_solve_min_y, setup_y);
+                g_paint_solve_max_y = max(g_paint_solve_max_y, setup_y);
+                g_paint_solve_uv_min_x = min(g_paint_solve_uv_min_x, uv.x);
+                g_paint_solve_uv_max_x = max(g_paint_solve_uv_max_x, uv.x);
+                g_paint_solve_uv_min_y = min(g_paint_solve_uv_min_y, uv.y);
+                g_paint_solve_uv_max_y = max(g_paint_solve_uv_max_y, uv.y);
+                g_paint_solve_body_min_x = min(g_paint_solve_body_min_x, local.x);
+                g_paint_solve_body_max_x = max(g_paint_solve_body_max_x, local.x);
+                g_paint_solve_body_min_y = min(g_paint_solve_body_min_y, local.y);
+                g_paint_solve_body_max_y = max(g_paint_solve_body_max_y, local.y);
+            }
+            g_paint_solve_hits += 1;
+        }
+    }
+}
+
+// Diagnostic: force the canvas onto one specific body attachment, ignoring the
+// stage. Only the attachment the active skin is actually displaying can report
+// hits from /paintsolve, so stepping through these identifies which mesh is on
+// screen when a stage stops being paintable.
+paintbind :: proc(command_player: Player, which: int = 0) {
+    if command_player.animator == null || command_player.skin_canvas == null { return; }
+    names: [5]string = {
+        MECHA_PAINT_ATTACHMENT,
+        "scaling_up/meccha_PC_fat1",
+        "scaling_up/meccha_PC_fat2",
+        "scaling_up/meccha_PC_fat3",
+        "scaling_up/meccha_PC_fat4",
+    };
+    if which < 0 || which > 4 { return; }
+    clear_paint_overrides(command_player);
+    rect_min, rect_max := paint_canvas_rect(command_player);
+    command_player.animator.instance.set_paint_canvas_rect(rect_min, rect_max);
+    command_player.override_ids[0] = command_player.animator.instance.override_attachment_canvas(names[which], command_player.skin_canvas, true);
+    register_paint_override(command_player.entity.id, command_player.override_ids[0]);
+    Notifier.notify(command_player, `bound {names[which]} -> {command_player.override_ids[0]}`);
+} @chat_command @owner_or_editor
+
+// Diagnostic: a single canvas-mapping query, the same one painting a stroke
+// makes. /paintsolve makes thousands, which is too blunt to tell "the mapping
+// was used at all" apart from "the mapping was hammered".
+g_paint_touch_hit: bool;
+
+painttouch :: proc(command_player: Player) {
+    if command_player.animator == null || command_player.skin_canvas == null { return; }
+    chest := command_player.entity.world_position + v2.{0, 1.2 * MECHA_RENDER_SCALE};
+    _, hit := command_player.animator.try_get_paint_canvas_uv(chest, command_player.skin_canvas);
+    g_paint_touch_hit = hit;
+} @chat_command @owner_or_editor
+
+paintsolve :: proc(command_player: Player) {
+    solve_paint_rect(command_player);
+    Notifier.notify(command_player, `stage {command_player.fat_stage} hits {g_paint_solve_hits}`);
+    Notifier.notify(command_player, `x {format_float(g_paint_solve_min_x, decimals=4)}..{format_float(g_paint_solve_max_x, decimals=4)} y {format_float(g_paint_solve_min_y, decimals=4)}..{format_float(g_paint_solve_max_y, decimals=4)}`);
+} @chat_command @owner_or_editor
+
 // One growth through the real path, so tests exercise upgrades rather than the
 // direct /fat set which was never the broken case.
 growfat :: proc(command_player: Player) {
     grow_fat_hider(command_player);
+} @chat_command @owner_or_editor
+
+// Same ladder as /growfat but through the /fat set path, to tell a problem with
+// growing apart from a problem with the stage itself.
+nextfat :: proc(command_player: Player) {
+    set_fat_stage(command_player, command_player.fat_stage + 1);
 } @chat_command @owner_or_editor
 
 paintrect :: proc(command_player: Player) {

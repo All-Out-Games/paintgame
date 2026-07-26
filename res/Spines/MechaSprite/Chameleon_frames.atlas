@@ -1,0 +1,3850 @@
+Chameleon_frames.png
+	size: 4096, 4096
+	filter: Linear, Linear
+clean_run_anim/0013
+	bounds: 1011, 6, 103, 266
+	offsets: 155, 51, 384, 392
+	rotate: 90
+clean_walk_anim/0004
+	bounds: 1951, 5, 105, 273
+	offsets: 133, 47, 384, 392
+	rotate: 90
+fat1_pose_balancing/0000
+	bounds: 2354, 1886, 289, 288
+	offsets: 62, 38, 384, 392
+fat1_pose_yoga/0000
+	bounds: 712, 502, 138, 233
+	offsets: 117, 33, 384, 392
+	rotate: 90
+fat1_run_anim/0009
+	bounds: 2657, 378, 232, 257
+	offsets: 90, 93, 384, 392
+	rotate: 90
+fat1_run_anim/0013
+	bounds: 3976, 1535, 115, 295
+	offsets: 148, 42, 384, 392
+fat1_walk_anim/0008
+	bounds: 3948, 1237, 144, 290
+	offsets: 116, 44, 384, 392
+fat2_idle_fat/0022
+	bounds: 1032, 113, 288, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0023
+	bounds: 1954, 114, 288, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0024
+	bounds: 712, 209, 288, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0025
+	bounds: 3621, 322, 288, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0026
+	bounds: 3617, 31, 287, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0027
+	bounds: 2274, 52, 287, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0028
+	bounds: 3297, 57, 287, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0029
+	bounds: 2977, 57, 287, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0030
+	bounds: 2657, 67, 287, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0031
+	bounds: 324, 82, 287, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0032
+	bounds: 4, 88, 287, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_pose_balancing/0000
+	bounds: 3596, 614, 311, 310
+	offsets: 55, 34, 384, 392
+fat2_pose_t_pose/0000
+	bounds: 2599, 614, 302, 318
+	offsets: 36, 36, 384, 392
+	rotate: 90
+fat3_idle_fat/0000
+	bounds: 1937, 979, 297, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0001
+	bounds: 1605, 979, 297, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0002
+	bounds: 2933, 980, 297, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0003
+	bounds: 4, 1051, 297, 328
+	offsets: 36, 38, 384, 392
+fat3_idle_fat/0004
+	bounds: 971, 1189, 297, 328
+	offsets: 36, 38, 384, 392
+fat3_idle_fat/0005
+	bounds: 307, 1277, 298, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0006
+	bounds: 2299, 1278, 298, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0007
+	bounds: 1635, 1280, 298, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0008
+	bounds: 2954, 1281, 298, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0009
+	bounds: 640, 1550, 299, 328
+	offsets: 36, 38, 384, 392
+fat3_idle_fat/0010
+	bounds: 2651, 1551, 299, 328
+	offsets: 36, 38, 384, 392
+fat3_idle_fat/0011
+	bounds: 3313, 1560, 299, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0012
+	bounds: 308, 1579, 299, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0013
+	bounds: 2981, 1583, 300, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0014
+	bounds: 1988, 1598, 300, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0015
+	bounds: 4, 1714, 300, 328
+	offsets: 36, 38, 384, 392
+fat3_idle_fat/0016
+	bounds: 972, 1824, 300, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0017
+	bounds: 3702, 1834, 301, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0018
+	bounds: 641, 1882, 302, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0019
+	bounds: 310, 1882, 302, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0020
+	bounds: 2650, 1883, 302, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0021
+	bounds: 1657, 1886, 302, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0022
+	bounds: 3040, 1887, 302, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0023
+	bounds: 4, 2046, 302, 327
+	offsets: 35, 38, 384, 392
+fat3_idle_fat/0024
+	bounds: 1000, 2128, 302, 327
+	offsets: 35, 38, 384, 392
+fat3_idle_fat/0025
+	bounds: 3705, 2139, 302, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0026
+	bounds: 3374, 2168, 302, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0027
+	bounds: 2319, 2178, 302, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0028
+	bounds: 1988, 2192, 302, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0029
+	bounds: 1657, 2192, 302, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0030
+	bounds: 3371, 1863, 301, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0031
+	bounds: 1306, 1883, 301, 327
+	offsets: 35, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0032
+	bounds: 1304, 1579, 300, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0033
+	bounds: 2320, 1580, 300, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0034
+	bounds: 1637, 1582, 300, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0035
+	bounds: 1968, 1295, 299, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0036
+	bounds: 4, 1383, 299, 327
+	offsets: 36, 38, 384, 392
+fat3_idle_fat/0037
+	bounds: 943, 1521, 299, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0038
+	bounds: 3645, 1531, 299, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0039
+	bounds: 2631, 1220, 298, 327
+	offsets: 36, 38, 384, 392
+fat3_idle_fat/0040
+	bounds: 3617, 1229, 298, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0041
+	bounds: 3286, 1258, 298, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0042
+	bounds: 1274, 1277, 298, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0043
+	bounds: 636, 920, 297, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0044
+	bounds: 3596, 928, 297, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0045
+	bounds: 3265, 957, 297, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0046
+	bounds: 1272, 976, 297, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0047
+	bounds: 305, 976, 297, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0048
+	bounds: 2269, 977, 297, 327
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0049
+	bounds: 3264, 629, 296, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0050
+	bounds: 304, 644, 296, 328
+	offsets: 36, 38, 384, 392
+fat3_idle_fat/0051
+	bounds: 1267, 676, 296, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0052
+	bounds: 2267, 677, 296, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0053
+	bounds: 1935, 679, 296, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0054
+	bounds: 1603, 679, 296, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0055
+	bounds: 2932, 680, 296, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0056
+	bounds: 4, 719, 296, 328
+	offsets: 36, 38, 384, 392
+fat3_idle_fat/0057
+	bounds: 967, 857, 296, 328
+	offsets: 36, 38, 384, 392
+fat3_idle_fat/0058
+	bounds: 2600, 920, 296, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_idle_fat/0059
+	bounds: 639, 1221, 297, 328
+	offsets: 36, 38, 384, 392
+	rotate: 90
+fat3_pose_balancing/0000
+	bounds: 2369, 2484, 324, 322
+	offsets: 50, 35, 384, 392
+fat3_pose_costanza/0000
+	bounds: 2310, 343, 343, 267
+	offsets: 9, 23, 384, 392
+fat3_pose_t_pose/0000
+	bounds: 1005, 2802, 317, 331
+	offsets: 28, 36, 384, 392
+	rotate: 90
+fat3_run_anim/0013
+	bounds: 1352, 4, 131, 330
+	offsets: 141, 39, 384, 392
+	rotate: 90
+fat3_walk_anim/0004
+	bounds: 3941, 186, 151, 336
+	offsets: 111, 37, 384, 392
+fat3_walk_anim2/0010
+	bounds: 1704, 63, 243, 337
+	offsets: 19, 38, 384, 392
+fat4_idle_fat/0000
+	bounds: 2026, 2498, 308, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0001
+	bounds: 1683, 2498, 308, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0002
+	bounds: 1340, 2498, 308, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0003
+	bounds: 318, 2809, 309, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0004
+	bounds: 3055, 2810, 309, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0005
+	bounds: 2712, 2810, 309, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0006
+	bounds: 2369, 2810, 309, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0007
+	bounds: 4, 3063, 310, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0008
+	bounds: 3769, 3067, 310, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0009
+	bounds: 3426, 3097, 310, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0010
+	bounds: 2720, 3123, 310, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0011
+	bounds: 662, 3122, 311, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0012
+	bounds: 319, 3122, 311, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0013
+	bounds: 3083, 3123, 311, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0014
+	bounds: 4, 3406, 311, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0015
+	bounds: 2740, 3437, 312, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0016
+	bounds: 2397, 3437, 312, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0017
+	bounds: 2054, 3437, 312, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0018
+	bounds: 1711, 3437, 312, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0019
+	bounds: 1368, 3437, 312, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0020
+	bounds: 1025, 3437, 312, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0021
+	bounds: 682, 3437, 312, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0022
+	bounds: 339, 3437, 312, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0023
+	bounds: 3521, 3753, 312, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0024
+	bounds: 3205, 3753, 312, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0025
+	bounds: 2889, 3753, 312, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0026
+	bounds: 2573, 3753, 312, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0027
+	bounds: 2257, 3753, 312, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0028
+	bounds: 1941, 3753, 312, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0029
+	bounds: 1625, 3753, 312, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0030
+	bounds: 1309, 3753, 312, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0031
+	bounds: 993, 3753, 312, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0032
+	bounds: 677, 3753, 312, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0033
+	bounds: 3769, 3410, 311, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0034
+	bounds: 3426, 3438, 311, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0035
+	bounds: 3083, 3438, 311, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0036
+	bounds: 2377, 3123, 310, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0037
+	bounds: 2034, 3123, 310, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0038
+	bounds: 1691, 3123, 310, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0039
+	bounds: 1348, 3123, 310, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0040
+	bounds: 1005, 3123, 310, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0041
+	bounds: 2026, 2810, 309, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0042
+	bounds: 1683, 2810, 309, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0043
+	bounds: 1340, 2810, 309, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0044
+	bounds: 661, 2498, 308, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0045
+	bounds: 4, 2720, 308, 339
+	offsets: 30, 36, 384, 392
+fat4_idle_fat/0046
+	bounds: 3741, 2755, 308, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0047
+	bounds: 3398, 2785, 308, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0048
+	bounds: 3383, 2474, 307, 339
+	offsets: 31, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0049
+	bounds: 316, 2498, 307, 339
+	offsets: 31, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0050
+	bounds: 3040, 2499, 307, 339
+	offsets: 31, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0051
+	bounds: 1314, 2188, 306, 339
+	offsets: 31, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0052
+	bounds: 657, 2188, 306, 339
+	offsets: 31, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0053
+	bounds: 314, 2188, 306, 339
+	offsets: 31, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0054
+	bounds: 2697, 2189, 306, 339
+	offsets: 31, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0055
+	bounds: 4, 2377, 306, 339
+	offsets: 31, 36, 384, 392
+fat4_idle_fat/0056
+	bounds: 3726, 2445, 306, 339
+	offsets: 31, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0057
+	bounds: 1004, 2459, 306, 339
+	offsets: 31, 36, 384, 392
+fat4_idle_fat/0058
+	bounds: 2697, 2499, 307, 339
+	offsets: 31, 36, 384, 392
+	rotate: 90
+fat4_idle_fat/0059
+	bounds: 661, 2810, 308, 339
+	offsets: 30, 36, 384, 392
+	rotate: 90
+fat4_pose_balancing/0000
+	bounds: 339, 3753, 339, 334
+	offsets: 42, 33, 384, 392
+	rotate: 90
+fat4_pose_costanza/0000
+	bounds: 1988, 1902, 362, 272
+	offsets: 0, 24, 384, 392
+fat4_pose_star/0000
+	bounds: 3040, 2193, 302, 330
+	offsets: 34, 40, 384, 392
+	rotate: 90
+fat4_pose_superman/0000
+	bounds: 644, 14, 363, 191
+	offsets: 21, 71, 384, 392
+fat4_pose_t_pose/0000
+	bounds: 4, 3749, 331, 343
+	offsets: 21, 34, 384, 392
+fat4_run_anim2/0004
+	bounds: 3837, 3757, 252, 335
+	offsets: 87, 40, 384, 392
+fat4_walk_anim/0004
+	bounds: 3927, 876, 157, 349
+	offsets: 106, 34, 384, 392
+fat4_walk_anim/0005
+	bounds: 3941, 526, 149, 346
+	offsets: 112, 36, 384, 392
+fat4_walk_anim2/0000
+	bounds: 2921, 358, 267, 345
+	offsets: 6, 34, 384, 392
+	rotate: 90
+fat4_walk_anim2/0001
+	bounds: 362, 373, 267, 346
+	offsets: 5, 35, 384, 392
+	rotate: 90
+fat4_walk_anim2/0002
+	bounds: 1599, 404, 271, 351
+	offsets: 3, 35, 384, 392
+	rotate: 90
+fat4_walk_anim2/0003
+	bounds: 604, 645, 271, 355
+	offsets: 3, 35, 384, 392
+	rotate: 90
+fat4_walk_anim2/0004
+	bounds: 963, 500, 270, 353
+	offsets: 5, 36, 384, 392
+fat4_walk_anim2/0005
+	bounds: 3270, 348, 263, 347
+	offsets: 11, 38, 384, 392
+	rotate: 90
+fat4_walk_anim2/0009
+	bounds: 1352, 139, 261, 348
+	offsets: 12, 38, 384, 392
+	rotate: 90
+fat4_walk_anim2/0010
+	bounds: 4, 380, 261, 354
+	offsets: 10, 35, 384, 392
+	rotate: 90
+fat4_walk_anim2/0011
+	bounds: 1954, 407, 266, 352
+	offsets: 6, 36, 384, 392
+	rotate: 90
+fat4_walk_anim2/0012
+	bounds: 1237, 404, 268, 345
+	offsets: 5, 38, 384, 392
+	rotate: 90
+
+Chameleon_frames_2.png
+	size: 4096, 4096
+	filter: Linear, Linear
+clean_idle_anim/0000
+	bounds: 1506, 3565, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0001
+	bounds: 4, 3562, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0002
+	bounds: 274, 3557, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0003
+	bounds: 3223, 3539, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0004
+	bounds: 1776, 3513, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0005
+	bounds: 3914, 3296, 148, 266
+	offsets: 115, 47, 384, 392
+clean_idle_anim/0006
+	bounds: 814, 3294, 148, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0007
+	bounds: 2275, 3266, 149, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0008
+	bounds: 2545, 3265, 149, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0009
+	bounds: 2815, 3264, 149, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0010
+	bounds: 3396, 3263, 149, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0011
+	bounds: 3666, 3145, 150, 266
+	offsets: 114, 47, 384, 392
+clean_idle_anim/0012
+	bounds: 3820, 3142, 150, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0013
+	bounds: 808, 3140, 150, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0014
+	bounds: 1078, 3139, 150, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0015
+	bounds: 274, 3135, 150, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0016
+	bounds: 2224, 3112, 150, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0017
+	bounds: 1618, 3054, 151, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0018
+	bounds: 1052, 2983, 152, 266
+	offsets: 113, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0019
+	bounds: 4, 2980, 152, 266
+	offsets: 113, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0020
+	bounds: 274, 2957, 152, 266
+	offsets: 113, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0021
+	bounds: 2164, 2956, 152, 266
+	offsets: 113, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0022
+	bounds: 2434, 2955, 152, 266
+	offsets: 113, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0023
+	bounds: 2704, 2954, 152, 266
+	offsets: 113, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0024
+	bounds: 3304, 2953, 152, 266
+	offsets: 113, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0025
+	bounds: 1322, 2951, 152, 266
+	offsets: 113, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0026
+	bounds: 2974, 2925, 152, 266
+	offsets: 113, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0027
+	bounds: 1888, 2921, 152, 266
+	offsets: 113, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0028
+	bounds: 1592, 2898, 152, 266
+	offsets: 113, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0029
+	bounds: 3895, 2872, 152, 266
+	offsets: 113, 47, 384, 392
+clean_idle_anim/0030
+	bounds: 3625, 2987, 151, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0031
+	bounds: 2494, 3111, 150, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0032
+	bounds: 2764, 3110, 150, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0033
+	bounds: 3355, 3109, 150, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0034
+	bounds: 1348, 3107, 150, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0035
+	bounds: 3034, 3081, 150, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0036
+	bounds: 1894, 3077, 150, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0037
+	bounds: 1354, 3261, 149, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0038
+	bounds: 3085, 3235, 149, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0039
+	bounds: 1954, 3231, 149, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0040
+	bounds: 4, 3226, 149, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0041
+	bounds: 1624, 3209, 149, 266
+	offsets: 114, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0042
+	bounds: 1084, 3293, 148, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0043
+	bounds: 2046, 3512, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0044
+	bounds: 874, 3446, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0045
+	bounds: 1144, 3445, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0046
+	bounds: 544, 3424, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0047
+	bounds: 3493, 3420, 147, 266
+	offsets: 115, 47, 384, 392
+clean_idle_anim/0048
+	bounds: 2316, 3419, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0049
+	bounds: 2586, 3418, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0050
+	bounds: 2856, 3417, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0051
+	bounds: 3644, 3415, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0052
+	bounds: 2413, 3570, 146, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0053
+	bounds: 2683, 3569, 146, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0054
+	bounds: 2953, 3568, 146, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0055
+	bounds: 3715, 3566, 146, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0056
+	bounds: 1414, 3414, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0057
+	bounds: 4, 3406, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0058
+	bounds: 3126, 3388, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim/0059
+	bounds: 1684, 3362, 147, 266
+	offsets: 115, 47, 384, 392
+	rotate: 90
+clean_idle_anim2/0000
+	bounds: 781, 2985, 151, 267
+	offsets: 112, 47, 384, 392
+	rotate: 90
+clean_pose_idle/0000
+	bounds: 781, 2985, 151, 267
+	offsets: 112, 47, 384, 392
+	rotate: 90
+clean_pose_ball/0000
+	bounds: 4, 3962, 185, 128
+	offsets: 107, 33, 384, 392
+clean_pose_bend/0000
+	bounds: 3077, 3793, 177, 201
+	offsets: 143, 41, 384, 392
+	rotate: 90
+clean_pose_bridge/0000
+	bounds: 1956, 3833, 238, 143
+	offsets: 79, 46, 384, 392
+clean_pose_costanza/0000
+	bounds: 1967, 13, 273, 214
+	offsets: 47, 34, 384, 392
+clean_pose_future/0000
+	bounds: 1759, 3945, 193, 145
+	offsets: 90, 49, 384, 392
+clean_pose_handstand/0000
+	bounds: 1742, 3715, 167, 226
+	offsets: 105, 50, 384, 392
+clean_pose_lying/0000
+	bounds: 407, 3859, 252, 130
+	offsets: 60, 50, 384, 392
+clean_pose_mid_run/0000
+	bounds: 1539, 1431, 205, 241
+	offsets: 81, 50, 384, 392
+	rotate: 90
+clean_pose_sitting/0000
+	bounds: 2197, 3667, 179, 212
+	offsets: 87, 30, 384, 392
+	rotate: 90
+clean_pose_star/0000
+	bounds: 1428, 179, 221, 260
+	offsets: 76, 49, 384, 392
+	rotate: 90
+clean_pose_superman/0000
+	bounds: 3433, 3690, 278, 137
+	offsets: 57, 82, 384, 392
+clean_pose_surrender/0000
+	bounds: 544, 3113, 172, 233
+	offsets: 101, 47, 384, 392
+	rotate: 90
+clean_pose_yoga/0000
+	bounds: 1012, 3962, 128, 208
+	offsets: 122, 41, 384, 392
+	rotate: 90
+clean_run_anim/0000
+	bounds: 1851, 543, 216, 248
+	offsets: 94, 82, 384, 392
+	rotate: 90
+clean_run_anim/0001
+	bounds: 4, 397, 216, 252
+	offsets: 94, 78, 384, 392
+clean_run_anim/0002
+	bounds: 1462, 2097, 186, 255
+	offsets: 103, 73, 384, 392
+	rotate: 90
+clean_run_anim/0003
+	bounds: 2219, 3850, 128, 263
+	offsets: 129, 53, 384, 392
+	rotate: 90
+clean_run_anim/0004
+	bounds: 2487, 3978, 112, 262
+	offsets: 145, 52, 384, 392
+	rotate: 90
+clean_run_anim/0005
+	bounds: 1956, 3980, 110, 259
+	offsets: 149, 54, 384, 392
+	rotate: 90
+clean_run_anim/0006
+	bounds: 3290, 3962, 128, 240
+	offsets: 136, 74, 384, 392
+	rotate: 90
+clean_run_anim/0007
+	bounds: 702, 2800, 181, 225
+	offsets: 105, 101, 384, 392
+	rotate: 90
+clean_run_anim/0008
+	bounds: 1253, 2183, 205, 228
+	offsets: 103, 101, 384, 392
+clean_run_anim/0009
+	bounds: 3711, 2109, 205, 229
+	offsets: 104, 101, 384, 392
+	rotate: 90
+clean_run_anim/0010
+	bounds: 1276, 2415, 199, 230
+	offsets: 106, 99, 384, 392
+clean_run_anim/0011
+	bounds: 3534, 3831, 140, 247
+	offsets: 126, 76, 384, 392
+	rotate: 90
+clean_run_anim/0012
+	bounds: 2219, 3982, 108, 264
+	offsets: 149, 53, 384, 392
+	rotate: 90
+clean_run_anim/0014
+	bounds: 1497, 3983, 107, 258
+	offsets: 155, 58, 384, 392
+	rotate: 90
+clean_run_anim/0015
+	bounds: 663, 3725, 136, 266
+	offsets: 127, 57, 384, 392
+	rotate: 90
+clean_run_anim/0016
+	bounds: 3374, 1718, 201, 244
+	offsets: 100, 85, 384, 392
+	rotate: 90
+clean_run_anim/0017
+	bounds: 2473, 585, 215, 247
+	offsets: 95, 83, 384, 392
+	rotate: 90
+clean_run_anim2/0000
+	bounds: 2221, 743, 208, 248
+	offsets: 94, 82, 384, 392
+	rotate: 90
+clean_run_anim2/0001
+	bounds: 245, 605, 208, 252
+	offsets: 94, 78, 384, 392
+	rotate: 90
+clean_run_anim2/0002
+	bounds: 1237, 1031, 198, 255
+	offsets: 103, 73, 384, 392
+clean_run_anim2/0003
+	bounds: 1721, 1981, 183, 263
+	offsets: 118, 53, 384, 392
+	rotate: 90
+clean_run_anim2/0004
+	bounds: 1809, 2168, 179, 262
+	offsets: 120, 52, 384, 392
+clean_run_anim2/0005
+	bounds: 2274, 2468, 175, 259
+	offsets: 123, 54, 384, 392
+	rotate: 90
+clean_run_anim2/0006
+	bounds: 241, 2781, 172, 240
+	offsets: 125, 74, 384, 392
+	rotate: 90
+clean_run_anim2/0007
+	bounds: 274, 3379, 174, 225
+	offsets: 122, 101, 384, 392
+	rotate: 90
+clean_run_anim2/0008
+	bounds: 1501, 2707, 186, 228
+	offsets: 109, 101, 384, 392
+	rotate: 90
+clean_run_anim2/0009
+	bounds: 3555, 2652, 186, 229
+	offsets: 108, 101, 384, 392
+	rotate: 90
+clean_run_anim2/0010
+	bounds: 930, 2650, 186, 230
+	offsets: 110, 99, 384, 392
+	rotate: 90
+clean_run_anim2/0011
+	bounds: 3788, 2477, 179, 247
+	offsets: 121, 76, 384, 392
+	rotate: 90
+clean_run_anim2/0012
+	bounds: 3529, 1922, 183, 264
+	offsets: 119, 53, 384, 392
+	rotate: 90
+clean_run_anim2/0013
+	bounds: 3104, 1869, 183, 266
+	offsets: 119, 51, 384, 392
+	rotate: 90
+clean_run_anim2/0014
+	bounds: 811, 2109, 183, 258
+	offsets: 119, 58, 384, 392
+	rotate: 90
+clean_run_anim2/0015
+	bounds: 2450, 1840, 183, 266
+	offsets: 119, 57, 384, 392
+	rotate: 90
+clean_run_anim2/0016
+	bounds: 1992, 2060, 195, 244
+	offsets: 107, 85, 384, 392
+clean_run_anim2/0017
+	bounds: 1970, 763, 207, 247
+	offsets: 95, 83, 384, 392
+	rotate: 90
+clean_walk_anim/0000
+	bounds: 2007, 2497, 168, 263
+	offsets: 101, 50, 384, 392
+	rotate: 90
+clean_walk_anim/0001
+	bounds: 544, 2845, 154, 264
+	offsets: 110, 50, 384, 392
+clean_walk_anim/0002
+	bounds: 2486, 3720, 136, 268
+	offsets: 122, 49, 384, 392
+	rotate: 90
+clean_walk_anim/0003
+	bounds: 663, 3865, 121, 271
+	offsets: 129, 48, 384, 392
+	rotate: 90
+clean_walk_anim/0005
+	bounds: 193, 3995, 95, 271
+	offsets: 138, 48, 384, 392
+	rotate: 90
+clean_walk_anim/0006
+	bounds: 1224, 3990, 100, 269
+	offsets: 141, 48, 384, 392
+	rotate: 90
+clean_walk_anim/0007
+	bounds: 2753, 3978, 112, 266
+	offsets: 133, 49, 384, 392
+	rotate: 90
+clean_walk_anim/0008
+	bounds: 3810, 3971, 119, 264
+	offsets: 128, 50, 384, 392
+	rotate: 90
+clean_walk_anim/0009
+	bounds: 3023, 3974, 116, 263
+	offsets: 130, 51, 384, 392
+	rotate: 90
+clean_walk_anim/0010
+	bounds: 742, 3990, 100, 266
+	offsets: 136, 50, 384, 392
+	rotate: 90
+clean_walk_anim/0011
+	bounds: 468, 3993, 97, 270
+	offsets: 137, 49, 384, 392
+	rotate: 90
+clean_walk_anim/0012
+	bounds: 3534, 3975, 115, 272
+	offsets: 133, 49, 384, 392
+	rotate: 90
+clean_walk_anim/0013
+	bounds: 933, 3597, 142, 272
+	offsets: 120, 49, 384, 392
+	rotate: 90
+clean_walk_anim/0014
+	bounds: 3061, 2507, 165, 267
+	offsets: 105, 51, 384, 392
+	rotate: 90
+clean_walk_anim/0015
+	bounds: 4, 2462, 173, 262
+	offsets: 99, 53, 384, 392
+	rotate: 90
+clean_walk_anim2/0000
+	bounds: 546, 2133, 180, 261
+	offsets: 53, 50, 384, 392
+	rotate: 90
+clean_walk_anim2/0001
+	bounds: 3541, 2385, 173, 263
+	offsets: 52, 50, 384, 392
+clean_walk_anim2/0002
+	bounds: 3128, 2332, 171, 268
+	offsets: 50, 49, 384, 392
+	rotate: 90
+clean_walk_anim2/0003
+	bounds: 270, 2311, 169, 272
+	offsets: 50, 48, 384, 392
+	rotate: 90
+clean_walk_anim2/0004
+	bounds: 2829, 2007, 176, 271
+	offsets: 52, 48, 384, 392
+	rotate: 90
+clean_walk_anim2/0005
+	bounds: 2720, 1821, 182, 268
+	offsets: 56, 48, 384, 392
+	rotate: 90
+clean_walk_anim2/0006
+	bounds: 2563, 2027, 182, 262
+	offsets: 60, 49, 384, 392
+	rotate: 90
+clean_walk_anim2/0007
+	bounds: 744, 1918, 187, 259
+	offsets: 61, 50, 384, 392
+	rotate: 90
+clean_walk_anim2/0008
+	bounds: 4, 2196, 179, 261
+	offsets: 60, 50, 384, 392
+clean_walk_anim2/0009
+	bounds: 2472, 2647, 162, 267
+	offsets: 57, 49, 384, 392
+	rotate: 90
+clean_walk_anim2/0010
+	bounds: 1733, 2602, 162, 270
+	offsets: 56, 49, 384, 392
+	rotate: 90
+clean_walk_anim2/0011
+	bounds: 477, 2488, 166, 268
+	offsets: 52, 50, 384, 392
+	rotate: 90
+clean_walk_anim2/0012
+	bounds: 2537, 2469, 173, 262
+	offsets: 51, 52, 384, 392
+	rotate: 90
+fat1_idle_anim/0000
+	bounds: 646, 1747, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0001
+	bounds: 2992, 1698, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0002
+	bounds: 3920, 1521, 168, 294
+	offsets: 106, 40, 384, 392
+fat1_idle_anim/0003
+	bounds: 898, 1515, 168, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0004
+	bounds: 2243, 1497, 168, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0005
+	bounds: 259, 1460, 169, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0006
+	bounds: 1196, 1440, 169, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0007
+	bounds: 557, 1403, 169, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0008
+	bounds: 3151, 1374, 169, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0009
+	bounds: 855, 1342, 169, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0010
+	bounds: 1784, 1302, 170, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0011
+	bounds: 343, 1229, 170, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0012
+	bounds: 3137, 1200, 170, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0013
+	bounds: 641, 1168, 170, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0014
+	bounds: 3782, 1128, 171, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0015
+	bounds: 939, 1116, 171, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0016
+	bounds: 2678, 979, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0017
+	bounds: 3321, 977, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0018
+	bounds: 2012, 974, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0019
+	bounds: 1673, 972, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0020
+	bounds: 2310, 955, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0021
+	bounds: 3619, 952, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0022
+	bounds: 899, 940, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0023
+	bounds: 4, 878, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0024
+	bounds: 2976, 864, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0025
+	bounds: 1197, 855, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0026
+	bounds: 1495, 835, 172, 294
+	offsets: 105, 40, 384, 392
+fat1_idle_anim/0027
+	bounds: 3917, 830, 172, 294
+	offsets: 105, 40, 384, 392
+fat1_idle_anim/0028
+	bounds: 302, 817, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0029
+	bounds: 600, 817, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0030
+	bounds: 2608, 803, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0031
+	bounds: 3274, 801, 172, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0032
+	bounds: 302, 1054, 171, 294
+	offsets: 105, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0033
+	bounds: 2696, 1155, 170, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0034
+	bounds: 2082, 1150, 170, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0035
+	bounds: 1499, 1133, 170, 294
+	offsets: 106, 40, 384, 392
+fat1_idle_anim/0036
+	bounds: 4, 1133, 170, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0037
+	bounds: 2380, 1131, 170, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0038
+	bounds: 2839, 1329, 169, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0039
+	bounds: 2100, 1324, 169, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0040
+	bounds: 2398, 1305, 169, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0041
+	bounds: 3449, 1303, 169, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0042
+	bounds: 3747, 1303, 169, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0043
+	bounds: 2541, 1478, 168, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0044
+	bounds: 3588, 1476, 168, 294
+	offsets: 106, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0045
+	bounds: 944, 1687, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0046
+	bounds: 2293, 1669, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0047
+	bounds: 2591, 1650, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0048
+	bounds: 3622, 1648, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0049
+	bounds: 1647, 1640, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0050
+	bounds: 1945, 1639, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0051
+	bounds: 302, 1633, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0052
+	bounds: 3797, 1819, 166, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0053
+	bounds: 1697, 1811, 166, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0054
+	bounds: 1995, 1810, 166, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0055
+	bounds: 348, 1804, 166, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0056
+	bounds: 4, 1794, 166, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0057
+	bounds: 1242, 1613, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0058
+	bounds: 600, 1576, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim/0059
+	bounds: 3290, 1547, 167, 294
+	offsets: 107, 40, 384, 392
+	rotate: 90
+fat1_idle_anim2/0000
+	bounds: 600, 993, 171, 295
+	offsets: 103, 39, 384, 392
+	rotate: 90
+fat1_pose_idle/0000
+	bounds: 600, 993, 171, 295
+	offsets: 103, 39, 384, 392
+	rotate: 90
+fat1_pose_ball/0000
+	bounds: 193, 3841, 210, 150
+	offsets: 93, 24, 384, 392
+fat1_pose_bend/0000
+	bounds: 1486, 2504, 199, 222
+	offsets: 140, 32, 384, 392
+	rotate: 90
+fat1_pose_bridge/0000
+	bounds: 605, 3575, 265, 146
+	offsets: 70, 38, 384, 392
+fat1_pose_future/0000
+	bounds: 1528, 3816, 210, 163
+	offsets: 81, 49, 384, 392
+fat1_pose_handstand/0000
+	bounds: 2191, 1980, 188, 255
+	offsets: 95, 39, 384, 392
+	rotate: 90
+fat1_pose_lying/0000
+	bounds: 997, 2482, 275, 163
+	offsets: 47, 31, 384, 392
+fat1_pose_sitting/0000
+	bounds: 187, 2110, 197, 239
+	offsets: 80, 20, 384, 392
+	rotate: 90
+fat1_pose_superman/0000
+	bounds: 3400, 2229, 307, 152
+	offsets: 44, 81, 384, 392
+fat1_pose_surrender/0000
+	bounds: 996, 2295, 183, 252
+	offsets: 95, 48, 384, 392
+	rotate: 90
+fat1_run_anim/0002
+	bounds: 2366, 80, 208, 280
+	offsets: 93, 69, 384, 392
+	rotate: 90
+fat1_run_anim/0003
+	bounds: 2158, 2808, 143, 289
+	offsets: 119, 47, 384, 392
+	rotate: 90
+fat1_run_anim/0004
+	bounds: 310, 3708, 129, 291
+	offsets: 134, 43, 384, 392
+	rotate: 90
+fat1_run_anim/0005
+	bounds: 3785, 3716, 127, 289
+	offsets: 138, 44, 384, 392
+	rotate: 90
+fat1_run_anim/0006
+	bounds: 1235, 3732, 133, 269
+	offsets: 137, 65, 384, 392
+	rotate: 90
+fat1_run_anim/0007
+	bounds: 3241, 586, 211, 252
+	offsets: 87, 95, 384, 392
+	rotate: 90
+fat1_run_anim/0010
+	bounds: 3819, 77, 224, 259
+	offsets: 93, 91, 384, 392
+	rotate: 90
+fat1_run_anim/0011
+	bounds: 1712, 2434, 164, 277
+	offsets: 114, 67, 384, 392
+	rotate: 90
+fat1_run_anim/0012
+	bounds: 938, 3743, 122, 293
+	offsets: 140, 44, 384, 392
+	rotate: 90
+fat1_run_anim/0014
+	bounds: 2787, 3848, 123, 286
+	offsets: 146, 50, 384, 392
+	rotate: 90
+fat1_run_anim/0015
+	bounds: 931, 2840, 139, 295
+	offsets: 134, 49, 384, 392
+	rotate: 90
+fat1_run_anim2/0004
+	bounds: 751, 124, 199, 291
+	offsets: 110, 43, 384, 392
+	rotate: 90
+fat1_run_anim2/0005
+	bounds: 2442, 292, 195, 290
+	offsets: 113, 44, 384, 392
+	rotate: 90
+fat1_run_anim2/0006
+	bounds: 1671, 777, 191, 269
+	offsets: 115, 65, 384, 392
+	rotate: 90
+fat1_run_anim2/0007
+	bounds: 4, 1594, 196, 251
+	offsets: 110, 95, 384, 392
+	rotate: 90
+fat1_run_anim2/0008
+	bounds: 3875, 570, 209, 256
+	offsets: 96, 94, 384, 392
+fat1_run_anim2/0009
+	bounds: 2724, 491, 209, 257
+	offsets: 95, 93, 384, 392
+	rotate: 90
+fat1_run_anim2/0010
+	bounds: 2985, 440, 210, 259
+	offsets: 96, 91, 384, 392
+fat1_run_anim2/0011
+	bounds: 3199, 383, 199, 277
+	offsets: 111, 67, 384, 392
+	rotate: 90
+fat1_run_anim2/0014
+	bounds: 2650, 22, 204, 287
+	offsets: 108, 50, 384, 392
+	rotate: 90
+fat1_walk_anim/0000
+	bounds: 1130, 298, 191, 294
+	offsets: 91, 40, 384, 392
+	rotate: 90
+fat1_walk_anim/0001
+	bounds: 898, 675, 176, 295
+	offsets: 101, 40, 384, 392
+	rotate: 90
+fat1_walk_anim/0002
+	bounds: 3718, 2318, 155, 297
+	offsets: 115, 40, 384, 392
+	rotate: 90
+fat1_walk_anim/0003
+	bounds: 2451, 2813, 138, 301
+	offsets: 123, 39, 384, 392
+	rotate: 90
+fat1_walk_anim/0004
+	bounds: 4, 3713, 124, 302
+	offsets: 125, 39, 384, 392
+	rotate: 90
+fat1_walk_anim/0005
+	bounds: 1224, 3869, 111, 300
+	offsets: 129, 40, 384, 392
+	rotate: 90
+fat1_walk_anim/0006
+	bounds: 3785, 3847, 120, 297
+	offsets: 130, 41, 384, 392
+	rotate: 90
+fat1_walk_anim/0007
+	bounds: 1209, 3596, 132, 293
+	offsets: 122, 42, 384, 392
+	rotate: 90
+fat1_walk_anim/0009
+	bounds: 3574, 2842, 141, 288
+	offsets: 118, 46, 384, 392
+	rotate: 90
+fat1_walk_anim/0010
+	bounds: 2758, 3719, 125, 292
+	offsets: 124, 44, 384, 392
+	rotate: 90
+fat1_walk_anim/0011
+	bounds: 2486, 3860, 114, 297
+	offsets: 131, 43, 384, 392
+	rotate: 90
+fat1_walk_anim/0012
+	bounds: 503, 3289, 131, 301
+	offsets: 129, 41, 384, 392
+	rotate: 90
+fat1_walk_anim/0013
+	bounds: 1007, 1858, 162, 301
+	offsets: 112, 41, 384, 392
+	rotate: 90
+fat1_walk_anim/0014
+	bounds: 224, 304, 188, 297
+	offsets: 95, 42, 384, 392
+fat1_walk_anim/0015
+	bounds: 3015, 182, 197, 293
+	offsets: 88, 43, 384, 392
+	rotate: 90
+fat1_walk_anim2/0009
+	bounds: 1046, 97, 197, 295
+	offsets: 41, 42, 384, 392
+	rotate: 90
+fat2_pose_ball/0000
+	bounds: 1913, 3663, 229, 166
+	offsets: 86, 18, 384, 392
+fat2_pose_bend/0000
+	bounds: 4, 653, 221, 237
+	offsets: 131, 29, 384, 392
+	rotate: 90
+fat2_pose_bridge/0000
+	bounds: 1862, 2768, 283, 149
+	offsets: 64, 30, 384, 392
+fat2_pose_future/0000
+	bounds: 4, 2799, 233, 176
+	offsets: 68, 47, 384, 392
+fat2_pose_handstand/0000
+	bounds: 2736, 230, 207, 275
+	offsets: 86, 32, 384, 392
+	rotate: 90
+fat2_pose_lying/0000
+	bounds: 1741, 353, 296, 186
+	offsets: 38, 19, 384, 392
+fat2_pose_sitting/0000
+	bounds: 3844, 305, 218, 261
+	offsets: 65, 14, 384, 392
+fat2_pose_superman/0000
+	bounds: 416, 285, 331, 171
+	offsets: 36, 76, 384, 392
+fat2_pose_surrender/0000
+	bounds: 1465, 404, 200, 272
+	offsets: 86, 45, 384, 392
+	rotate: 90
+fat2_pose_yoga/0000
+	bounds: 3282, 3703, 147, 255
+	offsets: 110, 28, 384, 392
+fat2_run_anim/0003
+	bounds: 430, 1974, 155, 310
+	offsets: 115, 45, 384, 392
+	rotate: 90
+fat2_run_anim/0004
+	bounds: 2743, 2646, 139, 314
+	offsets: 129, 39, 384, 392
+	rotate: 90
+fat2_run_anim/0005
+	bounds: 485, 2658, 138, 313
+	offsets: 133, 39, 384, 392
+	rotate: 90
+fat2_run_anim/0006
+	bounds: 322, 2484, 151, 293
+	offsets: 125, 60, 384, 392
+fat2_run_anim/0011
+	bounds: 501, 460, 182, 297
+	offsets: 107, 65, 384, 392
+	rotate: 90
+fat2_run_anim/0012
+	bounds: 2756, 2789, 133, 316
+	offsets: 134, 41, 384, 392
+	rotate: 90
+fat2_run_anim/0013
+	bounds: 1954, 3384, 124, 317
+	offsets: 144, 39, 384, 392
+	rotate: 90
+fat2_run_anim/0014
+	bounds: 3244, 2813, 136, 308
+	offsets: 139, 47, 384, 392
+	rotate: 90
+fat2_run_anim/0015
+	bounds: 1147, 493, 172, 314
+	offsets: 112, 48, 384, 392
+	rotate: 90
+fat2_run_anim2/0007
+	bounds: 1692, 136, 213, 271
+	offsets: 103, 94, 384, 392
+	rotate: 90
+fat2_walk_anim/0002
+	bounds: 2041, 231, 178, 321
+	offsets: 103, 36, 384, 392
+	rotate: 90
+fat2_walk_anim/0003
+	bounds: 1197, 669, 162, 323
+	offsets: 110, 36, 384, 392
+	rotate: 90
+fat2_walk_anim/0004
+	bounds: 2583, 2213, 144, 324
+	offsets: 115, 36, 384, 392
+	rotate: 90
+fat2_walk_anim/0005
+	bounds: 3076, 2676, 133, 321
+	offsets: 119, 38, 384, 392
+	rotate: 90
+fat2_walk_anim/0006
+	bounds: 1165, 2650, 136, 318
+	offsets: 124, 39, 384, 392
+	rotate: 90
+fat2_walk_anim/0007
+	bounds: 2245, 2172, 149, 314
+	offsets: 115, 41, 384, 392
+	rotate: 90
+fat2_walk_anim/0008
+	bounds: 1785, 1476, 159, 311
+	offsets: 110, 42, 384, 392
+	rotate: 90
+fat2_walk_anim/0009
+	bounds: 1384, 1936, 157, 309
+	offsets: 111, 44, 384, 392
+	rotate: 90
+fat2_walk_anim/0010
+	bounds: 4, 2639, 139, 314
+	offsets: 118, 42, 384, 392
+	rotate: 90
+fat2_walk_anim/0011
+	bounds: 2149, 2669, 135, 319
+	offsets: 119, 40, 384, 392
+	rotate: 90
+fat2_walk_anim/0012
+	bounds: 2994, 1040, 156, 323
+	offsets: 114, 38, 384, 392
+	rotate: 90
+fat3_pose_ball/0000
+	bounds: 3789, 2660, 240, 178
+	offsets: 81, 15, 384, 392
+fat3_pose_bend/0000
+	bounds: 4, 67, 233, 249
+	offsets: 129, 29, 384, 392
+	rotate: 90
+fat3_pose_bridge/0000
+	bounds: 3572, 775, 299, 173
+	offsets: 59, 28, 384, 392
+fat3_pose_future/0000
+	bounds: 749, 2463, 244, 183
+	offsets: 62, 48, 384, 392
+fat3_pose_yoga/0000
+	bounds: 1230, 2790, 157, 267
+	offsets: 107, 25, 384, 392
+	rotate: 90
+fat3_run_anim/0003
+	bounds: 1524, 608, 165, 323
+	offsets: 112, 45, 384, 392
+	rotate: 90
+fat3_run_anim/0004
+	bounds: 1479, 2287, 143, 326
+	offsets: 128, 40, 384, 392
+	rotate: 90
+fat3_run_anim/0005
+	bounds: 546, 2317, 142, 327
+	offsets: 132, 39, 384, 392
+	rotate: 90
+fat3_run_anim/0006
+	bounds: 1073, 2024, 156, 307
+	offsets: 124, 59, 384, 392
+	rotate: 90
+fat3_run_anim/0012
+	bounds: 3401, 2480, 136, 328
+	offsets: 134, 41, 384, 392
+fat3_run_anim/0014
+	bounds: 2803, 2361, 142, 321
+	offsets: 136, 48, 384, 392
+	rotate: 90
+fat3_walk_anim/0003
+	bounds: 3480, 273, 169, 335
+	offsets: 107, 37, 384, 392
+	rotate: 90
+fat3_walk_anim/0005
+	bounds: 2245, 2325, 139, 334
+	offsets: 116, 38, 384, 392
+	rotate: 90
+fat3_walk_anim/0006
+	bounds: 1312, 1784, 148, 331
+	offsets: 117, 39, 384, 392
+	rotate: 90
+fat3_walk_anim/0007
+	bounds: 3498, 608, 163, 327
+	offsets: 108, 41, 384, 392
+	rotate: 90
+fat3_walk_anim/0008
+	bounds: 802, 327, 172, 324
+	offsets: 103, 42, 384, 392
+	rotate: 90
+fat3_walk_anim/0009
+	bounds: 822, 503, 168, 321
+	offsets: 105, 45, 384, 392
+	rotate: 90
+fat3_walk_anim/0010
+	bounds: 3944, 1989, 148, 325
+	offsets: 114, 43, 384, 392
+fat3_walk_anim/0011
+	bounds: 2911, 2187, 141, 331
+	offsets: 116, 41, 384, 392
+	rotate: 90
+fat3_walk_anim/0012
+	bounds: 2103, 413, 163, 335
+	offsets: 111, 39, 384, 392
+	rotate: 90
+fat4_pose_ball/0000
+	bounds: 1993, 2308, 248, 185
+	offsets: 76, 18, 384, 392
+fat4_pose_bridge/0000
+	bounds: 3312, 85, 317, 184
+	offsets: 52, 27, 384, 392
+fat4_pose_future/0000
+	bounds: 2889, 1502, 258, 191
+	offsets: 54, 45, 384, 392
+fat4_pose_yoga/0000
+	bounds: 3246, 2055, 170, 279
+	offsets: 102, 20, 384, 392
+	rotate: 90
+fat4_run_anim/0004
+	bounds: 1673, 1148, 150, 335
+	offsets: 124, 40, 384, 392
+	rotate: 90
+fat4_run_anim/0005
+	bounds: 4, 1307, 149, 335
+	offsets: 128, 40, 384, 392
+	rotate: 90
+fat4_run_anim/0006
+	bounds: 501, 646, 167, 317
+	offsets: 116, 59, 384, 392
+	rotate: 90
+fat4_run_anim/0012
+	bounds: 4, 1964, 142, 340
+	offsets: 132, 39, 384, 392
+	rotate: 90
+fat4_run_anim/0013
+	bounds: 1153, 1290, 146, 342
+	offsets: 129, 37, 384, 392
+	rotate: 90
+fat4_run_anim/0014
+	bounds: 2906, 704, 156, 332
+	offsets: 125, 46, 384, 392
+	rotate: 90
+fat4_walk_anim/0006
+	bounds: 3497, 446, 158, 343
+	offsets: 112, 37, 384, 392
+	rotate: 90
+fat4_walk_anim/0007
+	bounds: 2941, 4, 174, 338
+	offsets: 103, 39, 384, 392
+	rotate: 90
+fat4_walk_anim/0010
+	bounds: 2103, 580, 159, 337
+	offsets: 109, 41, 384, 392
+	rotate: 90
+fat4_walk_anim/0011
+	bounds: 3435, 1153, 146, 343
+	offsets: 112, 39, 384, 392
+	rotate: 90
+fat4_walk_anim/0012
+	bounds: 257, 113, 168, 347
+	offsets: 108, 37, 384, 392
+	rotate: 90
+
+Chameleon_frames_3.png
+	size: 4096, 4096
+	filter: Linear, Linear
+fat1_idle_fat/0000
+	bounds: 826, 271, 257, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0001
+	bounds: 2041, 518, 258, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0002
+	bounds: 829, 532, 258, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0003
+	bounds: 2946, 537, 258, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0004
+	bounds: 4, 683, 259, 294
+	offsets: 55, 40, 384, 392
+fat1_idle_fat/0005
+	bounds: 3544, 699, 259, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0006
+	bounds: 1481, 712, 259, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0007
+	bounds: 1183, 735, 259, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0008
+	bounds: 3281, 763, 259, 294
+	offsets: 55, 40, 384, 392
+fat1_idle_fat/0009
+	bounds: 1782, 940, 260, 294
+	offsets: 55, 40, 384, 392
+fat1_idle_fat/0010
+	bounds: 3564, 962, 260, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0011
+	bounds: 1484, 975, 260, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0012
+	bounds: 4, 981, 260, 294
+	offsets: 55, 40, 384, 392
+fat1_idle_fat/0013
+	bounds: 2968, 1096, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0014
+	bounds: 2670, 1123, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0015
+	bounds: 2372, 1123, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0016
+	bounds: 3641, 1226, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0017
+	bounds: 1759, 1238, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0018
+	bounds: 1461, 1261, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0019
+	bounds: 4, 1279, 261, 294
+	offsets: 55, 40, 384, 392
+fat1_idle_fat/0020
+	bounds: 2747, 1388, 262, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0021
+	bounds: 2449, 1388, 262, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0022
+	bounds: 3675, 1491, 262, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0023
+	bounds: 1776, 1503, 262, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0024
+	bounds: 1478, 1526, 262, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0025
+	bounds: 2151, 1572, 262, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0026
+	bounds: 4, 1577, 262, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0027
+	bounds: 1180, 1586, 262, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0028
+	bounds: 1196, 1288, 261, 294
+	offsets: 55, 40, 384, 392
+fat1_idle_fat/0029
+	bounds: 2074, 1307, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0030
+	bounds: 898, 1321, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0031
+	bounds: 3343, 1325, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0032
+	bounds: 600, 1342, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0033
+	bounds: 302, 1354, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0034
+	bounds: 3045, 1361, 261, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0035
+	bounds: 1186, 998, 260, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0036
+	bounds: 2057, 1043, 260, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0037
+	bounds: 888, 1057, 260, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0038
+	bounds: 3266, 1061, 260, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0039
+	bounds: 2046, 780, 259, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0040
+	bounds: 268, 786, 259, 294
+	offsets: 55, 40, 384, 392
+fat1_idle_fat/0041
+	bounds: 885, 794, 259, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0042
+	bounds: 2983, 799, 259, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0043
+	bounds: 2685, 834, 259, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0044
+	bounds: 2648, 572, 258, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0045
+	bounds: 531, 597, 258, 294
+	offsets: 55, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0046
+	bounds: 2935, 276, 257, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0047
+	bounds: 2637, 311, 257, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0048
+	bounds: 528, 336, 257, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0049
+	bounds: 2339, 367, 257, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0050
+	bounds: 1723, 380, 257, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0051
+	bounds: 4, 385, 257, 294
+	offsets: 56, 40, 384, 392
+fat1_idle_fat/0052
+	bounds: 3542, 438, 257, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0053
+	bounds: 3536, 178, 256, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0054
+	bounds: 265, 190, 256, 294
+	offsets: 56, 40, 384, 392
+fat1_idle_fat/0055
+	bounds: 1420, 191, 256, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0056
+	bounds: 1425, 451, 257, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0057
+	bounds: 1127, 474, 257, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_idle_fat/0058
+	bounds: 267, 488, 257, 294
+	offsets: 56, 40, 384, 392
+fat1_idle_fat/0059
+	bounds: 3244, 502, 257, 294
+	offsets: 56, 40, 384, 392
+	rotate: 90
+fat1_pose_t_pose/0000
+	bounds: 1269, 2100, 277, 297
+	offsets: 48, 38, 384, 392
+	rotate: 90
+fat1_run_anim/0008
+	bounds: 3862, 966, 230, 256
+	offsets: 90, 94, 384, 392
+fat2_idle_fat/0000
+	bounds: 2563, 2628, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0001
+	bounds: 1285, 3199, 283, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0002
+	bounds: 965, 3199, 283, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0003
+	bounds: 324, 3199, 283, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0004
+	bounds: 3527, 3200, 283, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0005
+	bounds: 3207, 3200, 283, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0006
+	bounds: 645, 3199, 284, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0007
+	bounds: 3527, 3487, 284, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0008
+	bounds: 3207, 3487, 284, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0009
+	bounds: 2887, 3487, 284, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0010
+	bounds: 1287, 3486, 285, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0011
+	bounds: 4, 3485, 286, 316
+	offsets: 43, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0012
+	bounds: 3781, 3775, 286, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0013
+	bounds: 3491, 3775, 286, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0014
+	bounds: 3201, 3775, 286, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0015
+	bounds: 1750, 3775, 287, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0016
+	bounds: 1459, 3775, 287, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0017
+	bounds: 1168, 3775, 287, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0018
+	bounds: 877, 3775, 287, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0019
+	bounds: 586, 3775, 287, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0020
+	bounds: 295, 3775, 287, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0021
+	bounds: 4, 3775, 287, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0033
+	bounds: 2911, 3775, 286, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0034
+	bounds: 2621, 3775, 286, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0035
+	bounds: 2331, 3775, 286, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0036
+	bounds: 2041, 3775, 286, 316
+	offsets: 43, 37, 384, 392
+fat2_idle_fat/0037
+	bounds: 967, 3486, 285, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0038
+	bounds: 2567, 3487, 284, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0039
+	bounds: 2247, 3487, 284, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0040
+	bounds: 1927, 3487, 284, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0041
+	bounds: 1607, 3487, 284, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0042
+	bounds: 2887, 3200, 283, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0043
+	bounds: 2567, 3200, 283, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0044
+	bounds: 2247, 3200, 283, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0045
+	bounds: 1927, 3200, 283, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0046
+	bounds: 1607, 3200, 283, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0047
+	bounds: 2243, 2628, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0048
+	bounds: 1923, 2628, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0049
+	bounds: 4, 2876, 282, 316
+	offsets: 44, 37, 384, 392
+fat2_idle_fat/0050
+	bounds: 1281, 2913, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0051
+	bounds: 961, 2913, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0052
+	bounds: 641, 2913, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0053
+	bounds: 321, 2913, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0054
+	bounds: 3523, 2914, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0055
+	bounds: 3203, 2914, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0056
+	bounds: 2883, 2914, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0057
+	bounds: 2563, 2914, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0058
+	bounds: 2243, 2914, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_idle_fat/0059
+	bounds: 1923, 2914, 282, 316
+	offsets: 44, 37, 384, 392
+	rotate: 90
+fat2_pose_costanza/0000
+	bounds: 1920, 2369, 328, 255
+	offsets: 19, 25, 384, 392
+fat2_pose_star/0000
+	bounds: 1911, 2097, 268, 306
+	offsets: 52, 42, 384, 392
+	rotate: 90
+fat2_run_anim/0000
+	bounds: 1124, 212, 258, 292
+	offsets: 77, 78, 384, 392
+	rotate: 90
+fat2_run_anim/0001
+	bounds: 1779, 641, 258, 295
+	offsets: 77, 75, 384, 392
+fat2_run_anim/0017
+	bounds: 2021, 255, 259, 291
+	offsets: 77, 78, 384, 392
+	rotate: 90
+fat2_run_anim2/0017
+	bounds: 2020, 7, 244, 291
+	offsets: 79, 78, 384, 392
+	rotate: 90
+fat2_walk_anim2/0003
+	bounds: 525, 37, 230, 324
+	offsets: 22, 37, 384, 392
+	rotate: 90
+fat3_pose_mid_run/0000
+	bounds: 3233, 246, 252, 299
+	offsets: 60, 38, 384, 392
+	rotate: 90
+fat3_pose_star/0000
+	bounds: 324, 3486, 285, 317
+	offsets: 43, 43, 384, 392
+	rotate: 90
+fat3_pose_superman/0000
+	bounds: 1196, 6, 346, 181
+	offsets: 30, 74, 384, 392
+fat3_run_anim/0000
+	bounds: 2815, 2096, 271, 303
+	offsets: 72, 79, 384, 392
+	rotate: 90
+fat3_run_anim/0001
+	bounds: 1636, 2284, 271, 306
+	offsets: 72, 76, 384, 392
+fat3_run_anim/0002
+	bounds: 3834, 7, 235, 312
+	offsets: 84, 68, 384, 392
+fat3_run_anim/0008
+	bounds: 269, 1084, 266, 288
+	offsets: 75, 94, 384, 392
+	rotate: 90
+fat3_run_anim/0009
+	bounds: 3382, 1590, 267, 289
+	offsets: 76, 93, 384, 392
+	rotate: 90
+fat3_run_anim/0010
+	bounds: 2316, 105, 258, 291
+	offsets: 79, 91, 384, 392
+	rotate: 90
+fat3_run_anim/0016
+	bounds: 4, 1843, 261, 304
+	offsets: 72, 78, 384, 392
+	rotate: 90
+fat3_run_anim/0017
+	bounds: 3198, 2113, 273, 303
+	offsets: 71, 79, 384, 392
+	rotate: 90
+fat3_run_anim2/0000
+	bounds: 2531, 1654, 257, 303
+	offsets: 74, 79, 384, 392
+fat3_run_anim2/0001
+	bounds: 2221, 1838, 257, 306
+	offsets: 74, 76, 384, 392
+	rotate: 90
+fat3_run_anim2/0002
+	bounds: 864, 1606, 247, 312
+	offsets: 84, 68, 384, 392
+	rotate: 90
+fat3_run_anim2/0003
+	bounds: 561, 1101, 237, 323
+	offsets: 93, 45, 384, 392
+	rotate: 90
+fat3_run_anim2/0004
+	bounds: 2355, 885, 234, 326
+	offsets: 95, 40, 384, 392
+	rotate: 90
+fat3_run_anim2/0005
+	bounds: 2611, 44, 228, 327
+	offsets: 99, 39, 384, 392
+	rotate: 90
+fat3_run_anim2/0012
+	bounds: 2808, 1764, 238, 328
+	offsets: 93, 41, 384, 392
+fat3_run_anim2/0013
+	bounds: 1566, 1792, 238, 330
+	offsets: 93, 39, 384, 392
+	rotate: 90
+fat3_run_anim2/0014
+	bounds: 561, 859, 238, 320
+	offsets: 93, 48, 384, 392
+	rotate: 90
+fat3_run_anim2/0015
+	bounds: 3050, 1626, 237, 328
+	offsets: 94, 48, 384, 392
+	rotate: 90
+fat3_run_anim2/0016
+	bounds: 3842, 654, 250, 304
+	offsets: 81, 78, 384, 392
+fat3_run_anim2/0017
+	bounds: 3828, 1757, 257, 303
+	offsets: 74, 79, 384, 392
+fat3_walk_anim/0000
+	bounds: 2942, 18, 225, 330
+	offsets: 74, 36, 384, 392
+	rotate: 90
+fat3_walk_anim/0015
+	bounds: 3840, 323, 231, 327
+	offsets: 71, 40, 384, 392
+fat3_walk_anim2/0000
+	bounds: 3839, 2064, 249, 329
+	offsets: 15, 36, 384, 392
+fat3_walk_anim2/0001
+	bounds: 934, 2131, 249, 331
+	offsets: 14, 37, 384, 392
+	rotate: 90
+fat3_walk_anim2/0002
+	bounds: 3198, 2390, 252, 335
+	offsets: 12, 37, 384, 392
+	rotate: 90
+fat3_walk_anim2/0003
+	bounds: 3564, 2397, 252, 339
+	offsets: 12, 37, 384, 392
+	rotate: 90
+fat3_walk_anim2/0004
+	bounds: 1295, 2381, 250, 337
+	offsets: 14, 38, 384, 392
+	rotate: 90
+fat3_walk_anim2/0005
+	bounds: 1570, 2034, 246, 331
+	offsets: 19, 40, 384, 392
+	rotate: 90
+fat3_walk_anim2/0006
+	bounds: 1238, 1852, 244, 324
+	offsets: 24, 42, 384, 392
+	rotate: 90
+fat3_walk_anim2/0007
+	bounds: 3505, 1861, 250, 319
+	offsets: 25, 44, 384, 392
+	rotate: 90
+fat3_walk_anim2/0008
+	bounds: 1905, 1769, 242, 324
+	offsets: 23, 42, 384, 392
+fat3_walk_anim2/0009
+	bounds: 3122, 1867, 242, 332
+	offsets: 21, 40, 384, 392
+	rotate: 90
+fat3_walk_anim2/0011
+	bounds: 2563, 2288, 248, 336
+	offsets: 15, 38, 384, 392
+fat3_walk_anim2/0012
+	bounds: 2221, 2099, 249, 329
+	offsets: 14, 40, 384, 392
+	rotate: 90
+fat4_idle_anim/0059
+	bounds: 853, 4, 204, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_pose_mid_run/0000
+	bounds: 2252, 2352, 272, 307
+	offsets: 52, 38, 384, 392
+	rotate: 90
+fat4_run_anim/0000
+	bounds: 1605, 2912, 284, 314
+	offsets: 68, 78, 384, 392
+	rotate: 90
+fat4_run_anim/0001
+	bounds: 645, 3487, 284, 318
+	offsets: 68, 74, 384, 392
+	rotate: 90
+fat4_run_anim/0002
+	bounds: 2554, 1961, 250, 323
+	offsets: 78, 67, 384, 392
+fat4_run_anim/0008
+	bounds: 255, 2107, 278, 297
+	offsets: 73, 94, 384, 392
+	rotate: 90
+fat4_run_anim/0009
+	bounds: 3537, 2115, 278, 298
+	offsets: 74, 93, 384, 392
+	rotate: 90
+fat4_run_anim/0010
+	bounds: 934, 1857, 270, 300
+	offsets: 77, 91, 384, 392
+	rotate: 90
+fat4_run_anim/0016
+	bounds: 2883, 2371, 273, 311
+	offsets: 69, 80, 384, 392
+	rotate: 90
+fat4_run_anim/0017
+	bounds: 4, 3196, 285, 313
+	offsets: 68, 79, 384, 392
+	rotate: 90
+fat4_run_anim2/0000
+	bounds: 1642, 2594, 274, 314
+	offsets: 68, 78, 384, 392
+fat4_run_anim2/0001
+	bounds: 1320, 2635, 274, 318
+	offsets: 68, 74, 384, 392
+	rotate: 90
+fat4_run_anim2/0002
+	bounds: 968, 2384, 264, 323
+	offsets: 78, 67, 384, 392
+	rotate: 90
+fat4_run_anim2/0003
+	bounds: 282, 2389, 256, 333
+	offsets: 84, 44, 384, 392
+	rotate: 90
+fat4_run_anim2/0005
+	bounds: 4, 2220, 247, 335
+	offsets: 90, 40, 384, 392
+fat4_run_anim2/0006
+	bounds: 543, 1618, 244, 317
+	offsets: 92, 59, 384, 392
+	rotate: 90
+fat4_run_anim2/0008
+	bounds: 4, 84, 252, 297
+	offsets: 82, 94, 384, 392
+fat4_run_anim2/0009
+	bounds: 1718, 124, 252, 298
+	offsets: 81, 93, 384, 392
+	rotate: 90
+fat4_run_anim2/0010
+	bounds: 2344, 628, 253, 300
+	offsets: 82, 91, 384, 392
+	rotate: 90
+fat4_run_anim2/0011
+	bounds: 556, 1866, 251, 321
+	offsets: 88, 64, 384, 392
+	rotate: 90
+fat4_run_anim2/0012
+	bounds: 976, 2652, 257, 340
+	offsets: 85, 39, 384, 392
+	rotate: 90
+fat4_run_anim2/0013
+	bounds: 3564, 2653, 257, 342
+	offsets: 85, 37, 384, 392
+	rotate: 90
+fat4_run_anim2/0014
+	bounds: 632, 2391, 257, 332
+	offsets: 85, 46, 384, 392
+	rotate: 90
+fat4_run_anim2/0015
+	bounds: 632, 2652, 257, 340
+	offsets: 85, 45, 384, 392
+	rotate: 90
+fat4_run_anim2/0016
+	bounds: 619, 2121, 266, 311
+	offsets: 76, 80, 384, 392
+	rotate: 90
+fat4_run_anim2/0017
+	bounds: 4, 2559, 274, 313
+	offsets: 68, 79, 384, 392
+fat4_walk_anim/0000
+	bounds: 3847, 3087, 231, 341
+	offsets: 71, 34, 384, 392
+fat4_walk_anim/0003
+	bounds: 3910, 2736, 175, 347
+	offsets: 102, 35, 384, 392
+fat4_walk_anim/0009
+	bounds: 3910, 2399, 179, 333
+	offsets: 100, 43, 384, 392
+fat4_walk_anim/0014
+	bounds: 312, 1759, 227, 344
+	offsets: 76, 37, 384, 392
+fat4_walk_anim/0015
+	bounds: 3847, 3432, 237, 339
+	offsets: 68, 38, 384, 392
+fat4_walk_anim2/0006
+	bounds: 2883, 2648, 262, 339
+	offsets: 15, 40, 384, 392
+	rotate: 90
+fat4_walk_anim2/0007
+	bounds: 3226, 2646, 264, 334
+	offsets: 16, 42, 384, 392
+	rotate: 90
+fat4_walk_anim2/0008
+	bounds: 290, 2649, 260, 338
+	offsets: 15, 41, 384, 392
+	rotate: 90
+
+Chameleon_frames_4.png
+	size: 4092, 4096
+	filter: Linear, Linear
+clean_idle_fat/0000
+	bounds: 1974, 3154, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0001
+	bounds: 2244, 3153, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0002
+	bounds: 2514, 3153, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0003
+	bounds: 2789, 3153, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0004
+	bounds: 1316, 2896, 229, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0005
+	bounds: 4, 2853, 229, 266
+	offsets: 71, 47, 384, 392
+clean_idle_fat/0006
+	bounds: 3373, 2738, 229, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0007
+	bounds: 782, 2502, 230, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0008
+	bounds: 2062, 2491, 230, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0009
+	bounds: 2679, 2491, 230, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0010
+	bounds: 2510, 2058, 231, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0011
+	bounds: 3562, 2057, 231, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0012
+	bounds: 644, 2056, 231, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0013
+	bounds: 4, 2038, 231, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0014
+	bounds: 274, 2038, 231, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0015
+	bounds: 2471, 1822, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0016
+	bounds: 2094, 1699, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0017
+	bounds: 864, 1698, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0018
+	bounds: 2741, 1679, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0019
+	bounds: 3011, 1674, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0020
+	bounds: 1454, 1672, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0021
+	bounds: 1134, 1661, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0022
+	bounds: 1724, 1648, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0023
+	bounds: 3281, 1623, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0024
+	bounds: 324, 1621, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0025
+	bounds: 4, 1603, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0026
+	bounds: 3551, 1587, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0027
+	bounds: 594, 1587, 232, 266
+	offsets: 70, 47, 384, 392
+clean_idle_fat/0028
+	bounds: 3821, 1587, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0029
+	bounds: 2364, 1586, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0030
+	bounds: 1994, 1463, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0031
+	bounds: 830, 1462, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0032
+	bounds: 2634, 1443, 232, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0033
+	bounds: 3832, 2022, 231, 266
+	offsets: 70, 47, 384, 392
+clean_idle_fat/0034
+	bounds: 2201, 1935, 231, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0035
+	bounds: 914, 1934, 231, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0036
+	bounds: 2780, 1915, 231, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0037
+	bounds: 3050, 1910, 231, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0038
+	bounds: 1184, 1897, 231, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0039
+	bounds: 2332, 2490, 230, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0040
+	bounds: 507, 2471, 230, 266
+	offsets: 70, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0041
+	bounds: 2409, 2724, 229, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0042
+	bounds: 2834, 2724, 229, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0043
+	bounds: 237, 2701, 229, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0044
+	bounds: 3109, 3153, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0045
+	bounds: 1329, 3129, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0046
+	bounds: 4, 3123, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0047
+	bounds: 3379, 2990, 228, 266
+	offsets: 71, 47, 384, 392
+clean_idle_fat/0048
+	bounds: 3611, 2970, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0049
+	bounds: 274, 2959, 228, 266
+	offsets: 71, 47, 384, 392
+clean_idle_fat/0050
+	bounds: 506, 2934, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0051
+	bounds: 776, 2934, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0052
+	bounds: 519, 3166, 227, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0053
+	bounds: 789, 3166, 227, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0054
+	bounds: 1059, 3165, 227, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0055
+	bounds: 1704, 3155, 227, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0056
+	bounds: 1046, 2933, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0057
+	bounds: 1599, 2923, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0058
+	bounds: 1869, 2922, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_idle_fat/0059
+	bounds: 2139, 2921, 228, 266
+	offsets: 71, 47, 384, 392
+	rotate: 90
+clean_pose_t_pose/0000
+	bounds: 3819, 370, 246, 269
+	offsets: 64, 46, 384, 392
+fat1_pose_mid_run/0000
+	bounds: 1203, 3823, 223, 267
+	offsets: 72, 42, 384, 392
+fat1_run_anim/0000
+	bounds: 1660, 1176, 238, 272
+	offsets: 84, 79, 384, 392
+	rotate: 90
+fat1_run_anim/0001
+	bounds: 3496, 580, 238, 275
+	offsets: 84, 76, 384, 392
+	rotate: 90
+fat1_run_anim/0016
+	bounds: 507, 2705, 225, 271
+	offsets: 88, 79, 384, 392
+	rotate: 90
+fat1_run_anim/0017
+	bounds: 1330, 775, 239, 273
+	offsets: 84, 78, 384, 392
+	rotate: 90
+fat1_run_anim2/0000
+	bounds: 1100, 1429, 228, 272
+	offsets: 84, 79, 384, 392
+	rotate: 90
+fat1_run_anim2/0001
+	bounds: 2264, 1354, 228, 275
+	offsets: 84, 76, 384, 392
+	rotate: 90
+fat1_run_anim2/0002
+	bounds: 1615, 2107, 219, 280
+	offsets: 93, 69, 384, 392
+	rotate: 90
+fat1_run_anim2/0003
+	bounds: 4, 3801, 203, 289
+	offsets: 108, 47, 384, 392
+fat1_run_anim2/0012
+	bounds: 3769, 3796, 204, 294
+	offsets: 108, 44, 384, 392
+fat1_run_anim2/0013
+	bounds: 4, 3555, 204, 295
+	offsets: 108, 42, 384, 392
+	rotate: 90
+fat1_run_anim2/0015
+	bounds: 303, 3550, 204, 295
+	offsets: 108, 49, 384, 392
+	rotate: 90
+fat1_run_anim2/0016
+	bounds: 772, 3819, 219, 271
+	offsets: 93, 79, 384, 392
+fat1_run_anim2/0017
+	bounds: 3545, 1355, 228, 273
+	offsets: 84, 78, 384, 392
+	rotate: 90
+fat1_walk_anim2/0000
+	bounds: 995, 3799, 204, 291
+	offsets: 37, 40, 384, 392
+fat1_walk_anim2/0001
+	bounds: 602, 3397, 205, 294
+	offsets: 36, 40, 384, 392
+	rotate: 90
+fat1_walk_anim2/0002
+	bounds: 1899, 2083, 206, 298
+	offsets: 34, 40, 384, 392
+	rotate: 90
+fat1_walk_anim2/0003
+	bounds: 3240, 1413, 206, 301
+	offsets: 33, 40, 384, 392
+	rotate: 90
+fat1_walk_anim2/0004
+	bounds: 3749, 3397, 201, 300
+	offsets: 36, 40, 384, 392
+	rotate: 90
+fat1_walk_anim2/0005
+	bounds: 1052, 2489, 207, 296
+	offsets: 40, 41, 384, 392
+	rotate: 90
+fat1_walk_anim2/0006
+	bounds: 1092, 3396, 209, 288
+	offsets: 44, 44, 384, 392
+	rotate: 90
+fat1_walk_anim2/0007
+	bounds: 3154, 2866, 215, 283
+	offsets: 46, 46, 384, 392
+fat1_walk_anim2/0008
+	bounds: 1430, 3802, 207, 288
+	offsets: 44, 44, 384, 392
+fat1_walk_anim2/0010
+	bounds: 1829, 3790, 199, 300
+	offsets: 40, 40, 384, 392
+fat1_walk_anim2/0011
+	bounds: 3881, 2900, 204, 298
+	offsets: 36, 41, 384, 392
+fat1_walk_anim2/0012
+	bounds: 1523, 3556, 206, 292
+	offsets: 35, 43, 384, 392
+	rotate: 90
+fat2_idle_anim/0000
+	bounds: 1203, 3609, 190, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0001
+	bounds: 772, 3606, 190, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0002
+	bounds: 3769, 3602, 190, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0003
+	bounds: 1819, 3386, 191, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0004
+	bounds: 2139, 3385, 191, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0005
+	bounds: 2469, 3385, 191, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0006
+	bounds: 2789, 3385, 191, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0007
+	bounds: 3109, 3385, 191, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0008
+	bounds: 2514, 2957, 192, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0009
+	bounds: 782, 2736, 193, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0010
+	bounds: 1586, 2725, 193, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0011
+	bounds: 1906, 2725, 193, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0012
+	bounds: 3643, 2703, 193, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0013
+	bounds: 1102, 2700, 193, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0014
+	bounds: 3269, 2343, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0015
+	bounds: 1352, 2330, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0016
+	bounds: 1672, 2330, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0017
+	bounds: 1992, 2293, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0018
+	bounds: 2602, 2293, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0019
+	bounds: 3589, 2292, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0020
+	bounds: 777, 2291, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0021
+	bounds: 1454, 1908, 195, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0022
+	bounds: 1774, 1884, 195, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0023
+	bounds: 3320, 1859, 195, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0024
+	bounds: 544, 1857, 195, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0025
+	bounds: 4, 1839, 195, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0026
+	bounds: 3640, 1823, 195, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0027
+	bounds: 4, 2273, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0028
+	bounds: 324, 2273, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0029
+	bounds: 2312, 2170, 194, 316
+	offsets: 94, 37, 384, 392
+fat2_idle_anim/0030
+	bounds: 1097, 2168, 194, 316
+	offsets: 94, 37, 384, 392
+fat2_idle_anim/0031
+	bounds: 2922, 2150, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0032
+	bounds: 3242, 2145, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0033
+	bounds: 1295, 2132, 194, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0034
+	bounds: 3104, 2546, 193, 316
+	offsets: 94, 37, 384, 392
+fat2_idle_anim/0035
+	bounds: 3301, 2541, 193, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0036
+	bounds: 4, 2533, 193, 316
+	offsets: 94, 37, 384, 392
+fat2_idle_anim/0037
+	bounds: 1422, 2528, 193, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0038
+	bounds: 1742, 2528, 193, 316
+	offsets: 94, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0039
+	bounds: 2834, 2957, 192, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0040
+	bounds: 1384, 3361, 191, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0041
+	bounds: 4, 3355, 191, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0042
+	bounds: 3429, 3260, 191, 316
+	offsets: 95, 37, 384, 392
+fat2_idle_anim/0043
+	bounds: 324, 3229, 191, 316
+	offsets: 95, 37, 384, 392
+fat2_idle_anim/0044
+	bounds: 3624, 3202, 191, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0045
+	bounds: 1829, 3581, 190, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0046
+	bounds: 2149, 3580, 190, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0047
+	bounds: 2469, 3580, 190, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0048
+	bounds: 2789, 3580, 190, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0049
+	bounds: 3109, 3580, 190, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim/0050
+	bounds: 2032, 3774, 189, 316
+	offsets: 96, 37, 384, 392
+fat2_idle_anim/0051
+	bounds: 2225, 3774, 189, 316
+	offsets: 96, 37, 384, 392
+fat2_idle_anim/0052
+	bounds: 2418, 3774, 189, 316
+	offsets: 96, 37, 384, 392
+fat2_idle_anim/0053
+	bounds: 2611, 3774, 189, 316
+	offsets: 96, 37, 384, 392
+fat2_idle_anim/0054
+	bounds: 2804, 3774, 189, 316
+	offsets: 96, 37, 384, 392
+fat2_idle_anim/0055
+	bounds: 2997, 3774, 189, 316
+	offsets: 96, 37, 384, 392
+fat2_idle_anim/0056
+	bounds: 3190, 3774, 189, 316
+	offsets: 96, 37, 384, 392
+fat2_idle_anim/0057
+	bounds: 3383, 3774, 189, 316
+	offsets: 96, 37, 384, 392
+fat2_idle_anim/0058
+	bounds: 3576, 3774, 189, 316
+	offsets: 96, 37, 384, 392
+fat2_idle_anim/0059
+	bounds: 3429, 3580, 190, 316
+	offsets: 95, 37, 384, 392
+	rotate: 90
+fat2_idle_anim2/0000
+	bounds: 2949, 2348, 194, 316
+	offsets: 92, 38, 384, 392
+	rotate: 90
+fat2_pose_idle/0000
+	bounds: 2949, 2348, 194, 316
+	offsets: 92, 38, 384, 392
+	rotate: 90
+fat2_run_anim/0007
+	bounds: 201, 2471, 226, 271
+	offsets: 84, 94, 384, 392
+	rotate: 90
+fat2_run_anim2/0006
+	bounds: 3621, 2490, 209, 293
+	offsets: 108, 60, 384, 392
+	rotate: 90
+fat2_run_anim2/0008
+	bounds: 3822, 1307, 228, 276
+	offsets: 88, 92, 384, 392
+fat2_run_anim2/0009
+	bounds: 2904, 1252, 228, 277
+	offsets: 87, 92, 384, 392
+	rotate: 90
+fat2_run_anim2/0010
+	bounds: 1376, 1220, 228, 280
+	offsets: 88, 89, 384, 392
+	rotate: 90
+fat2_run_anim2/0011
+	bounds: 3185, 1191, 218, 297
+	offsets: 103, 65, 384, 392
+	rotate: 90
+fat2_walk_anim/0001
+	bounds: 2543, 1240, 199, 318
+	offsets: 89, 36, 384, 392
+	rotate: 90
+fat2_walk_anim/0013
+	bounds: 1641, 3766, 184, 324
+	offsets: 101, 37, 384, 392
+fat3_idle_anim/0000
+	bounds: 2259, 1039, 198, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0001
+	bounds: 1607, 771, 199, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0002
+	bounds: 3164, 749, 199, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0003
+	bounds: 4, 654, 199, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0004
+	bounds: 3790, 643, 199, 328
+	offsets: 91, 38, 384, 392
+fat3_idle_anim/0005
+	bounds: 1939, 634, 199, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0006
+	bounds: 2619, 582, 200, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0007
+	bounds: 998, 571, 200, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0008
+	bounds: 1661, 438, 201, 328
+	offsets: 90, 38, 384, 392
+fat3_idle_anim/0009
+	bounds: 2271, 437, 201, 328
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0010
+	bounds: 1866, 429, 201, 328
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0011
+	bounds: 2934, 338, 202, 328
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0012
+	bounds: 4, 241, 202, 328
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0013
+	bounds: 2198, 231, 202, 328
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0014
+	bounds: 1660, 223, 202, 328
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0015
+	bounds: 336, 212, 202, 328
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0016
+	bounds: 2530, 170, 202, 328
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0017
+	bounds: 3266, 167, 203, 327
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0018
+	bounds: 942, 157, 204, 327
+	offsets: 89, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0019
+	bounds: 1273, 152, 204, 327
+	offsets: 89, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0020
+	bounds: 2862, 130, 204, 327
+	offsets: 89, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0021
+	bounds: 4, 33, 204, 327
+	offsets: 89, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0022
+	bounds: 1992, 23, 204, 327
+	offsets: 89, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0023
+	bounds: 1604, 15, 204, 327
+	offsets: 89, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0024
+	bounds: 335, 4, 204, 327
+	offsets: 89, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0030
+	bounds: 3597, 163, 203, 327
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0031
+	bounds: 335, 447, 202, 327
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0032
+	bounds: 666, 418, 202, 327
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0033
+	bounds: 3282, 417, 202, 327
+	offsets: 90, 38, 384, 392
+fat3_idle_anim/0034
+	bounds: 2603, 376, 202, 327
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0035
+	bounds: 3488, 374, 202, 327
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0036
+	bounds: 997, 365, 202, 327
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0037
+	bounds: 1330, 566, 201, 327
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0038
+	bounds: 2951, 544, 201, 327
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0039
+	bounds: 4, 449, 201, 327
+	offsets: 90, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0040
+	bounds: 336, 653, 200, 327
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0041
+	bounds: 667, 624, 200, 327
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0042
+	bounds: 2502, 835, 199, 327
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0043
+	bounds: 668, 828, 199, 327
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0044
+	bounds: 3587, 822, 199, 327
+	offsets: 91, 38, 384, 392
+fat3_idle_anim/0045
+	bounds: 999, 815, 199, 327
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0046
+	bounds: 2833, 786, 199, 327
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0047
+	bounds: 297, 1186, 198, 327
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0048
+	bounds: 3486, 1153, 198, 327
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0049
+	bounds: 2591, 1038, 198, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0050
+	bounds: 972, 1031, 198, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0051
+	bounds: 1304, 1018, 198, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0052
+	bounds: 2923, 989, 198, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0053
+	bounds: 4, 984, 198, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0054
+	bounds: 3817, 975, 198, 328
+	offsets: 91, 38, 384, 392
+fat3_idle_anim/0055
+	bounds: 1636, 974, 198, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0056
+	bounds: 3255, 952, 198, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0057
+	bounds: 1968, 902, 198, 328
+	offsets: 91, 38, 384, 392
+fat3_idle_anim/0058
+	bounds: 336, 857, 198, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0059
+	bounds: 2170, 837, 198, 328
+	offsets: 91, 38, 384, 392
+	rotate: 90
+fat3_idle_anim2/0000
+	bounds: 1328, 360, 202, 328
+	offsets: 88, 38, 384, 392
+	rotate: 90
+fat3_pose_idle/0000
+	bounds: 1328, 360, 202, 328
+	offsets: 88, 38, 384, 392
+	rotate: 90
+fat3_pose_handstand/0000
+	bounds: 4, 1186, 224, 289
+	offsets: 78, 29, 384, 392
+	rotate: 90
+fat3_pose_lying/0000
+	bounds: 667, 1253, 310, 204
+	offsets: 33, 8, 384, 392
+fat3_pose_sitting/0000
+	bounds: 1694, 1418, 226, 275
+	offsets: 60, 9, 384, 392
+	rotate: 90
+fat3_pose_surrender/0000
+	bounds: 1404, 1452, 216, 286
+	offsets: 78, 42, 384, 392
+	rotate: 90
+fat3_run_anim/0011
+	bounds: 395, 3780, 191, 310
+	offsets: 104, 65, 384, 392
+fat3_run_anim/0015
+	bounds: 211, 3762, 180, 328
+	offsets: 109, 48, 384, 392
+fat3_run_anim2/0007
+	bounds: 1973, 1234, 225, 282
+	offsets: 100, 97, 384, 392
+	rotate: 90
+fat3_walk_anim/0002
+	bounds: 2904, 1484, 186, 332
+	offsets: 99, 37, 384, 392
+	rotate: 90
+fat3_walk_anim/0013
+	bounds: 981, 1233, 192, 336
+	offsets: 97, 38, 384, 392
+	rotate: 90
+fat4_pose_bend/0000
+	bounds: 668, 167, 247, 270
+	offsets: 123, 26, 384, 392
+	rotate: 90
+fat4_run_anim/0003
+	bounds: 590, 3757, 178, 333
+	offsets: 108, 44, 384, 392
+fat4_run_anim/0011
+	bounds: 342, 1388, 195, 321
+	offsets: 104, 64, 384, 392
+	rotate: 90
+fat4_run_anim/0015
+	bounds: 628, 1058, 191, 340
+	offsets: 103, 45, 384, 392
+	rotate: 90
+fat4_walk_anim/0002
+	bounds: 2271, 642, 190, 344
+	offsets: 97, 35, 384, 392
+	rotate: 90
+fat4_walk_anim/0008
+	bounds: 4, 1414, 185, 334
+	offsets: 98, 41, 384, 392
+	rotate: 90
+
+Chameleon_frames_5.png
+	size: 4016, 2424
+	filter: Linear, Linear
+clean_pose_balancing/0000
+	bounds: 2831, 145, 261, 259
+	offsets: 74, 46, 384, 392
+fat1_pose_costanza/0000
+	bounds: 1438, 1881, 305, 234
+	offsets: 31, 30, 384, 392
+fat1_pose_star/0000
+	bounds: 1526, 1126, 246, 285
+	offsets: 62, 44, 384, 392
+	rotate: 90
+fat2_pose_mid_run/0000
+	bounds: 2335, 759, 240, 289
+	offsets: 64, 37, 384, 392
+	rotate: 90
+fat2_run_anim/0002
+	bounds: 2014, 180, 225, 301
+	offsets: 87, 67, 384, 392
+	rotate: 90
+fat2_run_anim/0008
+	bounds: 3708, 1000, 252, 276
+	offsets: 81, 92, 384, 392
+	rotate: 90
+fat2_run_anim/0009
+	bounds: 902, 1400, 254, 277
+	offsets: 81, 92, 384, 392
+	rotate: 90
+fat2_run_anim/0010
+	bounds: 2332, 509, 246, 280
+	offsets: 84, 89, 384, 392
+	rotate: 90
+fat2_run_anim/0016
+	bounds: 1142, 2127, 249, 293
+	offsets: 77, 76, 384, 392
+fat2_run_anim2/0000
+	bounds: 1142, 1871, 245, 292
+	offsets: 78, 78, 384, 392
+	rotate: 90
+fat2_run_anim2/0001
+	bounds: 2358, 2125, 245, 295
+	offsets: 78, 75, 384, 392
+fat2_run_anim2/0002
+	bounds: 2090, 1798, 236, 301
+	offsets: 87, 67, 384, 392
+fat2_run_anim2/0003
+	bounds: 3657, 431, 222, 310
+	offsets: 100, 45, 384, 392
+	rotate: 90
+fat2_run_anim2/0004
+	bounds: 2322, 190, 217, 314
+	offsets: 103, 39, 384, 392
+fat2_run_anim2/0005
+	bounds: 4, 141, 213, 314
+	offsets: 106, 39, 384, 392
+	rotate: 90
+fat2_run_anim2/0012
+	bounds: 4, 1210, 222, 316
+	offsets: 101, 41, 384, 392
+	rotate: 90
+fat2_run_anim2/0013
+	bounds: 4, 1436, 222, 317
+	offsets: 101, 39, 384, 392
+	rotate: 90
+fat2_run_anim2/0014
+	bounds: 1376, 207, 222, 308
+	offsets: 101, 47, 384, 392
+	rotate: 90
+fat2_run_anim2/0015
+	bounds: 3390, 1031, 222, 314
+	offsets: 101, 48, 384, 392
+	rotate: 90
+fat2_run_anim2/0016
+	bounds: 213, 781, 237, 293
+	offsets: 86, 76, 384, 392
+	rotate: 90
+fat2_walk_anim/0000
+	bounds: 3645, 212, 215, 317
+	offsets: 79, 36, 384, 392
+	rotate: 90
+fat2_walk_anim/0014
+	bounds: 1688, 194, 211, 322
+	offsets: 84, 37, 384, 392
+	rotate: 90
+fat2_walk_anim/0015
+	bounds: 3070, 1032, 221, 316
+	offsets: 76, 39, 384, 392
+	rotate: 90
+fat2_walk_anim2/0000
+	bounds: 3544, 2105, 228, 315
+	offsets: 25, 36, 384, 392
+fat2_walk_anim2/0001
+	bounds: 2126, 2103, 228, 317
+	offsets: 24, 37, 384, 392
+fat2_walk_anim2/0002
+	bounds: 4, 2099, 230, 321
+	offsets: 22, 37, 384, 392
+fat2_walk_anim2/0004
+	bounds: 463, 2097, 227, 323
+	offsets: 24, 38, 384, 392
+fat2_walk_anim2/0005
+	bounds: 1894, 2103, 228, 317
+	offsets: 29, 40, 384, 392
+fat2_walk_anim2/0006
+	bounds: 2330, 1664, 229, 310
+	offsets: 33, 42, 384, 392
+	rotate: 90
+fat2_walk_anim2/0007
+	bounds: 3776, 2115, 235, 305
+	offsets: 35, 44, 384, 392
+fat2_walk_anim2/0008
+	bounds: 1815, 1061, 226, 310
+	offsets: 33, 42, 384, 392
+fat2_walk_anim2/0009
+	bounds: 2748, 1033, 220, 318
+	offsets: 30, 39, 384, 392
+	rotate: 90
+fat2_walk_anim2/0010
+	bounds: 2844, 2095, 222, 325
+	offsets: 28, 36, 384, 392
+fat2_walk_anim2/0011
+	bounds: 912, 2097, 226, 323
+	offsets: 25, 37, 384, 392
+fat2_walk_anim2/0012
+	bounds: 3070, 2104, 228, 316
+	offsets: 24, 39, 384, 392
+fat3_idle_anim/0025
+	bounds: 3590, 4, 204, 327
+	offsets: 89, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0026
+	bounds: 3382, 47, 204, 327
+	offsets: 89, 38, 384, 392
+fat3_idle_anim/0027
+	bounds: 984, 67, 204, 327
+	offsets: 89, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0028
+	bounds: 653, 93, 204, 327
+	offsets: 89, 38, 384, 392
+	rotate: 90
+fat3_idle_anim/0029
+	bounds: 322, 114, 204, 327
+	offsets: 89, 38, 384, 392
+	rotate: 90
+fat3_run_anim/0007
+	bounds: 3096, 137, 238, 282
+	offsets: 79, 97, 384, 392
+	rotate: 90
+fat3_run_anim2/0006
+	bounds: 1334, 481, 224, 307
+	offsets: 101, 59, 384, 392
+	rotate: 90
+fat3_run_anim2/0008
+	bounds: 690, 528, 240, 288
+	offsets: 84, 94, 384, 392
+	rotate: 90
+fat3_run_anim2/0009
+	bounds: 1010, 759, 240, 289
+	offsets: 83, 93, 384, 392
+	rotate: 90
+fat3_run_anim2/0010
+	bounds: 1011, 1003, 239, 291
+	offsets: 85, 91, 384, 392
+	rotate: 90
+fat3_run_anim2/0011
+	bounds: 2607, 2110, 233, 310
+	offsets: 96, 65, 384, 392
+fat3_walk_anim/0001
+	bounds: 1645, 432, 208, 330
+	offsets: 85, 37, 384, 392
+	rotate: 90
+fat3_walk_anim/0014
+	bounds: 238, 2088, 221, 332
+	offsets: 79, 39, 384, 392
+fat4_idle_anim/0000
+	bounds: 347, 564, 204, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0001
+	bounds: 4, 573, 204, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0002
+	bounds: 3314, 585, 204, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0003
+	bounds: 2971, 614, 204, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0004
+	bounds: 3074, 822, 205, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0005
+	bounds: 1992, 823, 205, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0006
+	bounds: 2731, 823, 205, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0007
+	bounds: 1649, 852, 205, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0008
+	bounds: 4, 866, 205, 339
+	offsets: 88, 36, 384, 392
+fat4_idle_anim/0009
+	bounds: 668, 1189, 207, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0010
+	bounds: 2405, 1212, 207, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0011
+	bounds: 325, 1231, 207, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0012
+	bounds: 2062, 1241, 207, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0013
+	bounds: 1183, 1246, 207, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0014
+	bounds: 2124, 1452, 208, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0015
+	bounds: 1376, 1456, 208, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0016
+	bounds: 3673, 1467, 208, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0017
+	bounds: 3330, 1468, 208, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0018
+	bounds: 1033, 1658, 209, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0019
+	bounds: 4, 1662, 209, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0020
+	bounds: 690, 1864, 210, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0021
+	bounds: 347, 1874, 210, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0022
+	bounds: 4, 1875, 210, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0023
+	bounds: 2701, 1881, 210, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0024
+	bounds: 1747, 1889, 210, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0025
+	bounds: 3645, 1891, 210, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0026
+	bounds: 3302, 1892, 210, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0027
+	bounds: 2358, 1897, 210, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0028
+	bounds: 2644, 1668, 209, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0029
+	bounds: 1438, 1668, 209, 339
+	offsets: 86, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0030
+	bounds: 2987, 1468, 208, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0031
+	bounds: 690, 1521, 208, 339
+	offsets: 87, 36, 384, 392
+fat4_idle_anim/0032
+	bounds: 1781, 1587, 208, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0033
+	bounds: 347, 1653, 208, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0034
+	bounds: 3625, 1256, 207, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0035
+	bounds: 3282, 1257, 207, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0036
+	bounds: 2939, 1257, 207, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0037
+	bounds: 1719, 1376, 207, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0038
+	bounds: 325, 1442, 207, 339
+	offsets: 87, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0039
+	bounds: 1306, 917, 205, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0040
+	bounds: 667, 980, 205, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0041
+	bounds: 2388, 1003, 205, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0042
+	bounds: 324, 1022, 205, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0043
+	bounds: 2045, 1032, 205, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0044
+	bounds: 1989, 615, 204, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0045
+	bounds: 2628, 615, 204, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0046
+	bounds: 1646, 644, 204, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0047
+	bounds: 3760, 657, 204, 339
+	offsets: 88, 36, 384, 392
+fat4_idle_anim/0048
+	bounds: 1303, 709, 204, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0049
+	bounds: 510, 772, 204, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0050
+	bounds: 1033, 275, 202, 339
+	offsets: 89, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0051
+	bounds: 690, 301, 202, 339
+	offsets: 89, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0052
+	bounds: 347, 322, 202, 339
+	offsets: 89, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0053
+	bounds: 4, 358, 202, 339
+	offsets: 89, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0054
+	bounds: 3302, 379, 202, 339
+	offsets: 89, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0055
+	bounds: 2959, 408, 202, 339
+	offsets: 89, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0056
+	bounds: 1979, 409, 202, 339
+	offsets: 89, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0057
+	bounds: 2616, 409, 202, 339
+	offsets: 89, 36, 384, 392
+	rotate: 90
+fat4_idle_anim/0058
+	bounds: 3417, 793, 204, 339
+	offsets: 88, 36, 384, 392
+	rotate: 90
+fat4_idle_anim2/0000
+	bounds: 3634, 1679, 208, 341
+	offsets: 85, 35, 384, 392
+	rotate: 90
+fat4_pose_handstand/0000
+	bounds: 3302, 2118, 238, 302
+	offsets: 72, 29, 384, 392
+fat4_pose_idle/0000
+	bounds: 3289, 1680, 208, 341
+	offsets: 85, 35, 384, 392
+	rotate: 90
+fat4_pose_lying/0000
+	bounds: 3069, 1771, 329, 216
+	offsets: 25, 0, 384, 392
+	rotate: 90
+fat4_pose_sitting/0000
+	bounds: 2543, 166, 239, 284
+	offsets: 53, 6, 384, 392
+	rotate: 90
+fat4_pose_surrender/0000
+	bounds: 1395, 2119, 242, 301
+	offsets: 65, 35, 384, 392
+fat4_run_anim/0007
+	bounds: 1641, 2129, 249, 291
+	offsets: 76, 97, 384, 392
+fat4_run_anim2/0007
+	bounds: 2644, 1422, 242, 291
+	offsets: 93, 97, 384, 392
+	rotate: 90
+fat4_walk_anim/0001
+	bounds: 694, 2078, 214, 342
+	offsets: 82, 35, 384, 392
+fat4_walk_anim/0013
+	bounds: 982, 507, 198, 348
+	offsets: 94, 36, 384, 392
+	rotate: 90

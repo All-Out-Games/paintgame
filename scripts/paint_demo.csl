@@ -252,9 +252,10 @@ Paint_Demo :: class : Component {
 }
 
 brush_world_radius :: proc(player: Player) -> float {
-    // Scales with the canvas rect, or the brush would cover a smaller share of a
-    // fat body than the cursor ring shows.
-    return player.brush_radius * ((PAINT_RECT_MAX_X - PAINT_RECT_MIN_X) * paint_rect_scale(player) / SKIN_TEXELS_X.(float)) * MECHA_RENDER_SCALE;
+    // Scales with the canvas rect AND with how large the stage's constraint
+    // draws the body, or the brush would cover a smaller share of a fat body
+    // than the cursor ring shows.
+    return player.brush_radius * ((PAINT_RECT_MAX_X - PAINT_RECT_MIN_X) * paint_rect_scale(player) / SKIN_TEXELS_X.(float)) * MECHA_RENDER_SCALE * fat_body_scale(player);
 }
 
 // World-space spacing between mesh probes along a committed line, and a ceiling
@@ -494,33 +495,29 @@ setup_mecha_emotes :: proc(sm: State_Machine, pose: State_Machine_Variable) {
 // the rect must be the setup-pose bounding box of the art bound to the slot. The
 // base values above are exactly that box for the clean silhouette.
 //
-// The fat skins are separate meshes weighted to their own fat_scale_N bones, and
-// those bones sit at different offsets with scales 1.05/1.10/1.15/1.20 - so each
-// stage has its own box, wider and taller than the base and not concentric with
-// it. The numbers below are that box per stage, measured from the rig's mesh
-// vertices and converted with the same units the base rect uses. They are not a
-// scale factor: the growth is only ~12% and is off-centre, so scaling the base
-// rect (as this used to) drifts the mapping further off with every stage, which
-// is why the higher stages failed while stage 1 looked fine.
-// Each value is that stage's mesh box multiplied by the stage's whole-body
-// scale. Enabling skin fatN activates a transform constraint that drives the
-// fat_scale bone - the parent of the body and both legs - from fat_scale_N,
-// copying its 1.05/1.10/1.15/1.20 scale onto the entire character at runtime.
-// Measuring the meshes alone misses that factor, which is why the rect used to
-// come up short, and increasingly so at the later stages.
-// Each stage's posed bounding box with the skin's transform constraint applied,
-// plus 3% margin.
+// The fat skins are separate meshes, each weighted to its own fat_scale_N bone,
+// so each stage needs its own box rather than a scaled copy of the base one.
 //
-// The constraint drives fat_scale from fat_scale_N with mixRotate/mixX/mixShearY
-// pinned to 0 - but mixY and mixScaleX/Y default to 1, so it copies the target's
-// SCALE *and its Y POSITION*. Those targets sit at y -186 to -220, which drops
-// the whole body by nearly a full unit. Accounting for the scale but not that
-// translation left the rect floating above the character: at stage 4 the rect
-// covered y -0.20..2.78 while the body actually occupies y -1.09..1.83.
-FAT_PAINT_RECT_1 :: v4.{-1.2330, -0.9473, 1.1993, 1.6922};
-FAT_PAINT_RECT_2 :: v4.{-1.3088, -0.9614, 1.3080, 1.8121};
-FAT_PAINT_RECT_3 :: v4.{-1.3853, -0.9806, 1.3797, 1.9303};
-FAT_PAINT_RECT_4 :: v4.{-1.4578, -1.1352, 1.4337, 1.8698};
+// It is the SETUP-POSE box of the mesh and nothing else. Enabling skin fatN also
+// activates a transform constraint that drives fat_scale (the parent of the body
+// and both legs) from fat_scale_N, copying that bone's 1.05/1.10/1.15/1.20 scale
+// and its y of -186..-220 onto the whole character - which is what makes the
+// character look fat, and is entirely a RUNTIME pose effect. The engine maps
+// canvas UVs from setup-pose positions, where no constraint has run, so folding
+// the constraint into these numbers (as this used to) shifts the whole mapping
+// down by most of a unit and shrinks it. Measured in-game with /paintsolve, the
+// stage 2 body maps onto canvas rows 0..0.71 with everything above setup y 1.81
+// falling off the top of the canvas entirely, and stages 3 and 4 miss the canvas
+// so completely that nothing is paintable at all.
+//
+// So these are the raw mesh boxes in setup pose, converted with the same units
+// the base rect uses, plus 1% margin. They come out close to the base rect
+// because the meshes really are drawn at close to the same size - the difference
+// between the stages is the constraint, which does not belong here.
+FAT_PAINT_RECT_1 :: v4.{-1.1625, -0.1581, 1.1315, 2.3312};
+FAT_PAINT_RECT_2 :: v4.{-1.1777, -0.1814, 1.1781, 2.3155};
+FAT_PAINT_RECT_3 :: v4.{-1.1923, -0.1712, 1.1887, 2.3354};
+FAT_PAINT_RECT_4 :: v4.{-1.2025, -0.1741, 1.1837, 2.3058};
 
 // x = min_x, y = min_y, z = max_x, w = max_y.
 paint_canvas_rect_bounds :: proc(player: Player) -> v4 {
@@ -536,6 +533,18 @@ paint_canvas_rect_bounds :: proc(player: Player) -> v4 {
 paint_rect_scale :: proc(player: Player) -> float {
     bounds := paint_canvas_rect_bounds(player);
     return (bounds.z - bounds.x) / (PAINT_RECT_MAX_X - PAINT_RECT_MIN_X);
+}
+
+// How much bigger than setup pose the stage's constraint draws the body. The
+// canvas rects are setup-pose boxes and deliberately exclude this, but anything
+// measured in world units - the cursor ring, the outward brush probe - has to
+// include it or it comes up a fifth short on the largest body.
+fat_body_scale :: proc(player: Player) -> float {
+    if player.fat_stage == 1 { return 1.05; }
+    if player.fat_stage == 2 { return 1.10; }
+    if player.fat_stage == 3 { return 1.15; }
+    if player.fat_stage >= 4 { return 1.20; }
+    return 1.0;
 }
 
 paint_canvas_rect :: proc(player: Player) -> v2, v2 {

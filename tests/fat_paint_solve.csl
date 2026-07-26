@@ -1,0 +1,53 @@
+// Diagnostic run: walks a hider up the whole fat ladder and reports what the
+// engine actually maps through the paint rect at each stage.
+//
+// A healthy stage reports a uv span of roughly 0..1 on both axes. A span that
+// stops short (or pins at exactly 0 or 1) means part of the body maps off the
+// canvas; zero hits means none of it is on the canvas at all.
+//
+// The dummy players matter: a one-player FAT round has nobody to seek, so it
+// finishes and returns everyone to the lobby part-way through the run, and every
+// stage measured after that is a lobby body rather than a fat one.
+
+log_solve :: proc(label: string) {
+    Test.run_admin_command("paintsolve");
+    Test.log(label);
+    Test.log_var("g_paint_solve_stage");
+    Test.log_var("g_paint_solve_hits");
+    Test.log_var("g_paint_solve_uv_min_x");
+    Test.log_var("g_paint_solve_uv_max_x");
+    Test.log_var("g_paint_solve_uv_min_y");
+    Test.log_var("g_paint_solve_uv_max_y");
+}
+
+test_fat_ladder_stays_paintable :: proc() {
+    Test.spawn_dummy_players(3);
+    Test.wait_seconds(6.0);
+    Test.run_admin_command("startfat");
+    Test.wait_seconds(1.0);
+    Test.run_admin_command("skipwait");
+    Test.wait_seconds(1.0);
+    Test.run_admin_command("behider");
+    Test.wait_seconds(2.0);
+    Test.run_admin_command("fat0");
+    Test.wait_seconds(2.0);
+
+    log_solve("=== stage 0 ===");
+
+    Test.run_admin_command("growfat");
+    Test.wait_seconds(2.0);
+    log_solve("=== stage 1 ===");
+
+    Test.run_admin_command("growfat");
+    Test.wait_seconds(2.0);
+    log_solve("=== stage 2 ===");
+
+    Test.run_admin_command("growfat");
+    Test.wait_seconds(2.0);
+    log_solve("=== stage 3 ===");
+
+    Test.run_admin_command("growfat");
+    Test.wait_seconds(2.0);
+    log_solve("=== stage 4 ===");
+    Test.screenshot("fat_stage_4");
+}
