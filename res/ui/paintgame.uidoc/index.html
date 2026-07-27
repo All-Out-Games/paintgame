@@ -11,8 +11,7 @@
         <div class="title center">{{round.title}}</div>
         <div class="countdown">
           <img class="clock" src="$AO/ui/kit/Icons/clock/clock_icon.png">
-          <span class="timer yellow" data-if="timer.yellow" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
-          <span class="timer red" data-if="timer.red" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+          <span class="timer yellow" data-text-reserve="000" data-style-color="timer.color" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
         </div>
       </div>
 
@@ -23,8 +22,7 @@
         <div class="title small center">MAP VOTE STARTING IN</div>
         <div class="countdown">
           <img class="clock" src="$AO/ui/kit/Icons/clock/clock_icon.png">
-          <span class="timer yellow" data-if="timer.yellow" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
-          <span class="timer red" data-if="timer.red" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+          <span class="timer yellow" data-text-reserve="000" data-style-color="timer.color" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
         </div>
       </div>
     </div>
@@ -41,11 +39,10 @@
 
         <div class="round-timer">
           <div class="countdown no-clock">
-            <span class="timer yellow" data-if="timer.yellow" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
-            <span class="timer red" data-if="timer.red" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+            <span class="timer yellow" data-text-reserve="000" data-style-color="timer.color" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
           </div>
           <div class="phase-caption">{{round.caption}}</div>
-          <div class="whistle yellow" data-if="round.whistleVisible">{{round.whistle}}</div>
+          <div class="whistle yellow" data-if="round.whistleVisible" data-text-reserve="Whistle 000">{{round.whistle}}</div>
         </div>
 
         <div class="team-count">
@@ -64,7 +61,7 @@
         <span class="ranking-title">Ranking</span>
         <div class="ranking-next">
           <span>Next update</span>
-          <span>{{ranking.next}}</span>
+          <span data-text-reserve="000">{{ranking.next}}</span>
         </div>
       </div>
       <div class="ranking-list">
@@ -194,8 +191,7 @@
       </div>
       <div class="vote-countdown countdown">
         <img class="clock" src="$AO/ui/kit/Icons/clock/clock_icon.png">
-        <span class="timer yellow" data-if="timer.yellow" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
-        <span class="timer red" data-if="timer.red" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+        <span class="timer yellow" data-text-reserve="000" data-style-color="timer.color" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
       </div>
       <div class="vote-caption">Time left to vote</div>
     </div>
@@ -242,10 +238,9 @@
       <div class="victory-title red" data-if="victory.seekers">SEEKERS WIN</div>
       <div class="countdown">
         <img class="clock" src="$AO/ui/kit/Icons/clock/clock_icon.png">
-        <span class="timer yellow" data-if="timer.yellow" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
-        <span class="timer red" data-if="timer.red" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+        <span class="timer yellow" data-text-reserve="000" data-style-color="timer.color" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
       </div>
-      <div class="victory-return">{{victory.return}}</div>
+      <div class="victory-return" data-text-reserve="Returning to lobby in 00s">{{victory.return}}</div>
       <div class="victory-result green" data-if="victory.playerWon">YOUR TEAM WON</div>
       <div class="victory-result" data-if="victory.playerLost">ROUND OVER</div>
     </div>

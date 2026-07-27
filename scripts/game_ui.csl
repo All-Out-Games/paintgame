@@ -97,11 +97,12 @@ bind_uidoc_countdown :: proc(game: Hide_Seek_Game) {
     punch_t := clamp(tick_age / 0.28, 0, 1);
     scale := lerp(1.18, 1.0, punch_t);
     red := total_seconds > 0 && total_seconds <= 10 && total_seconds % 2 == 0;
+    timer_color := "#ffd933";
+    if red { timer_color = "#ff2e2e"; }
 
     UI.uidoc_bind_text("timer.seconds", `{total_seconds}`);
+    UI.uidoc_bind_text("timer.color", timer_color);
     UI.uidoc_bind_float("timer.scale", scale);
-    UI.uidoc_bind_bool("timer.red", red);
-    UI.uidoc_bind_bool("timer.yellow", !red);
 }
 
 bind_uidoc_ranking_color :: proc(color: Color_Replace_Color) {
@@ -393,9 +394,8 @@ draw_game_uidoc :: proc(player: Player, dt: float) {
         bind_uidoc_victory(player, game, ordinary_ui_visible);
     } else {
         UI.uidoc_bind_text("timer.seconds", "0");
+        UI.uidoc_bind_text("timer.color", "#ffd933");
         UI.uidoc_bind_float("timer.scale", 1.0);
-        UI.uidoc_bind_bool("timer.red", false);
-        UI.uidoc_bind_bool("timer.yellow", true);
         UI.uidoc_bind_bool("round.hudVisible", false);
         UI.uidoc_bind_bool("ranking.visible", false);
         UI.uidoc_bind_bool("found.visible", false);
