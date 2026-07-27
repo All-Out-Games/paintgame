@@ -1,0 +1,253 @@
+<div class="screen">
+  <div class="safe-root">
+    <div class="round-hud-anchor" data-if="round.hudVisible">
+    <div class="round-hud panel" data-if="round.fullWidth">
+      <div class="waiting-column" data-if="round.waiting">
+        <div class="title center">{{round.title}}</div>
+        <div class="body center">{{round.players}}</div>
+      </div>
+
+      <div class="starting-column" data-if="round.startingGame">
+        <div class="title center">{{round.title}}</div>
+        <div class="countdown">
+          <img class="clock" src="$AO/ui/kit/Icons/clock/clock_icon.png">
+          <span class="timer yellow" data-if="timer.yellow" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+          <span class="timer red" data-if="timer.red" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="round-vote-start-hud panel" data-if="round.startingVote">
+      <div class="starting-column compact">
+        <div class="title small center">MAP VOTE STARTING IN</div>
+        <div class="countdown">
+          <img class="clock" src="$AO/ui/kit/Icons/clock/clock_icon.png">
+          <span class="timer yellow" data-if="timer.yellow" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+          <span class="timer red" data-if="timer.red" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="round-active-hud panel" data-if="round.active">
+      <div class="round-scoreboard">
+        <div class="team-count">
+          <div class="team-number-row">
+            <img class="team-icon seeker-icon" src="$AO/ui/kit/Icons/misc_icons_2/player_level_1_small.png">
+            <span class="team-number red">{{round.seekers}}</span>
+          </div>
+          <span class="team-label">SEEKERS</span>
+        </div>
+
+        <div class="round-timer">
+          <div class="countdown no-clock">
+            <span class="timer yellow" data-if="timer.yellow" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+            <span class="timer red" data-if="timer.red" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+          </div>
+          <div class="phase-caption">{{round.caption}}</div>
+          <div class="whistle yellow" data-if="round.whistleVisible">{{round.whistle}}</div>
+        </div>
+
+        <div class="team-count">
+          <div class="team-number-row">
+            <img class="team-icon hider-icon" src="$AO/ui/kit/Icons/misc_icons_2/player_level_1_small.png">
+            <span class="team-number green">{{round.hiders}}</span>
+          </div>
+          <span class="team-label">HIDERS</span>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <div class="ranking panel" data-if="ranking.visible">
+      <div class="ranking-header">
+        <span class="ranking-title">Ranking</span>
+        <div class="ranking-next">
+          <span>Next update</span>
+          <span>{{ranking.next}}</span>
+        </div>
+      </div>
+      <div class="ranking-list">
+        <div class="ranking-row" data-for="entry in rankingEntries" data-for-key="entry.key">
+          <span class="rank">{{entry.rank}}</span>
+          <div class="rank-name">
+            <span class="rank-name-color rank-name-default" data-style-opacity="entry.colorDefault">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-red" data-style-opacity="entry.colorRed">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-cyan" data-style-opacity="entry.colorCyan">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-green" data-style-opacity="entry.colorGreen">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-yellow" data-style-opacity="entry.colorYellow">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-light-green" data-style-opacity="entry.colorLightGreen">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-pink" data-style-opacity="entry.colorPink">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-orange" data-style-opacity="entry.colorOrange">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-black" data-style-opacity="entry.colorBlack">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-purple" data-style-opacity="entry.colorPurple">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-light-gray" data-style-opacity="entry.colorLightGray">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-blue" data-style-opacity="entry.colorBlue">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-brown" data-style-opacity="entry.colorBrown">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-green-three" data-style-opacity="entry.colorGreenThree">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-orange-two" data-style-opacity="entry.colorOrangeTwo">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-purple-two" data-style-opacity="entry.colorPurpleTwo">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-purple-three" data-style-opacity="entry.colorPurpleThree">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-red-two" data-style-opacity="entry.colorRedTwo">{{entry.name}}</span>
+            <span class="rank-name-color rank-name-white" data-style-opacity="entry.colorWhite">{{entry.name}}</span>
+          </div>
+          <span class="rank-score">{{entry.score}}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="found-anchor" data-if="found.visible">
+      <div class="found-feed" data-style-opacity="found.opacity" data-style-transform-y="found.y">
+        <span data-style-transform-scale="found.scale">{{found.message}}</span>
+      </div>
+    </div>
+
+    <div class="top-banner-anchor" data-if="banner.hideVisible" data-style-opacity="banner.hideOpacity">
+      <div class="gradient-banner top-banner hide-banner">
+        <img src="gradient-text-bg.png">
+        <span>HIDE TIME</span>
+      </div>
+    </div>
+    <div class="top-banner-anchor" data-if="banner.foundVisible" data-style-opacity="banner.foundOpacity">
+      <div class="gradient-banner top-banner">
+        <img src="gradient-text-bg.png">
+        <span>YOU'VE BEEN FOUND!</span>
+      </div>
+    </div>
+    <div class="search-banner-anchor" data-if="banner.searchVisible" data-style-opacity="banner.searchOpacity">
+      <div class="gradient-banner search-banner">
+        <img src="gradient-text-bg.png">
+        <span>SEARCH START!</span>
+      </div>
+    </div>
+
+    <div class="bottom-center-anchor" data-if="paint.actionsVisible">
+    <div class="paint-actions">
+      <button class="game-button green-button paint-large" data-if="paint.inactive" data-on-click="paint_mode_button" data-key="paint_mode_button">
+        <img src="brush_icon.png">
+        <span>Paint</span>
+      </button>
+      <button class="game-button green-button paint-small" data-if="paint.active" data-on-click="paint_mode_button" data-key="paint_mode_button">Done</button>
+      <button class="game-button blue-button paint-small" data-if="paint.active" data-on-click="hide_game_ui_button" data-key="hide_game_ui_button">{{paint.hideLabel}}</button>
+    </div>
+    </div>
+
+    <div class="right-center-anchor" data-if="emote.buttonVisible">
+      <button class="game-button purple-button emote-launch" data-on-click="emotes_button" data-key="emotes_button">
+        <img src="emotebubble.png">
+        <span>Emotes</span>
+      </button>
+    </div>
+
+    <div class="paint-picker panel" data-if="paint.pickerVisible">
+      <div class="picker-spacer"></div>
+      <div class="picker-gap"></div>
+      <div class="picker-brush-label">Brush Size</div>
+      <div class="picker-slider-space"></div>
+      <div class="picker-gap"></div>
+      <div class="picker-footer">
+        <div class="picker-swatch-space"></div>
+        <span>{{paint.brushLabel}}</span>
+      </div>
+    </div>
+
+    <div class="paint-tools" data-if="paint.pickerVisible">
+      <button class="tool-button red-button" data-on-click="reset_paint" data-key="reset_paint"><img class="trash-icon" src="trash_can_icon.png"></button>
+      <button class="tool-button grey-button" data-if="paint.pickOff" data-on-click="picker_eyedrop" data-key="picker_eyedrop"><img src="pickericon.png"></button>
+      <button class="tool-button green-button" data-if="paint.pickOn" data-on-click="picker_eyedrop" data-key="picker_eyedrop"><img src="pickericon.png"></button>
+      <button class="tool-button grey-button" data-if="paint.lineOff" data-on-click="picker_line_tool" data-key="picker_line_tool"><img src="linetool.png"></button>
+      <button class="tool-button green-button" data-if="paint.lineOn" data-on-click="picker_line_tool" data-key="picker_line_tool"><img src="linetool.png"></button>
+      <button class="tool-button grey-button" data-if="paint.bucketOff" data-on-click="paint_bucket_tool" data-key="paint_bucket_tool"><img src="paintbucket.png"></button>
+      <button class="tool-button green-button" data-if="paint.bucketOn" data-on-click="paint_bucket_tool" data-key="paint_bucket_tool"><img src="paintbucket.png"></button>
+    </div>
+
+    <div class="zoom-anchor" data-if="zoom.visible">
+      <div class="zoom-control">
+        <img class="zoom-bar" src="ui/barzoom.png">
+        <img class="zoom-knob" src="ui/barzoommiddle.png" data-style-transform-y="zoom.handleY">
+      </div>
+    </div>
+
+    <div class="map-vote" data-if="vote.visible">
+      <div class="vote-cards">
+        <div class="vote-card">
+          <div class="vote-title"><span>Backrooms</span><span>&nbsp;</span></div>
+          <div class="vote-preview backrooms-preview"><img src="backroomsmap.png"></div>
+          <div class="vote-hint">{{vote.0.hint}}</div>
+          <div class="vote-track"><div class="vote-fill" data-style-width="vote.0.fill"></div></div>
+          <div class="vote-count">{{vote.0.count}}</div>
+        </div>
+        <div class="vote-card">
+          <div class="vote-title"><span>Backrooms</span><span>Dark</span></div>
+          <div class="vote-preview dark-preview"><img src="sandmaze.png"></div>
+          <div class="vote-hint">{{vote.1.hint}}</div>
+          <div class="vote-track"><div class="vote-fill" data-style-width="vote.1.fill"></div></div>
+          <div class="vote-count">{{vote.1.count}}</div>
+        </div>
+        <div class="vote-card">
+          <div class="vote-title"><span>Backrooms</span><span>Water</span></div>
+          <div class="vote-preview water-preview"><img src="poolroom.png"></div>
+          <div class="vote-hint">{{vote.2.hint}}</div>
+          <div class="vote-track"><div class="vote-fill" data-style-width="vote.2.fill"></div></div>
+          <div class="vote-count">{{vote.2.count}}</div>
+        </div>
+      </div>
+      <div class="vote-countdown countdown">
+        <img class="clock" src="$AO/ui/kit/Icons/clock/clock_icon.png">
+        <span class="timer yellow" data-if="timer.yellow" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+        <span class="timer red" data-if="timer.red" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+      </div>
+      <div class="vote-caption">Time left to vote</div>
+    </div>
+  </div>
+
+  <div class="modal-dimmer" data-if="emote.open">
+    <div class="emote-menu">
+      <div class="emote-header">
+        <span>POSES / EMOTES</span>
+        <button class="close-button" data-on-click="close_emotes" data-key="close_emotes"><img src="$AO/ui/kit/Icons/misc_icons_2/exit_button_large.png"></button>
+      </div>
+      <div class="pose-grid">
+        <button class="pose-button" data-on-click="emote_pose" data-key="Balancing"><img src="emote-icons/mc_player_silhouette-clean-pose-balancing_0.png"></button>
+        <button class="pose-button" data-on-click="emote_pose" data-key="Idle"><img src="emote-icons/mc_player_silhouette-clean-pose-idle_0.png"></button>
+        <button class="pose-button" data-on-click="emote_pose" data-key="Star"><img src="emote-icons/mc_player_silhouette-clean-pose-star_0.png"></button>
+        <button class="pose-button" data-on-click="emote_pose" data-key="T Pose"><img src="emote-icons/mc_player_silhouette-clean-pose-t_pose_0.png"></button>
+      </div>
+      <button class="stop-button" data-on-click="stop_emote" data-key="stop_emote">Stop</button>
+    </div>
+  </div>
+
+  <div class="role-reveal" data-if="role.visible" data-style-opacity="role.opacity">
+    <button class="role-close-hit" data-on-click="role_reveal_close" data-key="role reveal close"></button>
+    <div class="role-content" data-style-transform-x="role.slideX">
+      <div class="role-title green" data-if="role.hider">YOU ARE A HIDER</div>
+      <div class="role-title red" data-if="role.seeker">YOU ARE A SEEKER</div>
+      <div class="role-instruction" data-if="role.hider">Paint your character, blend into the map, and stay hidden.</div>
+      <div class="role-instruction" data-if="role.seeker">Wait in the lobby, then shoot every hider you find.</div>
+    </div>
+    <div class="role-progress-anchor">
+      <div class="role-progress">
+        <div class="role-progress-inner">
+          <div class="role-progress-fill green-bg" data-if="role.hider" data-style-width="role.progress"></div>
+          <div class="role-progress-fill red-bg" data-if="role.seeker" data-style-width="role.progress"></div>
+        </div>
+        <div class="role-tap">TAP TO CLOSE</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="victory-screen" data-if="victory.visible">
+    <div class="victory-content">
+      <div class="victory-title green" data-if="victory.hiders">HIDERS WIN</div>
+      <div class="victory-title red" data-if="victory.seekers">SEEKERS WIN</div>
+      <div class="countdown">
+        <img class="clock" src="$AO/ui/kit/Icons/clock/clock_icon.png">
+        <span class="timer yellow" data-if="timer.yellow" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+        <span class="timer red" data-if="timer.red" data-style-transform-scale="timer.scale">{{timer.seconds}}</span>
+      </div>
+      <div class="victory-return">{{victory.return}}</div>
+      <div class="victory-result green" data-if="victory.playerWon">YOUR TEAM WON</div>
+      <div class="victory-result" data-if="victory.playerLost">ROUND OVER</div>
+    </div>
+  </div>
+</div>

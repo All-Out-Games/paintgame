@@ -7,6 +7,7 @@ ao_before_scene_load :: proc() {
 }
 
 ao_start :: proc() {
+    initialize_paintgame_ui();
     init_weapon_items();
     paint_it := component_iterator(Paint_Demo);
     if !paint_it.next() {
@@ -184,27 +185,19 @@ Player :: class : Player_Base {
         if is_local_or_server() {
             voting_focus := hide_seek_voting_focus_active();
             if voting_focus {
-                draw_hide_seek_ui(this, dt);
-                draw_map_vote_ui(this, dt);
-            } else {
-                // Cancel and Hide UI survive Hide UI, otherwise there is no way back.
-                draw_paint_mode_button(this);
-                draw_emote_menu(this);
-                if !hide_game_ui {
-                    draw_emote_button(this);
-                    draw_hide_seek_ui(this, dt);
-                    draw_found_feed(this);
-                    draw_hide_seek_leaderboard(this);
-                    draw_hide_seek_role_reveal(this);
-                    draw_map_vote_ui(this, dt);
-                }
+                draw_map_vote_hold_input(this, dt);
+            } else if paint_mode {
+                // Zoom survives Hide UI - framing the shot is the point of it.
+                draw_zoom_slider(this);
+            }
+
+            draw_game_uidoc(this, dt);
+
+            if !voting_focus {
                 if paint_mode && picker_open && !hide_game_ui {
                     draw_color_picker(this);
-                    draw_paint_tool_buttons(this);
                 }
                 if paint_mode {
-                    // Zoom survives Hide UI - framing the shot is the point of it.
-                    draw_zoom_slider(this);
                     draw_paint_line_preview(this);
                     draw_paint_cursor(this);
                 }
@@ -214,6 +207,7 @@ Player :: class : Player_Base {
                     draw_ability_button(this, Whistle_Ability, 0);
                 }
             }
+            draw_victory_confetti_uidoc(this, dt);
         }
     }
 

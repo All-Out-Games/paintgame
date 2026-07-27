@@ -24,12 +24,9 @@ draw_zoom_slider :: proc(player: Player) {
     UI.push_layer(100);
     defer UI.pop_layer();
 
-    bar_tex  := get_asset(Texture_Asset, "ui/barzoom.png");
-    knob_tex := get_asset(Texture_Asset, "ui/barzoommiddle.png");
-
-    // Vertical bar hugging the right edge, centred vertically.
+    // Keep the original rail geometry as an invisible drag target. UIDoc owns
+    // the bar and knob visuals.
     panel := UI.get_safe_screen_rect().right_center_rect().grow(160, 0, 160, 80).offset(-10, 0);
-    UI.quad(panel, bar_tex, v4.{1, 1, 1, 1});
 
     // The green track region inside the bar art that the handle slides along.
     track := panel.inset(80, 24, 50, 24).offset(0, 10);
@@ -62,9 +59,4 @@ draw_zoom_slider :: proc(player: Player) {
     target_size := lerp(player.zoom_base_size * ZOOM_MAX_MUL, player.zoom_base_size * ZOOM_MIN_MUL, player.zoom_t);
     player.camera.size = lerp(player.camera.size, target_size, 0.2);
 
-    // Handle knob.
-    cx := track.center().x;
-    y_center := usable_min_y + player.zoom_t * usable_h;
-    handle := Rect.{v2.{cx - hr, y_center - hr}, v2.{cx + hr, y_center + hr}};
-    UI.quad(handle, knob_tex, v4.{1, 1, 1, 0.98});
 }

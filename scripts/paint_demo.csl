@@ -101,6 +101,13 @@ Paint_Demo :: class : Component {
             player.was_painting = false;
             return;
         }
+        // The legacy emote modal consumed the whole screen. Preserve that
+        // behavior explicitly while the UIDoc modal is open so a pose click
+        // cannot also paint the character underneath it.
+        if player.emotes_open {
+            player.was_painting = false;
+            return;
+        }
 
         // A completed GPU sample is sticky in resimmable input, so consume
         // each monotonically increasing serial once. Only the two tags this
@@ -582,114 +589,6 @@ play_paint_mode_splash :: proc(player: Player) {
     SFX.play(get_asset(SFX_Asset, "reusable_weapons/sounds/reusable-weapons/geyser_splash_02.wav"), desc);
 }
 
-draw_paint_mode_button :: proc(player: Player) {
-    begin_desc := UIK.window(UI.get_safe_screen_rect());
-    begin_desc.layer = 110;
-    UIK.begin(begin_desc);
-    defer UIK.end();
-
-    UIK.overlay_begin(.BOTTOM_CENTER, v2.{0, 28});
-    defer UIK.overlay_end();
-
-    row := UIK.layout_row(UIK.fit(), UIK.fit(), 14);
-    row.cross_align = .CENTER;
-    UIK.panel_begin(row);
-    defer UIK.panel_end();
-
-    if player.hide_seek_role != .SEEKER {
-        if player.paint_mode {
-            done_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
-            done_desc.panel.min_width = 190;
-            done_desc.panel.min_height = 64;
-            done_result := UIK.button("paint_mode_button", "Done", done_desc);
-            if UIK.clicked(done_result) {
-                exit_paint_mode(player);
-            }
-        } else {
-            paint_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN);
-            paint_desc.panel.width = UIK.pixels(190);
-            paint_desc.panel.height = UIK.pixels(128);
-            paint_desc.panel.axis = .VERTICAL;
-            paint_desc.panel.cross_align = .CENTER;
-            paint_desc.panel.main_align = .CENTER;
-            paint_desc.panel.gap = 4;
-            paint_desc.panel.padding = v4.{8, 12, 8, 12};
-            paint_result := UIK.panel_begin_interactive("paint_mode_button", paint_desc.panel);
-            paint_icon_box := UIK.layout_column();
-            paint_icon_box.width = UIK.pixels(62);
-            paint_icon_box.height = UIK.pixels(62);
-            UIK.panel_begin(paint_icon_box);
-            UIK.image_fitted(get_asset(Texture_Asset, "brush_icon.png"), UIK.image_desc(.CONTAIN));
-            UIK.panel_end();
-            paint_label_desc := UIK.text_body();
-            paint_label_desc.set_halign(.CENTER);
-            paint_label_desc.set_outline(true, 3.0, v4.{0, 0, 0, 1});
-            UIK.text(paint_label_desc, "Paint");
-            UIK.panel_end();
-            if UIK.clicked(paint_result) {
-                enter_paint_mode(player);
-            }
-        }
-
-        // The round HUD runs across the top of the screen, right where the head
-        // sits at paint-mode zoom. This clears it out of the way. The paint
-        // controls stay up - including this button, or there would be no way back.
-        if player.paint_mode {
-            hide_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_BLUE);
-            hide_desc.panel.min_width = 190;
-            hide_desc.panel.min_height = 64;
-            hide_label := "Hide UI";
-            if player.hide_game_ui { hide_label = "Show UI"; }
-            hide_result := UIK.button("hide_game_ui_button", hide_label, hide_desc);
-            if UIK.clicked(hide_result) {
-                player.hide_game_ui = !player.hide_game_ui;
-            }
-        }
-    }
-
-}
-
-EMOTE_BUTTON_RIGHT_INSET :: 104.0;
-
-draw_emote_button :: proc(player: Player) {
-    if player.hide_seek_role == .SEEKER { return; }
-
-    begin_desc := UIK.window(UI.get_safe_screen_rect());
-    begin_desc.layer = 110;
-    UIK.begin(begin_desc);
-    defer UIK.end();
-
-    // Clears the zoom bar, which occupies the 80pt strip inset 10 from the right
-    // edge (see draw_zoom_slider). Fixed rather than paint-mode only, so the
-    // button does not jump sideways when the bar appears.
-    UIK.overlay_begin(.CENTER_RIGHT, v2.{-EMOTE_BUTTON_RIGHT_INSET, 0});
-    defer UIK.overlay_end();
-
-    emote_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_PURPLE);
-    emote_desc.panel.width = UIK.pixels(150);
-    emote_desc.panel.height = UIK.pixels(166);
-    emote_desc.panel.axis = .VERTICAL;
-    emote_desc.panel.cross_align = .CENTER;
-    emote_desc.panel.main_align = .CENTER;
-    emote_desc.panel.gap = 6;
-    emote_desc.panel.padding = v4.{10, 12, 10, 12};
-    emote_result := UIK.panel_begin_interactive("emotes_button", emote_desc.panel, false);
-    icon_box := UIK.layout_column();
-    icon_box.width = UIK.pixels(81);
-    icon_box.height = UIK.pixels(81);
-    UIK.panel_begin(icon_box);
-    UIK.image_fitted(get_asset(Texture_Asset, "emotebubble.png"), UIK.image_desc(.CONTAIN));
-    UIK.panel_end();
-    label_desc := UIK.text_body();
-    label_desc.set_halign(.CENTER);
-    UIK.text(label_desc, "Emotes");
-    UIK.panel_end();
-
-    if UIK.clicked(emote_result) {
-        player.emotes_open = !player.emotes_open;
-    }
-}
-
 PAINT_FREEZE_REASON :: "paint_mode";
 
 enter_paint_mode :: proc(player: Player) {
@@ -739,89 +638,7 @@ exit_paint_mode :: proc(player: Player) {
     player.camera.follow_player = true;
 }
 
-draw_emote_menu :: proc(player: Player) {
-    if !player.emotes_open { return; }
-
-    begin_desc := UIK.modal(UI.get_safe_screen_rect(), 120, v4.{0, 0, 0, 0.58});
-    UIK.begin(begin_desc);
-    defer UIK.end();
-
-    menu := UIK.panel_modal(.WHITE, UIK.pixels(760), UIK.pixels(650), 14, v4.{24, 28, 24, 28});
-    menu.cross_align = .STRETCH;
-    UIK.overlay_begin(.CENTER, menu);
-    defer UIK.overlay_end();
-
-    header := UIK.layout_row(UIK.flex(1), UIK.pixels(58), 12);
-    header.cross_align = .CENTER;
-    UIK.panel_begin(header);
-    title_desc := UIK.text_title();
-    title_desc.set_size_mult(1.25);
-    UIK.text(title_desc, "POSES / EMOTES");
-    UIK.spacer(UIK.flex(1), UIK.pixels(1));
-    close_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_RED);
-    close_desc.panel.width = UIK.pixels(52);
-    close_desc.panel.height = UIK.pixels(52);
-    close_icon := get_asset(Texture_Asset, "$AO/ui/kit/Icons/misc_icons_2/exit_button_large.png");
-    close_result := UIK.icon_button("close_emotes", close_icon, close_desc);
-    UIK.panel_end();
-    if UIK.clicked(close_result) {
-        player.emotes_open = false;
-        return;
-    }
-
-    UIK.grid_begin(4, 112);
-
-    // Must stay in lockstep with the names array in setup_mecha_emotes - same
-    // order, same count - so a button's grid index maps to the matching pose.
-    // Commented entries can come back by uncommenting here and there together.
-    labels: [4]string = {
-        "Balancing", "Idle", "Star", "T Pose",
-        // "Ball", "Bend", "Bridge", "Costanza", "Future",
-        // "Handstand", "Lying", "Mid Run", "Sitting",
-        // "Superman", "Surrender", "Yoga"
-    };
-    icons: [4]string = {
-        "emote-icons/mc_player_silhouette-clean-pose-balancing_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-idle_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-star_0.png",
-        "emote-icons/mc_player_silhouette-clean-pose-t_pose_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-ball_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-bend_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-bridge_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-costanza_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-future_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-handstand_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-lying_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-mid_run_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-sitting_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-superman_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-surrender_0.png",
-        // "emote-icons/mc_player_silhouette-clean-pose-yoga_0.png"
-    };
-    pose_desc := UIK.widget_desc_button_default(.BUTTON_SHINY_BLUE);
-    pose_desc.panel.width = UIK.flex(1);
-    pose_desc.panel.height = UIK.pixels(104);
-    for i: 0..labels.count - 1 {
-        icon := get_asset(Texture_Asset, icons[i]);
-        result := UIK.icon_button(labels[i], icon, pose_desc);
-        if UIK.clicked(result) {
-            player.active_pose = i + 1;
-            player.emotes_open = false;
-        }
-    }
-    UIK.grid_end();
-
-    stop_desc := UIK.widget_desc_button_auto_default(.BUTTON_BASIC_RED);
-    stop_desc.panel.width = UIK.flex(1);
-    stop_desc.panel.height = UIK.pixels(68);
-    stop := UIK.button("stop_emote", "Stop", stop_desc);
-    if UIK.clicked(stop) {
-        player.active_pose = 0;
-        player.emotes_open = false;
-    }
-}
-
-// ---- Colour picker (legacy immediate-mode UI) ----
+// ---- Colour picker continuous surface ----
 // An HSV picker modelled on the Meccha "playerpaint" reference: a
 // saturation/value box + a vertical hue bar, with a knob/marker and a swatch.
 // All sizes are 1080p-reference pixels (rect methods auto-scale).
@@ -896,129 +713,6 @@ mouse_over_paint_ui :: proc(player: Player, mouse_screen: v2) -> bool {
     return point_in_rect(emote_rail, mouse_screen);
 }
 
-draw_paint_tool_buttons :: proc(player: Player) {
-    if !player.paint_mode || !player.picker_open { return; }
-
-    panel_w, panel_h := picker_panel_size();
-
-    begin_desc := UIK.window(UI.get_safe_screen_rect());
-    begin_desc.layer = 135;
-    UIK.begin(begin_desc);
-    defer UIK.end();
-
-    trash_w := PICKER_UNDO_H;
-    button_row_w := PICKER_UNDO_W + trash_w + PICKER_LINE_W + PICKER_BUCKET_W + PICKER_BUTTON_GAP * 3;
-    toolbar_x := PICKER_MARGIN + (panel_w - button_row_w) * 0.5;
-    toolbar_y := PICKER_MARGIN;
-    UIK.overlay_begin(.BOTTOM_LEFT, v2.{toolbar_x, toolbar_y});
-    defer UIK.overlay_end();
-
-    button_row := UIK.layout_row(UIK.pixels(button_row_w), UIK.pixels(PICKER_UNDO_H), PICKER_BUTTON_GAP);
-    button_row.cross_align = .CENTER;
-    UIK.panel_begin(button_row);
-
-    trash_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_RED);
-    trash_desc.panel.width = UIK.pixels(trash_w);
-    trash_desc.panel.height = UIK.pixels(PICKER_UNDO_H);
-    trash_desc.panel.cross_align = .CENTER;
-    trash_desc.panel.main_align = .CENTER;
-    trash_desc.panel.padding = v4.{0, 0, 0, 0};
-    trash_result := UIK.panel_begin_interactive("reset_paint", trash_desc.panel);
-    trash_icon_box := UIK.layout_column();
-    trash_icon_box.width = UIK.pixels(42);
-    trash_icon_box.height = UIK.pixels(48);
-    trash_icon_box.cross_align = .CENTER;
-    trash_icon_box.main_align = .CENTER;
-    UIK.panel_begin(trash_icon_box);
-    UIK.image_fitted(get_asset(Texture_Asset, "trash_can_icon.png"), UIK.image_desc(.CONTAIN));
-    UIK.panel_end();
-    UIK.panel_end();
-
-    pick_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREY);
-    if player.eyedropper_active { pick_desc = UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN); }
-    pick_desc.panel.width = UIK.pixels(PICKER_UNDO_W);
-    pick_desc.panel.height = UIK.pixels(PICKER_UNDO_H);
-    pick_desc.panel.cross_align = .CENTER;
-    pick_desc.panel.main_align = .CENTER;
-    pick_desc.panel.padding = v4.{0, 0, 0, 0};
-    pick_result := UIK.panel_begin_interactive("picker_eyedrop", pick_desc.panel);
-    pick_icon_box := UIK.layout_column();
-    pick_icon_box.width = UIK.pixels(48);
-    pick_icon_box.height = UIK.pixels(48);
-    pick_icon_box.cross_align = .CENTER;
-    pick_icon_box.main_align = .CENTER;
-    UIK.panel_begin(pick_icon_box);
-    UIK.image_fitted(get_asset(Texture_Asset, "pickericon.png"), UIK.image_desc(.CONTAIN));
-    UIK.panel_end();
-    UIK.panel_end();
-
-    line_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREY);
-    if player.line_tool_active { line_desc = UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN); }
-    line_desc.panel.width = UIK.pixels(PICKER_LINE_W);
-    line_desc.panel.height = UIK.pixels(PICKER_UNDO_H);
-    line_desc.panel.cross_align = .CENTER;
-    line_desc.panel.main_align = .CENTER;
-    line_desc.panel.padding = v4.{0, 0, 0, 0};
-    line_result := UIK.panel_begin_interactive("picker_line_tool", line_desc.panel);
-    line_icon_box := UIK.layout_column();
-    line_icon_box.width = UIK.pixels(48);
-    line_icon_box.height = UIK.pixels(48);
-    line_icon_box.cross_align = .CENTER;
-    line_icon_box.main_align = .CENTER;
-    UIK.panel_begin(line_icon_box);
-    UIK.image_fitted(get_asset(Texture_Asset, "linetool.png"), UIK.image_desc(.CONTAIN));
-    UIK.panel_end();
-    UIK.panel_end();
-
-    bucket_desc := UIK.widget_desc_button_default(.BUTTON_BASIC_GREY);
-    if player.paint_bucket_active { bucket_desc = UIK.widget_desc_button_default(.BUTTON_BASIC_GREEN); }
-    bucket_desc.panel.width = UIK.pixels(PICKER_BUCKET_W);
-    bucket_desc.panel.height = UIK.pixels(PICKER_UNDO_H);
-    bucket_desc.panel.cross_align = .CENTER;
-    bucket_desc.panel.main_align = .CENTER;
-    bucket_desc.panel.padding = v4.{0, 0, 0, 0};
-    bucket_result := UIK.panel_begin_interactive("paint_bucket_tool", bucket_desc.panel);
-    bucket_icon_box := UIK.layout_column();
-    bucket_icon_box.width = UIK.pixels(48);
-    bucket_icon_box.height = UIK.pixels(48);
-    bucket_icon_box.cross_align = .CENTER;
-    bucket_icon_box.main_align = .CENTER;
-    UIK.panel_begin(bucket_icon_box);
-    UIK.image_fitted(get_asset(Texture_Asset, "paintbucket.png"), UIK.image_desc(.CONTAIN));
-    UIK.panel_end();
-    UIK.panel_end();
-
-    UIK.panel_end();
-
-    if UIK.clicked(trash_result) {
-        reset_paint_to_base(player);
-    }
-    if UIK.clicked(pick_result) {
-        player.eyedropper_active = !player.eyedropper_active;
-        if player.eyedropper_active {
-            player.line_tool_active = false;
-            player.line_anchor_set = false;
-            player.paint_bucket_active = false;
-        }
-    }
-    if UIK.clicked(line_result) {
-        player.line_tool_active = !player.line_tool_active;
-        player.line_anchor_set = false;
-        if player.line_tool_active {
-            player.eyedropper_active = false;
-            player.paint_bucket_active = false;
-        }
-    }
-    if UIK.clicked(bucket_result) {
-        player.paint_bucket_active = !player.paint_bucket_active;
-        if player.paint_bucket_active {
-            player.eyedropper_active = false;
-            player.line_tool_active = false;
-            player.line_anchor_set = false;
-        }
-    }
-}
-
 hsv_to_rgb :: proc(h: float, s: float, v: float, a: float = 1.0) -> v4 {
     hh := clamp(h, 0, 1) * 6.0;
     i  := hh.(s64);              // floor (hh is non-negative)
@@ -1074,13 +768,12 @@ draw_color_picker :: proc(player: Player) {
     defer UI.pop_layer();
 
     panel := picker_panel_rect();
-    UI.quad(panel, core_globals.white_sprite, v4.{0.10, 0.10, 0.13, 0.88});
 
     work := panel.inset(PICKER_PAD);
     label_row := work.cut_bottom(PICKER_LABEL_H);
     work.cut_bottom(PICKER_GAP);
     brush_row := work.cut_bottom(PICKER_BRUSH_H);
-    brush_label_row := work.cut_bottom(PICKER_BRUSH_LABEL_H);
+    work.cut_bottom(PICKER_BRUSH_LABEL_H);
     work.cut_bottom(PICKER_GAP);
     hue_rect := work.cut_right(PICKER_HUE_W);
     work.cut_right(PICKER_GAP);
@@ -1132,13 +825,6 @@ draw_color_picker :: proc(player: Player) {
     UI.quad(hm.grow(7, 7, 7, 7), core_globals.white_sprite, v4.{0, 0, 0, 1});
     UI.quad(hm.grow(3, 7, 3, 7), core_globals.white_sprite, v4.{1, 1, 1, 1});
 
-    brush_label_ts := UI.default_text_settings();
-    brush_label_ts.size = 34;
-    brush_label_ts.color = v4.{1, 1, 1, 1};
-    brush_label_ts.halign = .CENTER;
-    brush_label_ts.valign = .CENTER;
-    UI.text(brush_label_row, brush_label_ts, "Brush Size");
-
     brush_frac := clamp((player.brush_radius - BRUSH_MIN) / (BRUSH_MAX - BRUSH_MIN), 0, 1);
     track := brush_row.subrect(0, 0.18, 1, 0.82);
     UI.quad(track, core_globals.white_sprite, v4.{0, 0, 0, 0.55});
@@ -1151,12 +837,5 @@ draw_color_picker :: proc(player: Player) {
     label_row.cut_left(PICKER_GAP);
     UI.quad(swatch, core_globals.white_sprite, v4.{0, 0, 0, 1});
     UI.quad(swatch.inset(3), core_globals.white_sprite, hsv_to_rgb(player.picker_h, player.picker_s, player.picker_v, 1.0));
-
-    ts := UI.default_text_settings();
-    ts.size = 40;
-    ts.color = v4.{1, 1, 1, 1};
-    ts.halign = .LEFT;
-    ts.valign = .CENTER;
-    UI.text(label_row, ts, `Brush: {(player.brush_radius + 0.5).(s64)}px`);
 
 }

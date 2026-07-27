@@ -1,0 +1,483 @@
+paintgame_ui_document: UIDoc_Asset;
+
+initialize_paintgame_ui :: proc() {
+    paintgame_ui_document = get_asset(UIDoc_Asset, "ui/paintgame.uidoc");
+}
+
+on_paintgame_ui_event :: proc(event: UIDoc_Event, userdata: Object) {
+    player := userdata.(Player);
+    if !#alive(player) { return; }
+
+    if event.handler == "paint_mode_button" {
+        if player.paint_mode {
+            exit_paint_mode(player);
+        } else {
+            enter_paint_mode(player);
+        }
+        return;
+    }
+    if event.handler == "hide_game_ui_button" {
+        if player.paint_mode {
+            player.hide_game_ui = !player.hide_game_ui;
+        }
+        return;
+    }
+    if event.handler == "emotes_button" {
+        if player.hide_seek_role != .SEEKER {
+            player.emotes_open = !player.emotes_open;
+        }
+        return;
+    }
+    if event.handler == "close_emotes" {
+        player.emotes_open = false;
+        return;
+    }
+    if event.handler == "emote_pose" {
+        if event.key == "Balancing" {
+            player.active_pose = 1;
+        } else if event.key == "Idle" {
+            player.active_pose = 2;
+        } else if event.key == "Star" {
+            player.active_pose = 3;
+        } else if event.key == "T Pose" {
+            player.active_pose = 4;
+        }
+        player.emotes_open = false;
+        return;
+    }
+    if event.handler == "stop_emote" {
+        player.active_pose = 0;
+        player.emotes_open = false;
+        return;
+    }
+    if event.handler == "reset_paint" {
+        reset_paint_to_base(player);
+        return;
+    }
+    if event.handler == "picker_eyedrop" {
+        player.eyedropper_active = !player.eyedropper_active;
+        if player.eyedropper_active {
+            player.line_tool_active = false;
+            player.line_anchor_set = false;
+            player.paint_bucket_active = false;
+        }
+        return;
+    }
+    if event.handler == "picker_line_tool" {
+        player.line_tool_active = !player.line_tool_active;
+        player.line_anchor_set = false;
+        if player.line_tool_active {
+            player.eyedropper_active = false;
+            player.paint_bucket_active = false;
+        }
+        return;
+    }
+    if event.handler == "paint_bucket_tool" {
+        player.paint_bucket_active = !player.paint_bucket_active;
+        if player.paint_bucket_active {
+            player.eyedropper_active = false;
+            player.line_tool_active = false;
+            player.line_anchor_set = false;
+        }
+        return;
+    }
+    if event.handler == "role_reveal_close" {
+        remaining := player.role_reveal_end_time - get_time();
+        if remaining > 0.5 {
+            player.role_reveal_end_time = get_time() + 0.5;
+        }
+    }
+}
+
+bind_uidoc_countdown :: proc(game: Hide_Seek_Game) {
+    remaining := max(0.0, game.phase_end_time - get_time());
+    total_seconds := remaining.(s64);
+    fraction := remaining - total_seconds.(float);
+    tick_age := 1.0 - fraction;
+    punch_t := clamp(tick_age / 0.28, 0, 1);
+    scale := lerp(1.18, 1.0, punch_t);
+    red := total_seconds > 0 && total_seconds <= 10 && total_seconds % 2 == 0;
+
+    UI.uidoc_bind_text("timer.seconds", `{total_seconds}`);
+    UI.uidoc_bind_float("timer.scale", scale);
+    UI.uidoc_bind_bool("timer.red", red);
+    UI.uidoc_bind_bool("timer.yellow", !red);
+}
+
+bind_uidoc_ranking_color :: proc(color: Color_Replace_Color) {
+    color_default := 0.0;
+    color_red := 0.0;
+    color_cyan := 0.0;
+    color_green := 0.0;
+    color_yellow := 0.0;
+    color_light_green := 0.0;
+    color_pink := 0.0;
+    color_orange := 0.0;
+    color_black := 0.0;
+    color_purple := 0.0;
+    color_light_gray := 0.0;
+    color_blue := 0.0;
+    color_brown := 0.0;
+    color_green_three := 0.0;
+    color_orange_two := 0.0;
+    color_purple_two := 0.0;
+    color_purple_three := 0.0;
+    color_red_two := 0.0;
+    color_white := 0.0;
+
+    switch color {
+        case .RED:         color_red = 1.0;
+        case .CYAN:        color_cyan = 1.0;
+        case .GREEN:       color_green = 1.0;
+        case .YELLOW:      color_yellow = 1.0;
+        case .LIGHT_GREEN: color_light_green = 1.0;
+        case .PINK:        color_pink = 1.0;
+        case .ORANGE:      color_orange = 1.0;
+        case .BLACK:       color_black = 1.0;
+        case .PURPLE:      color_purple = 1.0;
+        case .LIGHT_GRAY:  color_light_gray = 1.0;
+        case .BLACK2:      color_black = 1.0;
+        case .BLUE2:       color_blue = 1.0;
+        case .BROWN1:      color_brown = 1.0;
+        case .GREEN3:      color_green_three = 1.0;
+        case .ORANGE2:     color_orange_two = 1.0;
+        case .PURPLE2:     color_purple_two = 1.0;
+        case .PURPLE3:     color_purple_three = 1.0;
+        case .RED2:        color_red_two = 1.0;
+        case .WHITE1:      color_white = 1.0;
+        default:           color_default = 1.0;
+    }
+
+    UI.uidoc_list_bind_float("colorDefault", color_default);
+    UI.uidoc_list_bind_float("colorRed", color_red);
+    UI.uidoc_list_bind_float("colorCyan", color_cyan);
+    UI.uidoc_list_bind_float("colorGreen", color_green);
+    UI.uidoc_list_bind_float("colorYellow", color_yellow);
+    UI.uidoc_list_bind_float("colorLightGreen", color_light_green);
+    UI.uidoc_list_bind_float("colorPink", color_pink);
+    UI.uidoc_list_bind_float("colorOrange", color_orange);
+    UI.uidoc_list_bind_float("colorBlack", color_black);
+    UI.uidoc_list_bind_float("colorPurple", color_purple);
+    UI.uidoc_list_bind_float("colorLightGray", color_light_gray);
+    UI.uidoc_list_bind_float("colorBlue", color_blue);
+    UI.uidoc_list_bind_float("colorBrown", color_brown);
+    UI.uidoc_list_bind_float("colorGreenThree", color_green_three);
+    UI.uidoc_list_bind_float("colorOrangeTwo", color_orange_two);
+    UI.uidoc_list_bind_float("colorPurpleTwo", color_purple_two);
+    UI.uidoc_list_bind_float("colorPurpleThree", color_purple_three);
+    UI.uidoc_list_bind_float("colorRedTwo", color_red_two);
+    UI.uidoc_list_bind_float("colorWhite", color_white);
+}
+
+bind_uidoc_ranking :: proc(player: Player, game: Hide_Seek_Game, visible: bool) {
+    ranking_visible := visible && (game.phase == .HIDING || game.phase == .HUNTING || game.phase == .REVEAL);
+    UI.uidoc_bind_bool("ranking.visible", ranking_visible);
+    remaining := max(0.0, game.next_publish_time - get_time());
+    UI.uidoc_bind_text("ranking.next", `{remaining.(s64)}`);
+
+    players: [..]Player;
+    for entry: component_iterator(Player) { players.append(entry); }
+    if players.count > 1 {
+        for i: 1..players.count - 1 {
+            j := i;
+            while j > 0 && players[j].published_score > players[j - 1].published_score {
+                swap := players[j];
+                players[j] = players[j - 1];
+                players[j - 1] = swap;
+                j -= 1;
+            }
+        }
+    }
+
+    UI.uidoc_begin_list("rankingEntries");
+    shown := players.count;
+    if shown > LEADERBOARD_MAX_ROWS { shown = LEADERBOARD_MAX_ROWS; }
+    if shown > 0 {
+        for i: 0..shown - 1 {
+            entry := players[i];
+            key := entry.get_user_id();
+            if key == "" { key = entry.get_username(); }
+            UI.uidoc_list_item(key);
+            UI.uidoc_list_bind_text("rank", `#{i + 1}`);
+            UI.uidoc_list_bind_text("name", entry.get_username());
+            UI.uidoc_list_bind_text("score", `{entry.published_score}`);
+            bind_uidoc_ranking_color(entry.avatar_color);
+        }
+    }
+    UI.uidoc_end_list();
+}
+
+bind_uidoc_found_feed :: proc(game: Hide_Seek_Game, visible: bool) {
+    show := visible &&
+        get_time() < game.found_feed_end_time &&
+        game.found_feed_seeker_name != "" &&
+        game.found_feed_hider_name != "";
+    UI.uidoc_bind_bool("found.visible", show);
+
+    message := "";
+    alpha := 0.0;
+    y_offset := 70.0;
+    scale := 1.0;
+    if show {
+        elapsed := max(0.0, get_time() - game.found_feed_start_time);
+        remaining := max(0.0, game.found_feed_end_time - get_time());
+        fade_in := clamp(elapsed / 0.4, 0, 1);
+        fade_out := clamp(remaining, 0, 1);
+        alpha = min(fade_in, fade_out);
+        rise_t := Ease.out_cubic(fade_in);
+        y_offset = lerp(0.0, -80.0, rise_t);
+        message = `{game.found_feed_seeker_name} found {game.found_feed_hider_name}`;
+        scale = clamp(24.0 / max(24.0, message.count.(float)), 0.45, 0.85);
+    }
+
+    UI.uidoc_bind_text("found.message", message);
+    UI.uidoc_bind_float("found.opacity", alpha);
+    UI.uidoc_bind_float("found.y", y_offset);
+    UI.uidoc_bind_float("found.scale", scale);
+}
+
+bind_uidoc_banners :: proc(player: Player, game: Hide_Seek_Game, visible: bool) {
+    hide_visible := false;
+    hide_alpha := 0.0;
+    if visible && game.phase == .HIDING && player.hide_seek_role == .HIDER {
+        elapsed := HIDE_PHASE_SECONDS - max(0.0, game.phase_end_time - get_time());
+        hide_visible = elapsed >= 0 && elapsed < 4.0;
+        hide_alpha = clamp(4.0 - elapsed, 0, 1);
+    }
+
+    found_remaining := player.found_banner_end_time - get_time();
+    found_visible := visible && found_remaining > 0;
+    found_alpha := clamp(found_remaining, 0, 1);
+
+    search_visible := false;
+    search_alpha := 0.0;
+    if visible && game.phase == .HUNTING {
+        elapsed := HUNT_PHASE_SECONDS - max(0.0, game.phase_end_time - get_time());
+        if elapsed >= 0 && elapsed < 3.0 {
+            fade_in := clamp(elapsed / 0.4, 0, 1);
+            fade_out := clamp(3.0 - elapsed, 0, 1);
+            search_visible = true;
+            search_alpha = min(fade_in, fade_out);
+        }
+    }
+
+    UI.uidoc_bind_bool("banner.hideVisible", hide_visible);
+    UI.uidoc_bind_float("banner.hideOpacity", hide_alpha);
+    UI.uidoc_bind_bool("banner.foundVisible", found_visible);
+    UI.uidoc_bind_float("banner.foundOpacity", found_alpha);
+    UI.uidoc_bind_bool("banner.searchVisible", search_visible);
+    UI.uidoc_bind_float("banner.searchOpacity", search_alpha);
+}
+
+bind_uidoc_round_hud :: proc(player: Player, game: Hide_Seek_Game, visible: bool) {
+    waiting := game.phase == .WAITING_FOR_PLAYERS;
+    starting_vote := game.phase == .STARTING_MAP_SELECTION;
+    starting_game := game.phase == .STARTING_GAME;
+    active := game.phase == .HIDING || game.phase == .HUNTING;
+    hud_visible := visible && game.phase != .MAP_SELECTION && game.phase != .REVEAL;
+
+    UI.uidoc_bind_bool("round.hudVisible", hud_visible);
+    UI.uidoc_bind_bool("round.waiting", waiting);
+    UI.uidoc_bind_bool("round.startingVote", starting_vote);
+    UI.uidoc_bind_bool("round.startingGame", starting_game);
+    UI.uidoc_bind_bool("round.active", active);
+    UI.uidoc_bind_bool("round.fullWidth", waiting || starting_game);
+    UI.uidoc_bind_text("round.title", hide_seek_phase_title(game, player));
+
+    connected_players := 0;
+    for connected_player: component_iterator(Player) { connected_players += 1; }
+    UI.uidoc_bind_text("round.players", `{connected_players}/{game.min_players} Players`);
+    UI.uidoc_bind_text("round.seekers", `{game.seekers}`);
+    UI.uidoc_bind_text("round.hiders", `{game.hiders_left}`);
+
+    caption := hide_seek_phase_title(game, player);
+    if game.phase == .HIDING { caption = "Until Search Starts"; }
+    UI.uidoc_bind_text("round.caption", caption);
+
+    whistle_remaining := max(0.0, game.next_forced_whistle_time - get_time());
+    UI.uidoc_bind_bool("round.whistleVisible", active && game.phase == .HUNTING);
+    UI.uidoc_bind_text("round.whistle", `Whistle {whistle_remaining.(s64)}`);
+}
+
+bind_uidoc_vote :: proc(player: Player, game: Hide_Seek_Game) {
+    vote_visible := game.phase == .MAP_SELECTION;
+    UI.uidoc_bind_bool("vote.visible", vote_visible);
+
+    for i: 0..MAP_COUNT - 1 {
+        fill := 0.0;
+        if player.map_vote == i {
+            fill = 100.0;
+        } else if player.map_vote_hold_index == i {
+            fill = clamp(player.map_vote_hold_t / MAP_VOTE_HOLD_SECONDS, 0.0, 1.0) * 100.0;
+        }
+        hint := "Click and hold to vote";
+        if player.map_vote == i { hint = "Voted"; }
+        UI.uidoc_bind_float(`vote.{i}.fill`, fill);
+        UI.uidoc_bind_text(`vote.{i}.hint`, hint);
+        UI.uidoc_bind_text(`vote.{i}.count`, `Votes: {game.map_votes[i]}`);
+    }
+}
+
+bind_uidoc_role_reveal :: proc(player: Player, game: Hide_Seek_Game, visible: bool) {
+    show := visible && get_time() < player.role_reveal_end_time && game.phase == .HIDING;
+    remaining := max(0.0, player.role_reveal_end_time - get_time());
+    progress := clamp(1.0 - remaining / ROLE_REVEAL_SECONDS, 0, 1);
+    alpha := Ease.fade_in_and_out(0.1, 1.0, progress);
+    slide := Ease.slide_in_and_out(0.1, 1.0, progress);
+
+    UI.uidoc_bind_bool("role.visible", show);
+    UI.uidoc_bind_bool("role.hider", player.hide_seek_role != .SEEKER);
+    UI.uidoc_bind_bool("role.seeker", player.hide_seek_role == .SEEKER);
+    UI.uidoc_bind_float("role.opacity", alpha);
+    UI.uidoc_bind_float("role.slideX", slide * 100.0);
+    UI.uidoc_bind_float("role.progress", progress * 100.0);
+}
+
+bind_uidoc_victory :: proc(player: Player, game: Hide_Seek_Game, visible: bool) {
+    show := visible && game.phase == .REVEAL;
+    seekers_won := game.winner == .SEEKERS;
+    player_won := (seekers_won && player.hide_seek_role == .SEEKER) ||
+        (!seekers_won && player.hide_seek_role == .HIDER);
+    remaining := max(0.0, game.phase_end_time - get_time());
+
+    UI.uidoc_bind_bool("victory.visible", show);
+    UI.uidoc_bind_bool("victory.seekers", seekers_won);
+    UI.uidoc_bind_bool("victory.hiders", !seekers_won);
+    UI.uidoc_bind_bool("victory.playerWon", player_won);
+    UI.uidoc_bind_bool("victory.playerLost", !player_won);
+    UI.uidoc_bind_text("victory.return", `Returning to lobby in {remaining.(s64)}s`);
+}
+
+draw_game_uidoc :: proc(player: Player, dt: float) {
+    if paintgame_ui_document == null {
+        initialize_paintgame_ui();
+    }
+
+    UI.uidoc_clear_bindings();
+
+    voting_focus := hide_seek_voting_focus_active();
+    ordinary_ui_visible := !voting_focus && !player.hide_game_ui;
+    paint_actions_visible := !voting_focus && player.hide_seek_role != .SEEKER;
+    picker_visible := !voting_focus && player.paint_mode && player.picker_open && !player.hide_game_ui;
+
+    UI.uidoc_bind_bool("paint.actionsVisible", paint_actions_visible);
+    UI.uidoc_bind_bool("paint.active", player.paint_mode);
+    UI.uidoc_bind_bool("paint.inactive", !player.paint_mode);
+    hide_label := "Hide UI";
+    if player.hide_game_ui { hide_label = "Show UI"; }
+    UI.uidoc_bind_text("paint.hideLabel", hide_label);
+    UI.uidoc_bind_bool("paint.pickerVisible", picker_visible);
+    UI.uidoc_bind_text("paint.brushLabel", `Brush: {(player.brush_radius + 0.5).(s64)}px`);
+    UI.uidoc_bind_bool("paint.pickOn", player.eyedropper_active);
+    UI.uidoc_bind_bool("paint.pickOff", !player.eyedropper_active);
+    UI.uidoc_bind_bool("paint.lineOn", player.line_tool_active);
+    UI.uidoc_bind_bool("paint.lineOff", !player.line_tool_active);
+    UI.uidoc_bind_bool("paint.bucketOn", player.paint_bucket_active);
+    UI.uidoc_bind_bool("paint.bucketOff", !player.paint_bucket_active);
+
+    UI.uidoc_bind_bool("emote.buttonVisible", ordinary_ui_visible && player.hide_seek_role != .SEEKER);
+    UI.uidoc_bind_bool("emote.open", !voting_focus && player.emotes_open);
+
+    UI.uidoc_bind_bool("zoom.visible", !voting_focus && player.paint_mode);
+    UI.uidoc_bind_float("zoom.handleY", player.zoom_t * -146.0);
+
+    game := get_hide_seek_game();
+    if #alive(game) {
+        bind_uidoc_countdown(game);
+        bind_uidoc_round_hud(player, game, ordinary_ui_visible);
+        bind_uidoc_ranking(player, game, ordinary_ui_visible);
+        bind_uidoc_found_feed(game, ordinary_ui_visible);
+        bind_uidoc_banners(player, game, ordinary_ui_visible);
+        bind_uidoc_vote(player, game);
+        bind_uidoc_role_reveal(player, game, ordinary_ui_visible);
+        bind_uidoc_victory(player, game, ordinary_ui_visible);
+    } else {
+        UI.uidoc_bind_text("timer.seconds", "0");
+        UI.uidoc_bind_float("timer.scale", 1.0);
+        UI.uidoc_bind_bool("timer.red", false);
+        UI.uidoc_bind_bool("timer.yellow", true);
+        UI.uidoc_bind_bool("round.hudVisible", false);
+        UI.uidoc_bind_bool("ranking.visible", false);
+        UI.uidoc_bind_bool("found.visible", false);
+        UI.uidoc_bind_bool("banner.hideVisible", false);
+        UI.uidoc_bind_bool("banner.foundVisible", false);
+        UI.uidoc_bind_bool("banner.searchVisible", false);
+        UI.uidoc_bind_bool("vote.visible", false);
+        UI.uidoc_bind_bool("role.visible", false);
+        UI.uidoc_bind_bool("victory.visible", false);
+        UI.uidoc_begin_list("rankingEntries");
+        UI.uidoc_end_list();
+    }
+
+    UI.uidoc(paintgame_ui_document, false, player, on_paintgame_ui_event);
+}
+
+draw_map_vote_hold_input :: proc(player: Player, dt: float) {
+    game := get_hide_seek_game();
+    if !#alive(game) || game.phase != .MAP_SELECTION { return; }
+
+    UI.push_screen_draw_context();
+    defer UI.pop_draw_context();
+    UI.push_layer(121);
+    defer UI.pop_layer();
+
+    screen := UI.get_safe_screen_rect();
+    for i: 0..MAP_COUNT - 1 {
+        offset_x := (i - 1).(float) * (MAP_CARD_WIDTH + 24.0);
+        center := screen.center_rect().offset(offset_x, 70.0);
+        rect := center.grow(310.0, MAP_CARD_WIDTH * 0.5, 310.0, MAP_CARD_WIDTH * 0.5);
+        result := picker_hit(rect, `map_vote_{i}`);
+        if result.pressed {
+            if player.map_vote_hold_index != i {
+                player.map_vote_hold_index = i;
+                player.map_vote_hold_t = 0;
+            }
+            player.map_vote_hold_t += dt;
+            if player.map_vote_hold_t >= MAP_VOTE_HOLD_SECONDS {
+                player.map_vote = i;
+            }
+        } else if player.map_vote_hold_index == i {
+            player.map_vote_hold_index = -1;
+            player.map_vote_hold_t = 0;
+        }
+    }
+}
+
+draw_victory_confetti_uidoc :: proc(player: Player, dt: float) {
+    game := get_hide_seek_game();
+    if !#alive(game) || game.phase != .REVEAL || player.hide_game_ui {
+        if player.victory_confetti != null {
+            player.victory_confetti.destroy();
+            player.victory_confetti = null;
+        }
+        return;
+    }
+
+    player_won := (game.winner == .SEEKERS && player.hide_seek_role == .SEEKER) ||
+        (game.winner != .SEEKERS && player.hide_seek_role == .HIDER);
+    if !player_won {
+        if player.victory_confetti != null {
+            player.victory_confetti.destroy();
+            player.victory_confetti = null;
+        }
+        return;
+    }
+
+    remaining := max(0.0, game.phase_end_time - get_time());
+    elapsed := VICTORY_SCREEN_SECONDS - remaining;
+    if player.victory_confetti == null {
+        player.victory_confetti = Spine_Instance.create();
+        player.victory_confetti.set_skeleton(get_asset(Spine_Asset, "ConfettiSpine/004RAND_confetti.spine"));
+        player.victory_confetti.set_animation("Confetti_Explosion", false, 0);
+    }
+    player.victory_confetti.update(dt * 0.4);
+    screen := UI.get_safe_screen_rect();
+    confetti_scale := max(screen.width() / 5.76, screen.height() / 4.53) * 1.35;
+    rain_t := Ease.in_out_cubic(clamp(elapsed / 3.0, 0, 1));
+    rain_y := lerp(screen.height() * 0.38, screen.height() * -0.18, rain_t);
+    UI.push_screen_draw_context();
+    defer UI.pop_draw_context();
+    UI.push_layer(151);
+    defer UI.pop_layer();
+    UI.spine(screen.center() + v2.{0, rain_y}, player.victory_confetti, v2.{confetti_scale, confetti_scale}, 0);
+}
