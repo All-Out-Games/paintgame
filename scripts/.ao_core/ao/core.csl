@@ -815,7 +815,7 @@ Live_Event_Presenter :: struct {
     slot: int;
     display_name: string;
     is_speaking: bool;
-    // Client-local and intentionally absent from normal scene/component queries.
+    // Always null while the live-event scripting API is stubbed.
     ghost: Entity;
 }
 
@@ -2210,6 +2210,16 @@ SFX :: struct {
     }
 }
 
+Haptics :: struct {
+    Impact_Type :: enum {
+        LIGHT;
+        MEDIUM;
+        HEAVY;
+    }
+
+    play_impact :: proc(impact_type: Impact_Type) #foreign "haptics_play_impact";
+}
+
 //
 // Voice
 //
@@ -3185,15 +3195,14 @@ draw_ability_button :: proc(player: Player, $T: typeid, index: int) {
                     keybind = ability.keybind_override;
                 }
                 should_draw_keybind = true;
-
-                if !ability.draw_but_dont_use_keybind {
-                    should_draw_keybind = true;
-                }
             }
         }
 
         #static bs := UI.default_button_settings();
         bs.keybind = keybind;
+        if ability.draw_but_dont_use_keybind {
+            bs.keybind = 0;
+        }
         bs.sprite = button_sprite;
         bs.sprite_pressed = button_pressed_sprite;
         bs.press_scaling = 1;
@@ -3219,7 +3228,10 @@ draw_ability_button :: proc(player: Player, $T: typeid, index: int) {
                 }
                 else {
                     #static ts := UI.default_text_settings();
-                    UI.text(keybind_rect, ts, Keybinds.get_keybind_string(player, keybind));
+                    keybind_string := Keybinds.get_keybind_string(player, keybind);
+                    if keybind_string != "Unbound" {
+                        UI.text(keybind_rect, ts, keybind_string);
+                    }
                 }
             }
 

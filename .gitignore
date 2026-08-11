@@ -25,3 +25,4 @@ res/.upload_cache
 AGENTS.md
 CLAUDE.md
 ao_debug.lock
+opencode.json
