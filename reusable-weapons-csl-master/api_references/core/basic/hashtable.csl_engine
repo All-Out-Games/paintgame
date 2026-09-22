@@ -1,4 +1,4 @@
-Hashtable :: struct($Key: typeid, $Value: typeid) {
+Hashtable :: struct(Key: typeid, Value: typeid) {
     Hashtable_Entry :: struct {
         hash:  u64;
         key:   Key;
@@ -140,7 +140,7 @@ Hashtable :: struct($Key: typeid, $Value: typeid) {
         return entries[index].hash != HASH_EMPTY;
     }
 
-    find :: method(key: Key) -> Value, bool {
+    find :: method(key: Key) -> (Value, bool) {
         if capacity == 0 {
             return {}, false;
         }

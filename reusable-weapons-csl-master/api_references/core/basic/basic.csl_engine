@@ -45,6 +45,13 @@ memcpy :: proc(dst: *u8, src: *u8, count: int) #foreign "csl_memcpy";
 
 
 
+Math :: struct {
+    exp :: proc(v: f32) -> f32 #intrinsic "exp_f32";
+    exp :: proc(v: f64) -> f64 #intrinsic "exp_f64";
+    log :: proc(v: f32) -> f32 #intrinsic "log_f32";
+    log :: proc(v: f64) -> f64 #intrinsic "log_f64";
+}
+
 sin   :: proc(v: float) -> float #intrinsic "sin_f32";
 sin   :: proc(v: f64) -> f64 #intrinsic "sin_f64";
 cos   :: proc(v: float) -> float #intrinsic "cos_f32";
@@ -94,6 +101,15 @@ to_upper    :: proc(str: string) -> string #foreign;
 rng_seed        :: proc(seed: u64)                          -> u64   #foreign;
 rng_range_float :: proc(rng: ref u64, lo: float, hi: float) -> float #foreign;
 rng_range_int   :: proc(rng: ref u64, lo: s64,   hi: s64)   -> s64   #foreign;
+
+mix_u64 :: proc(a: u64, b: u64) -> u64 {
+    a += b + 0x9e3779b97f4a7c15;
+    a = (a ^ (a >> 30)) * 0xbf58476d1ce4e5b9;
+    a = (a ^ (a >> 27)) * 0x94d049bb133111eb;
+    return a ^ (a >> 31);
+}
+
+rng_mix :: proc(rng: ref u64, value: u64) { rng = mix_u64(rng, value); }
 
 rng_shuffle :: proc(rng: ref u64, array: []$T) {
     for i: 0..array.count-1 {
@@ -281,38 +297,45 @@ dot :: proc(a: v4, b: v4) -> float {
 
 PI :: 3.14159265359;
 
-lerp :: proc(a: $T, b: T, t: float) -> T {
-    return a + (b - a) * t;
-}
+lerp :: proc(a: v2, b: v2, t: float) -> v2 { return a + (b - a) * t; }
+lerp :: proc(a: v3, b: v3, t: float) -> v3 { return a + (b - a) * t; }
+lerp :: proc(a: v4, b: v4, t: float) -> v4 { return a + (b - a) * t; }
+lerp :: proc(a: float, b: float, t: float) -> float { return a + (b - a) * t; }
 
-clamp :: proc(a: $T, min: T, max: T) -> T {
-    if a < min {
-        return min;
-    }
-    if a > max {
-        return max;
-    }
+clamp :: proc(a: int, min: int, max: int) -> int {
+    if a < min return min;
+    if a > max return max;
     return a;
 }
 
-max :: proc(a: $T, b: T) -> T {
-    if a > b {
-        return a;
-    }
+clamp :: proc(a: float, min: float, max: float) -> float {
+    if a < min return min;
+    if a > max return max;
+    return a;
+}
+
+max :: proc(a: float, b: float) -> float {
+    if a > b return a;
     return b;
 }
 
-min :: proc(a: $T, b: T) -> T {
-    if a < b {
-        return a;
-    }
+min :: proc(a: float, b: float) -> float {
+    if a < b return a;
+    return b;
+}
+
+max :: proc(a: int, b: int) -> int {
+    if a > b return a;
+    return b;
+}
+
+min :: proc(a: int, b: int) -> int {
+    if a < b return a;
     return b;
 }
 
 abs :: proc(a: $T) -> T {
-    if a < 0 {
-        return -a;
-    }
+    if a < 0 return -a;
     return a;
 }
 
