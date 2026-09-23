@@ -37,3 +37,23 @@ and the adjacent JSON. Publish inactive first using protocol 48 and
 the isolated local environment before activation. No engine, asset format,
 protocol or game-state layout change is required. This commit is preparation,
 not evidence of successful compilation or activation.
+
+## Inactive version validated
+
+The coordinator uploaded `6ab32e4e236e3076fa1bde1a` inactive at
+2026-09-23 01:41:36 UTC. It compiled successfully, protocol 48, build hash
+`8eb2ace7fc78a498`, 13,159,816 bytes versus 13,160,416 previously. Independent
+production readback confirms the old version is still active. Downloading the
+hosted source verifies the exact candidate SHA-256 above.
+
+The actual hosted compiled package passed an isolated full-dev Chrome check:
+correct version, scene and custom player rendering, trusted movement on all four
+WASD directions, zero page exceptions and no runtime merge. Screenshots show the
+colored player and paint/emote/roll UI in the waiting lobby. This is not a
+five-player round or exhaustive hide/reveal check. Fresh-storage, Mono, legacy
+shader and anonymous-avatar warnings are retained in the logs. No gameplay
+script, scene or remaining cooked rig changed in the filtered package.
+
+Evidence: `C:/allout-rig-startup-local/.codex-tmp/rig-startup/chameleon-staging-inactive-functional/`
+and `chameleon-staging-inactive-db-readback.json`. Ready to activate the existing
+candidate; no additional upload is needed.
