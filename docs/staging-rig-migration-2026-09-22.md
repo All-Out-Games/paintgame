@@ -57,3 +57,13 @@ script, scene or remaining cooked rig changed in the filtered package.
 Evidence: `C:/allout-rig-startup-local/.codex-tmp/rig-startup/chameleon-staging-inactive-functional/`
 and `chameleon-staging-inactive-db-readback.json`. Ready to activate the existing
 candidate; no additional upload is needed.
+
+## Release complete
+
+The coordinator activated this exact candidate at approximately 2026-09-23
+01:48:15 UTC. Independent production database readback confirms
+`6ab32e4e236e3076fa1bde1a` active, successful P48 build `8eb2ace7fc78a498`.
+Previous `6ab1f7514c1aefa488cac9f2` remains available for rollback. No extra upload,
+engine deployment, other staging/primary change or Player Fit test occurred.
+Functional validation used the actual hosted package locally; production
+readback verifies the active-version record. Do not repeat this release.
