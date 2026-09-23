@@ -854,17 +854,17 @@ update_reveal_pulse :: proc(player: Player) {
     game := get_hide_seek_game();
     if player.pending_found_end_time > get_time() && player.hide_seek_role == .HIDER {
         t := (sin(get_time() * 18.0) + 1.0) * 0.5;
-        player.animator.color_multiplier = v4.{1.0, lerp(1.0, 0.18, t), lerp(1.0, 0.18, t), 1.0};
+        player.animator.color = v4.{1.0, lerp(1.0, 0.18, t), lerp(1.0, 0.18, t), 1.0};
     } else if #alive(game) && game.phase == .REVEAL && player.hide_seek_role == .HIDER {
         t := (sin(get_time() * REVEAL_PULSE_SPEED) + 1.0) * 0.5;
         r := lerp(1.0, REVEAL_PULSE_RED.x, t);
         g := lerp(1.0, REVEAL_PULSE_RED.y, t);
         b := lerp(1.0, REVEAL_PULSE_RED.z, t);
-        player.animator.color_multiplier = v4.{r, g, b, 1.0};
+        player.animator.color = v4.{r, g, b, 1.0};
     } else {
-        c := player.animator.color_multiplier;
+        c := player.animator.color;
         c.x = 1.0; c.y = 1.0; c.z = 1.0;
-        player.animator.color_multiplier = c;
+        player.animator.color = c;
     }
 }
 
@@ -880,7 +880,7 @@ apply_hider_stealth :: proc(local: Player) {
     for other: component_iterator(Player) {
         if other.entity.id == local.entity.id { continue; }
         if other.animator == null { continue; }
-        c := other.animator.color_multiplier;
+        c := other.animator.color;
         caught_flickering := other.pending_found_end_time > get_time();
         hide_other := blind && other.hide_seek_role == .HIDER && !caught_flickering;
         if in_round && other.hide_seek_role == .LOBBY { hide_other = true; }
@@ -889,7 +889,7 @@ apply_hider_stealth :: proc(local: Player) {
         } else {
             c.w = 1;
         }
-        other.animator.color_multiplier = c;
+        other.animator.color = c;
     }
 }
 
